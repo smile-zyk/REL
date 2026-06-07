@@ -1,5 +1,5 @@
 # REL
-REL(ResultsView Expression Language/后处理表达式语言) 是一种对仿真结果进行计算的语言，主要用于后处理方程中的表达式的计算。
+REL(ResultsView Expression Language/后处理表达式语言) 是一种对仿真结果进行计算的语言，主要用于后处理表达式的计算。
 
 主要特点为：
 1. REL 是一种专用于基于多维仿真数据的结果计算表达式的DSL(Domain-Specific Language)
@@ -7,14 +7,24 @@ REL(ResultsView Expression Language/后处理表达式语言) 是一种对仿真
 3. REL 兼容Keysight ADS AEL Mesaure Expression的语法
 4. REL 支持使用Python拓展更多的函数
 
-一个REL方程的基本形式为：
+一个 REL 输入由单个表达式构成：
 ```REL
-equation_name = REL expression
+REL expression
 ```
+
+在宿主环境中，可以使用“标识符 = 表达式”的形式保存计算结果，例如：
+
+```text
+result_name = REL expression
+```
+
+该绑定形式属于宿主环境能力，不属于 REL 语法本身。
+
+> 形式化语法与规则请参考：`REL_Formal_Spec.md`
 
 ## REL表达式的构成
 REL表达式由以下元素按照一定的语法规则构成
-- 标识符(仿真节点/自定义方程/内建常量)
+- 标识符(仿真节点/自定义标识符/内建常量)
 - 字面量
 - 函数(内建函数/外部拓展)
 - 运算符
@@ -22,7 +32,7 @@ REL表达式由以下元素按照一定的语法规则构成
 
 ### 标识符
 #### 仿真节点
-仿真生成的变量在方程中的引用方式可以具有不同程度的简化。通常，一个仿真节点变量的完整名称定义如下：
+仿真生成的变量在表达式中的引用方式可以具有不同程度的简化。通常，一个仿真节点变量的完整名称定义如下：
 `DatasetName.AnalysisName.AnalysisType.VariableName`
 如果VariableName在整个Dataset的命名唯一，那么可以简写为:
 `DatasetName..VariableName`
@@ -35,15 +45,29 @@ REL表达式由以下元素按照一定的语法规则构成
 > 默认Dataset
 REL解释器在运行时可以设置一个默认Dataset，切换默认Dataset会改变变量的数据输入
 
-#### 自定义方程
-方程名的命名规则和Python的标识符命名规则一致,具体为：
-以字母或下划线开头，只能由字母、数字和下划线组成，且不能是**关键字**。
+#### 自定义标识符
+变量名和函数名统一使用如下标识符规则：
+
+- 以字母或下划线开头
+- 后续字符只能是字母、数字或下划线
+- 大小写敏感
+- 不能与关键字重名
+
+仿真节点引用使用点分段形式，支持以下形式：
+
+- 完整形式：`DatasetName.AnalysisName.AnalysisType.VariableName`
+- 数据集唯一变量简写：`DatasetName..VariableName`
+- 默认数据集下的完整分析路径：`AnalysisName.AnalysisType.VariableName`
+- 默认数据集且变量唯一时：`VariableName`
+
+其中每个名称段（`DatasetName`、`AnalysisName`、`AnalysisType`、`VariableName`）都必须满足标识符语法 `[A-Za-z_][A-Za-z0-9_]*`。
 
 #### 内建常量
 
 | 常量 | 描述 | 值 |
 |---|---|---|
-| `PI`（也可写作 `pi`） | 圆周率 | `3.1415926535898` |
+| `PI` | 圆周率 | `3.1415926535898` |
+| `pi` | 圆周率 | `3.1415926535898` |
 | `e` | 欧拉常数 | `2.718281822` |
 | `ln10` | 10 的自然对数 | `2.302585093` |
 | `boltzmann` | 玻尔兹曼常数 | `1.380658e-23 J/K` |
@@ -52,14 +76,14 @@ REL解释器在运行时可以设置一个默认Dataset，切换默认Dataset会
 | `c0` | 真空中的光速 | `2.99792e+08 m/s` |
 | `e0` | 真空介电常数 | `8.85419e-12 F/m` |
 | `u0` | 真空磁导率 | `12.5664e-07 H/m` |
-| `tinyReal` | 浮点数最小值 | `2.2e -308` |
-| `hugeReal` | 浮点数最大值 | `3.4e +38` |
+| `tinyReal` | 浮点数最小值 | `2.2e-308` |
+| `hugeReal` | 浮点数最大值 | `3.4e+38` |
 
 ### 函数
-函数的来源分为内建函数和python拓展函数，命名规则和Python的标识符命名规则一致。
+函数的来源分为内建函数和python拓展函数，命名规则与“自定义标识符”中的标识符规则一致。
 
 ### 字面量
-REL 支持的字面量形式和C语言基本一致，除了空值和虚数。支持的字面量形式有：
+REL 支持的字面量形式和C语言基本一致，并额外支持空值和虚数字面量。支持的字面量形式有：
 | 支持的字面量形式 | 描述 | 示例 |
 |---|---|---|
 | `NULL` | 空值 | `NULL` |
@@ -84,11 +108,13 @@ REL 支持的字面量形式和C语言基本一致，除了空值和虚数。支
 | `\xNN` | 十六进制表示的字符（`N` 为 `0`–`9` 或 `A`–`F`，大小写不敏感） |
 | `\0NNN` | 八进制表示的字符（`N` 为 `0`–`7`） |
 
-如果不希望对控制字符进行转换，可以使用**两个单引号**将字符串括起来，而不是使用双引号。例如：
+如果不希望对控制字符进行转换，可以使用**两个单引号**将字符串括起来，而不是使用双引号。该形式下不进行任何转义处理，反斜杠仅作为普通字符。例如：
 
 ```text
 '' \usr\local im.abc ''
 ```
+
+也就是说，这种写法会“原样保留字符”，仅在遇到下一对 `''` 时结束。
 
 #### 数值字面量的缩放因子与物理单位
 
@@ -101,6 +127,12 @@ REL 支持的字面量形式和C语言基本一致，除了空值和虚数。支
 3. 仅使用缩放因子（无单位）是合法的，例如 `8M`。
 4. 使用物理单位时，若未显式指定缩放因子，则默认缩放系数为 `1.0`。 
 5. 带物理单位的数值参与运算时，系统会依据量纲规则自动推导结果单位。
+
+补充约束：
+
+- 大小写严格敏感。
+- 当命中 `predefined_scaled_unit` 时，不允许再叠加 `scale_factor` 或再次拼接 `unit`。
+- 当 `scale_factor` 与 `unit` 同时出现时，顺序必须为 `scale_factor` 在前、`unit` 在后。
 
 - **支持的缩放因子**
 
@@ -161,45 +193,66 @@ REL 支持的字面量形式和C语言基本一致，除了空值和虚数。支
 
 ### 运算符及优先级
 
-REL 表达式按照**从左到右**的顺序求值，除非使用括号显式改变求值顺序。运算符按**优先级从高到低**排列，并按照**左结合**方式进行求值。  
-例如，`expr + expr / expr` 应解释为 `expr + (expr / expr)`，因为 `/` 的优先级高于 `+`。同样，`expr + expr - expr` 应解释为 `(expr + expr) - expr`，因为 `+` 和 `-` 具有相同优先级，且按从左到右的顺序求值。
+REL 表达式的优先级和结合性与 C 语言对齐（当 C 语言存在对应运算符时）。
+
+- C 对应运算符按 C 的优先级和结合性处理。
+- C 不存在的 REL 扩展运算符（如 `**`、`::`）按本节给出的规则处理。
+- 除 `**` 外，二元运算符默认左结合；`?:` 为右结合；一元运算符按前缀一元规则处理。
+
+例如，`expr + expr / expr` 解释为 `expr + (expr / expr)`。
 
 括号 `()`、索引运算符 `[]` 和矩阵生成运算符 `{}` 具有最高优先级。  
 一元运算符 `!`、`NOT`、`~` 和一元 `-` 次之。  
-之后依次是乘除取余、加减、关系比较、相等比较、按位异或、按位或、逻辑与、逻辑或、条件运算符、移位运算符、顺序求值运算符、幂运算符和序列运算符。
+之后依次是幂运算（REL 扩展）、乘除取余、加减、移位、关系比较、相等比较、按位异或、按位或、逻辑与、逻辑或、条件运算符和序列运算符（REL 扩展）。
 
 逻辑运算符 `!`、`NOT`、`&&`、`AND`、`||` 和 `OR` 用于逻辑判断。操作数会根据其逻辑值参与运算，运算结果为逻辑真或逻辑假。  
 其中，`&&` / `AND` 的右操作数仅在左操作数为真时才会被求值；`||` / `OR` 的右操作数仅在左操作数为假时才会被求值。
+
+REL 不支持注释语法（例如 `//` 或 `/* ... */` 均不属于语言语法）。
 
 | 优先级 | 运算符 | 名称 / 描述 | 示例 |
 |---|---|---|---|
 | 1 | `()` | 函数调用、矩阵索引 / 表达式分组 | `func(expr_list)`；`expr(expr_list)`；`(expr_list)`|
 | 1 | `[]` | sweep 索引器、sweep 生成器 | `expr[expr_list]`；`[expr_list]` |
 | 1 | `{}` | 矩阵生成器 | `{expr_list}` |
-| 2 | `!` / `NOT` | 逻辑非 | `!expr`；`NOT expr` |
-| 2 | `~` | 按位取反（一元） | `~expr` |
-| 2 | `-` | 一元负号（对值取负） | `-expr` |
-| 3 | `%` | 整数除法取余（模） | `expr % expr` |
-| 3 | `/` | 除法 | `expr / expr` |
-| 4 | `+` | 加法 | `expr + expr` |
-| 4 | `-` | 减法 | `expr - expr` |
-| 5 | `>=` | 大于等于 | `expr >= expr` |
-| 5 | `<=` | 小于等于 | `expr <= expr` |
-| 5 | `>` | 大于 | `expr > expr` |
-| 5 | `<` | 小于 | `expr < expr` |
-| 6 | `==` / `EQUALS` | 等于 | `expr == expr`；`expr EQUALS expr` |
-| 6 | `!=` / `NOTEQUALS` | 不等于 | `expr != expr`；`expr NOTEQUALS expr` |
-| 7 | `^` | 按位异或 | `expr ^ expr` |
-| 8 | `\|` | 按位或 | `expr \| expr` |
-| 9 | `&&` / `AND` | 逻辑与 | `expr && expr`；`expr AND expr` |
-| 10 | `\|\|` / `OR` | 逻辑或 | `expr \|\| expr`；`expr OR expr` |
-| 11 | `?:` | 条件运算符（三元运算符） | `expr ? expr : expr` |
-| 12 | `<<` | 按位左移 | `expr << expr` |
-| 12 | `>>` | 按位右移 | `expr >> expr` |
-| 13 | `,` | 顺序求值运算符 | `expr, expr` |
-| 14 | `**` | 幂运算 | `expr ** expr` |
-| 15 | `::` | 序列运算符 | `expr::expr`；`expr::expr::expr` |
-> expr_list 为用,（逗号）分割的表达式序列（也可能是单个expr）
+| 2 | `**` | 幂运算（REL 扩展，右结合） | `expr ** expr` |
+| 3 | `!` / `NOT` | 逻辑非 | `!expr`；`NOT expr` |
+| 3 | `~` | 按位取反（一元） | `~expr` |
+| 3 | `-` | 一元负号（对值取负） | `-expr` |
+| 4 | `*` | 乘法 | `expr * expr` |
+| 4 | `/` | 除法 | `expr / expr` |
+| 4 | `%` | 整数除法取余（模） | `expr % expr` |
+| 5 | `+` | 加法 | `expr + expr` |
+| 5 | `-` | 减法 | `expr - expr` |
+| 6 | `<<` | 按位左移 | `expr << expr` |
+| 6 | `>>` | 按位右移 | `expr >> expr` |
+| 7 | `>=` | 大于等于 | `expr >= expr` |
+| 7 | `<=` | 小于等于 | `expr <= expr` |
+| 7 | `>` | 大于 | `expr > expr` |
+| 7 | `<` | 小于 | `expr < expr` |
+| 8 | `==` / `EQUALS` | 等于 | `expr == expr`；`expr EQUALS expr` |
+| 8 | `!=` / `NOTEQUALS` | 不等于 | `expr != expr`；`expr NOTEQUALS expr` |
+| 9 | `^` | 按位异或 | `expr ^ expr` |
+| 10 | `\|` | 按位或 | `expr \| expr` |
+| 11 | `&&` / `AND` | 逻辑与 | `expr && expr`；`expr AND expr` |
+| 12 | `\|\|` / `OR` | 逻辑或 | `expr \|\| expr`；`expr OR expr` |
+| 13 | `?:` | 条件运算符（三元运算符，右结合） | `expr ? expr : expr` |
+| 14 | `::` | 序列生成运算符（REL 扩展） | `start::stop`；`start::step::stop` |
+> 说明：`expr_list` 为用 `,`（逗号）分割的表达式序列（也可能是单个 `expr`）。逗号仅用于列表分隔，不作为独立运算符。
+
+`::` 的序列语义：
+
+- `a::c` 表示从 `a` 到 `c` 的序列（`a` 为 `start`，`c` 为 `stop`）。
+- `a::b::c` 表示从 `a` 到 `c` 的序列，步长为 `b`（`a` 为 `start`，`b` 为 `step`，`c` 为 `stop`）。
+
+数组/索引后缀规则：
+
+- 方括号可以连续使用，如 `a[i][j]`。
+- 方括号内使用逗号分隔表达式列表，如 `a[i, j, k]`。
+- 逗号在这里仅表示“列表分隔”，不参与表达式求值。
+- 在方括号索引中，`::` 可以作为 sweep 维度选择器使用，例如 `a[1,::,2]`。
+
+如需查看对应的形式化文法，请参考 `REL_Formal_Spec.md`。
 ### 条件表达式
 
 `if-then-else` 结构提供了一种便捷方式，可针对完整多维变量的每个元素逐一应用条件判断。其语法如下：
@@ -233,18 +286,20 @@ A = if (condition) then true_expression elseif (condition2) then true_expression
 boolV1 = 1
 boolV2 = 1
 
-eqOp    = if (boolV1 == 1) then 1 else 0      // eqOp 返回 1
-eqOp1   = if (boolV1 EQUALS 1) then 1 else 0  // eqOp1 返回 1
+eqOp    = if (boolV1 == 1) then 1 else 0
+eqOp1   = if (boolV1 EQUALS 1) then 1 else 0
 
-notEqOp  = if (boolV1 != 1) then 1 else 0         // notEqOp 返回 1
-notEqOp1 = if (boolV1 NOTEQUALS 1) then 1 else 0  // notEqOp1 返回 1
+notEqOp  = if (boolV1 != 1) then 1 else 0
+notEqOp1 = if (boolV1 NOTEQUALS 1) then 1 else 0
 
-andOp   = if (boolV1 == 1 AND boolV2 == 1) then 1 else 0  // andOp 返回 1
-andOp1  = if (boolV1 == 1 && boolV2 == 1) then 1 else 0   // andOp1 返回 1
+andOp   = if (boolV1 == 1 AND boolV2 == 1) then 1 else 0
+andOp1  = if (boolV1 == 1 && boolV2 == 1) then 1 else 0
 
-orOp    = if (boolV1 == 1 OR boolV2 == 1) then 1 else 0   // orOp 返回 1
-orOp1   = if (boolV1 == 1 || boolV2 == 1) then 1 else 0   // orOp1 返回 1
+orOp    = if (boolV1 == 1 OR boolV2 == 1) then 1 else 0
+orOp1   = if (boolV1 == 1 || boolV2 == 1) then 1 else 0
 ```
+
+上述示例对应结果均为 `1`。
 
 ### 关键字
 由于REL是专用于计算表达式的DSL,实际上并没有太多的关键字，用户自定义方程名、函数名和变量名不得与关键字重名。以下是在REL中有特殊含义的关键字：
@@ -261,3 +316,5 @@ orOp1   = if (boolV1 == 1 || boolV2 == 1) then 1 else 0   // orOp1 返回 1
 | `EQUALS` | 比较运算 | 等于 | `if (x EQUALS 10) then 1 else 0` |
 | `NOTEQUALS` | 比较运算 | 不等于 | `if (x NOTEQUALS 10) then 1 else 0` |
 | `NULL` | 字面量 | 空值字面量 | `A = NULL` |
+
+REL 语言整体大小写敏感。
