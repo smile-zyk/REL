@@ -32,7 +32,6 @@ OP_EQ                 = ==
 OP_NE                 = !=
 OP_LAND               = &&
 OP_LOR                = \|\|
-
 OP_LT                 = <
 OP_GT                 = >
 OP_ADD                = \+
@@ -42,11 +41,11 @@ OP_DIV                = /
 OP_MOD                = %
 OP_BXOR               = \^
 OP_BOR                = \|
+OP_BAND               = &
 OP_BNOT               = ~
 OP_LNOT               = !
 OP_QMARK              = \?
 OP_COLON              = :
-OP_ASSIGN             = =
 
 LPAREN                = \(
 RPAREN                = \)
@@ -74,9 +73,11 @@ INT_HEX               = (?:0[xX][0-9A-Fa-f]+)
 INT_OCT               = (?:0[0-7]+)
 
 REAL_NUM              = (?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)
-IMAG_NUM              = (?:(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)i)
+IMAG_NUM              = (?:(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+|[0-9]+)i)
 
-NUMERIC_BASE          = (?:(?:0[xX][0-9A-Fa-f]+)|(?:0[0-7]+)|(?:0|[1-9][0-9]*)|(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)|(?:(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)i))
+NUMERIC_BASE          = (?:(?:(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+|[0-9]+)i)|(?:0[xX][0-9A-Fa-f]+)|(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)|(?:0[0-7]+)|(?:0|[1-9][0-9]*))
+
+备选顺序固定为 `虚数(IMAG_NUM) → 十六进制(INT_HEX) → 实数(REAL_NUM) → 八进制(INT_OCT) → 十进制(INT_DEC)`，整体按最长匹配切分；其中虚数允许整数或实数尾随 `i`（如 `2i`、`3.5i`）。
 ```
 
 ### 1.5 数值后缀（缩放因子/单位）
@@ -96,6 +97,16 @@ NUMERIC_LITERAL       = (?:NUMERIC_BASE(?:NUMERIC_SUFFIX)?)
 WS                    = [ \t\f\r\n]+
 ```
 
+### 1.7 记号匹配策略
+
+词法分析采用以下确定性规则，解析器据此可无歧义地切分记号：
+
+1. **最长匹配优先（maximal munch）**：在当前位置总是选择能匹配的最长记号。由此保证多字符运算符优先于其前缀单字符运算符，即 `**` 优先于 `*`、`::` 优先于 `:`、`..`（DDOT）优先于 `.`（DOT）、`<<`/`<=` 优先于 `<`、`>>`/`>=` 优先于 `>`、`!=` 优先于 `!`、`||` 优先于 `|`、`&&` 优先于 `&`。
+2. **数值字面量整体最长匹配**：`NUMERIC_LITERAL = NUMERIC_BASE NUMERIC_SUFFIX?` 作为整体按最长匹配切分。`NUMERIC_BASE` 的备选顺序固定为 `虚数 → 十六进制 → 实数 → 八进制 → 十进制`，以保证 `0.5` 切为实数而非 `0`+`.5`、`0x1F` 切为十六进制而非 `0`、`3i` 切为虚数而非 `3`+`i`。
+3. **数值后缀扫描**：在 `NUMERIC_BASE` 之后，按 `PREDEF_SCALED_UNIT → SCALE_FACTOR UNIT? → UNIT` 顺序做最长匹配以确定后缀；任何无法构成合法后缀的剩余字母不并入该字面量，而作为后续记号处理（通常随即因相邻 primary 触发语法错误，例如 `8ms` 切为 `8m` 与标识符 `s`）。`PREDEF_SCALED_UNIT` 命中后不再叠加 `SCALE_FACTOR` 或 `UNIT`。
+4. **关键字与标识符**：先按 `IDENTIFIER` 最长匹配，再判定其是否为关键字（`if/then/elseif/else/AND/OR/NOT/EQUALS/NOTEQUALS/NULL`）。内建常量（如 `PI`、`e`、`ln10`）不是关键字，按普通标识符（`reference`）处理，其值在求值期解析。
+5. **输入结束**：`<eof>` 表示输入耗尽，不对应任何字符记号。
+
 ## 2. 语法规则（BNF）
 
 ### 2.1 顶层
@@ -108,7 +119,7 @@ WS                    = [ \t\f\r\n]+
 ### 2.2 条件表达式
 
 ```bnf
-<conditional_expr> ::= <if_expr> | <logical_or_expr> <conditional_tail>
+<conditional_expr> ::= <logical_or_expr> <conditional_tail>
 <conditional_tail> ::= OP_QMARK <expr> OP_COLON <conditional_expr> | <empty>
 
 <if_expr> ::= KW_IF LPAREN <expr> RPAREN KW_THEN <expr> <elseif_list> KW_ELSE <expr>
@@ -127,8 +138,11 @@ WS                    = [ \t\f\r\n]+
 <bit_or_expr> ::= <bit_xor_expr> <bit_or_tail>
 <bit_or_tail> ::= OP_BOR <bit_xor_expr> <bit_or_tail> | <empty>
 
-<bit_xor_expr> ::= <equality_expr> <bit_xor_tail>
-<bit_xor_tail> ::= OP_BXOR <equality_expr> <bit_xor_tail> | <empty>
+<bit_xor_expr> ::= <bit_and_expr> <bit_xor_tail>
+<bit_xor_tail> ::= OP_BXOR <bit_and_expr> <bit_xor_tail> | <empty>
+
+<bit_and_expr> ::= <equality_expr> <bit_and_tail>
+<bit_and_tail> ::= OP_BAND <equality_expr> <bit_and_tail> | <empty>
 ```
 
 ### 2.4 比较与移位层
@@ -157,7 +171,7 @@ WS                    = [ \t\f\r\n]+
 <unary_op> ::= OP_LNOT | KW_NOT | OP_BNOT | OP_SUB
 
 <power_expr> ::= <postfix_expr> <power_tail>
-<power_tail> ::= OP_POW <power_expr> | <empty>
+<power_tail> ::= OP_POW <unary_expr> | <empty>
 ```
 
 ### 2.6 后缀、主表达式与列表
@@ -168,6 +182,7 @@ WS                    = [ \t\f\r\n]+
 
 <primary_expr> ::= <literal>
                  | <reference>
+                 | <if_expr>
                  | LPAREN <expr> RPAREN
                  | <sweep_generator>
                  | <matrix_generator>
