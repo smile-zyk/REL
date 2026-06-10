@@ -154,7 +154,7 @@ class RangeExpr {
   +step : Expr
   +stop : Expr
 }
-class FullRangeExpr
+class NullRangeExpr
 
 Expr <|-- NullExpr
 Expr <|-- NumberExpr
@@ -171,7 +171,7 @@ Expr <|-- GroupingExpr
 Expr <|-- SweepExpr
 Expr <|-- MatrixExpr
 Expr <|-- RangeExpr
-Expr <|-- FullRangeExpr
+Expr <|-- NullRangeExpr
 @enduml
 ```
 
@@ -233,7 +233,7 @@ abstract class ExprVisitor {
   +visit_sweep(n : SweepExpr)
   +visit_matrix(n : MatrixExpr)
   +visit_range(n : RangeExpr)
-  +visit_full_range(n : FullRangeExpr)
+  +visit_null_range(n : NullRangeExpr)
 }
 
 class Evaluator {
@@ -298,7 +298,7 @@ V --> Caller : return result
 | `SweepExpr` | Spec 2.6 `<sweep_generator>` | `items` | `[ ... ]` 生成器，拼接为一个 sweep |
 | `MatrixExpr` | Spec 2.6 `<matrix_generator>` | `items` | `{ ... }` 生成器，拼接为一个矩阵 |
 | `RangeExpr` | Spec 2.6 `<seq_expr>` | `start` / `step`（可空）/ `stop` | `start::stop` 或 `start::step::stop` |
-| `FullRangeExpr` | Spec 2.6 `<seq_expr> ::= OP_SEQ` | — | 裸序列 `::`，仅索引上下文合法 |
+| `NullRangeExpr` | Spec 2.6 `<seq_expr> ::= OP_SEQ` | — | 裸序列 `::`，仅索引上下文合法 |
 
 辅助字段的取值约定：
 
@@ -334,7 +334,7 @@ V --> Caller : return result
 - 字面量按 `NullExpr` / `NumberExpr` / `StringExpr` 拆分而非合并为单一
   `Literal`，因为数值字面量需携带缩放因子、单位、进制等结构化信息。
 - `LogicalExpr` 从 `BinaryExpr` 独立，在类型层面提示求值器实现短路语义。
-- `RangeExpr` 与 `FullRangeExpr` 分离：裸 `::` 无子表达式，单独成类使
+- `RangeExpr` 与 `NullRangeExpr` 分离：裸 `::` 无子表达式，单独成类使
   “仅索引上下文合法”的约束更清晰。
 
 ### 5.3 算符别名归一
@@ -348,3 +348,20 @@ parser 在语法错误时不构造半成品节点，本设计不引入 `ErrorExp
 诊断由 parser 直接产出，与 scanner 现有“产生 `INVALID` 记号、收集多条诊断”
 的策略一致（见 [src/scanner/scanner.h](src/scanner/scanner.h)）。若后续需要
 容错式编辑器场景，可再补充 `ErrorExpr`。
+
+### 5.5 递归下降命名约定
+
+为与 crafting interpreters 风格保持一致，parser 的实现函数命名使用：
+
+- `conditional()` 对应 `<conditional_expr>`；
+- `logical_or()` / `logical_and()` 对应逻辑层；
+- `bit_or()` / `bit_xor()` / `bit_and()` 对应按位层；
+- `equality()` 对应 `<equality_expr>`；
+- `comparison()` 对应 `<relational_expr>`；
+- `shift()` 对应 `<shift_expr>`；
+- `term()` 对应 `<additive_expr>`（处理 `+` / `-`）；
+- `factor()` 对应 `<multiplicative_expr>`（处理 `*` / `/` / `%`）；
+- `unary()` / `power()` / `postfix()` / `primary()` 对应各自语法层；
+- `if_expression()` / `literal()` / `reference()` / `sequence()` 对应相应子语法入口。
+
+该命名调整仅影响实现层可读性，不改变文法语义与优先级/结合性。

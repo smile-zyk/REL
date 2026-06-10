@@ -1,56 +1,40 @@
-// Entry point for the REL scanner driver.
+// Entry point for the REL parser driver.
 //
 // Modes:
-//   - REPL mode (no arguments): read a single expression per line from stdin
-//     and print the tokens it produces.
-//   - File mode (one argument):  treat the argument as a path; read the file
-//     line by line and tokenise each line independently.
-//
-// REL expressions are single-line by design, so both modes share the same
-// "one line in, one token stream out" loop.
+//   - REPL mode (no arguments): read one expression per line, parse it,
+//     and print the AST.
+//   - File mode (one argument): parse each non-empty line from a file.
 
+#include "ast/ast_printer.h"
+#include "parser/parser.h"
 #include "scanner/scanner.h"
-#include "scanner/token.h"
 
-#include <cstdio>
 #include <fstream>
-#include <iomanip>
 #include <iostream>
-#include <sstream>
 #include <string>
 
 namespace
 {
-    // Render one line's worth of tokens in a debug-friendly, column-aligned
-    // format. We compose it here (rather than in token.cc) because this is
-    // really a driver concern - the scanner library itself only exposes the
-    // diagnostic form via to_string(Token).
-    std::string format_token_for_dump(const rel::Token& tok)
-    {
-        constexpr std::size_t kTypeColumnWidth = 20;
-        std::string type_name = rel::to_string(tok.type);
-        if (type_name.size() < kTypeColumnWidth)
-        {
-            type_name.append(kTypeColumnWidth - type_name.size(), ' ');
-        }
-        else
-        {
-            type_name.push_back(' ');
-        }
-
-        std::ostringstream oss;
-        oss << '[' << std::setw(3) << tok.line << ':' << std::setw(3) << tok.column
-            << "] " << type_name << '`' << tok.lexeme << '`';
-        return oss.str();
-    }
-
-    void scan_and_print(const std::string& source, int line_no)
+    int parse_and_print(const std::string& source, int line_no)
     {
         rel::Scanner scanner(source, line_no);
-        for (const auto& tok : scanner.scan_tokens())
+        rel::Parser parser(scanner.scan_tokens());
+        rel::ParseResult result = parser.parse();
+
+        if (!result.ok())
         {
-            std::cout << format_token_for_dump(tok) << '\n';
+            for (std::size_t i = 0; i < result.errors.size(); ++i)
+            {
+                const rel::ParseError& err = result.errors[i];
+                std::cerr << "parse error " << err.line << ':' << err.column << ": "
+                          << err.message << '\n';
+            }
+            return 1;
         }
+
+        rel::AstPrinter printer;
+        std::cout << printer.print(*result.expr) << '\n';
+        return 0;
     }
 
     int run_file(const char* path)
@@ -69,7 +53,7 @@ namespace
             if (!line.empty())
             {
                 std::cout << "--- line " << line_no << ": " << line << '\n';
-                scan_and_print(line, line_no);
+                if (parse_and_print(line, line_no) != 0) return 1;
             }
             ++line_no;
         }
@@ -78,7 +62,7 @@ namespace
 
     int run_repl()
     {
-        std::cout << "REL scanner REPL. Each line is scanned independently.\n"
+        std::cout << "REL parser REPL. Each line is parsed independently.\n"
                   << "Press Ctrl+Z then Enter (Windows) or Ctrl+D (Unix) to exit.\n";
 
         std::string line;
@@ -92,7 +76,7 @@ namespace
                 break;
             }
             if (line.empty()) continue;
-            scan_and_print(line, line_no);
+            parse_and_print(line, line_no);
             ++line_no;
         }
         return 0;

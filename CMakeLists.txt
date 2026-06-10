@@ -10,6 +10,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_library(rel_scanner STATIC
     src/scanner/token.cc
     src/scanner/scanner.cc
+    src/ast/expr.cc
+    src/ast/ast_printer.cc
+    src/parser/parser.cc
 )
 target_include_directories(rel_scanner PUBLIC src)
 
