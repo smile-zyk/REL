@@ -108,10 +108,14 @@ namespace rel
 
     struct Token
     {
-        TokenType type{TokenType::INVALID};
+        TokenType type;
         std::string lexeme;
-        int line{0};
-        int column{0};
+        int line;
+        int column;
+
+        Token() : type(TokenType::INVALID), line(0), column(0) {}
+        Token(TokenType t, std::string l, int ln, int col)
+            : type(t), lexeme(std::move(l)), line(ln), column(col) {}
     };
 
     std::string to_string(TokenType type);
