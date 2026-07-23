@@ -30,10 +30,8 @@ namespace
     std::shared_ptr<xdataset::DataArray> make_data_array(const std::string& name)
     {
         using namespace xdataset;
-        DataArrayCreateInfo info;
-        info.name = name;
-        info.data = DataSeries::CreateScalar<double>();
-        return std::make_shared<DataArray>(std::move(info));
+        return std::make_shared<DataArray>(
+            DataArray::CreateIndependent(name, DataSeries::CreateScalar<double>()));
     }
 } // namespace
 

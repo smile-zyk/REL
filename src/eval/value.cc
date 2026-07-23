@@ -75,9 +75,26 @@ std::string Value::to_string() const
         return m.to_string();
     }
 
-    // DataArray: render via DataFrame CSV
+    // DataArray
     const xdataset::DataArray& da = as_data_array();
-    return da.GetOrCreateDataFrame().ToCsv();
+    return da.to_string();
+}
+
+std::string Value::to_string(const std::string& name)
+{
+    if (is_null())
+        return "NULL";
+
+    if (is_measurement())
+    {
+        const xdataset::Measurement& m = as_measurement();
+        return m.to_dataframe(name).to_string();
+    }
+
+    // DataArray
+    xdataset::DataArray& da = as_data_array();
+    da.set_name(name);
+    return da.to_string();
 }
 
 // =========================================================================
