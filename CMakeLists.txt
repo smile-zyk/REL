@@ -9,13 +9,15 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Third-party: xdataset (multi-dimensional data structures for REL).
 add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
 
-# Core library: scanner, parser, AST (linked by both the CLI and the test executable).
+# Core library: scanner, parser, AST, evaluator (linked by both the CLI and
+# the test executable).
 add_library(rel_core STATIC
     src/scanner/token.cc
     src/scanner/scanner.cc
     src/ast/expr.cc
     src/ast/ast_printer.cc
     src/parser/parser.cc
+    src/eval/value.cc
 )
 target_include_directories(rel_core PUBLIC src)
 target_link_libraries(rel_core PUBLIC xdataset)
