@@ -236,7 +236,7 @@ WS                    = [ \t\f\r\n]+
 
 | 段数 | 文法形式 | 语义 |
 |---|---|---|
-| N≥3 | `a.b...x.y` | 尾部两段 `x.y` = Block 名 + DataArray 名；前面任意段为 Group 路径（对应 C++ `a/b/.../x`）。若首段为 Dataset 名则从该 Dataset 查找；否则从默认 Dataset 查找。 |
+| N≥3 | `a.b.c.x.y` | 尾部两段 `x.y` = Block 名 + DataArray 名；前面任意段为 Group 路径（对应 C++ `a/b/c/x`）。若首段为 Dataset 名则从该 Dataset 查找；否则从默认 Dataset 查找。 |
 | 2 | `a..y` | 跨 Dataset 唯一变量查找：在 Dataset `a` 中查找全局唯一的 DataArray `y`。 |
 | 1 | `y` | 默认 Dataset 中的变量查找：先查内建常量，再查 Dataset 中全局唯一的 DataArray `y`。 |
 

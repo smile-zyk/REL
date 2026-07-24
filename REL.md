@@ -37,9 +37,15 @@ REL表达式由以下元素按照一定的语法规则构成
 Dataset 是一个树形结构，内部节点为 Group（逻辑分组），叶子节点为 Block（一次仿真结果，包含独立变量和依赖变量）。C++ API 使用 `/` 分隔层级，REL 语法使用 `.` 分隔层级。
 
 一个仿真变量引用的完整路径为：
-`DatasetName.group1.group2...BlockName.VariableName`
+`DatasetName.Group1.Group2.BlockName.VariableName`
+
+其中倒数第二段为 Block 名，最后一段为变量名，前面任意多段（可为零）为 Group 路径。
 
 例如 `noise.simulation.SP1.SP.Vout` 中：
+- `noise` — Dataset 名称
+- `simulation` / `SP1` — Group（中间分组节点）
+- `SP` — Block（叶子节点，包含独立变量和依赖变量）
+- `Vout` — 该 Block 内的 DataArray 变量
 - `noise` — Dataset 名称
 - `simulation` / `SP1` — Group（中间分组节点，可嵌套任意深度）
 - `SP` — Block（叶子节点，包含独立变量和依赖变量）
@@ -50,7 +56,7 @@ Dataset 是一个树形结构，内部节点为 Group（逻辑分组），叶子
 其中，双点号 `..` 表示该变量在该数据集中是唯一的。
 
 如果当前 REL 运行的默认 Dataset 就是引用变量的 Dataset，则可以进一步简化为：
-`group1.group2...BlockName.VariableName`
+`Group1.Group2.BlockName.VariableName`（省略 Dataset 名，段数≥2）
 
 如果该变量在默认 Dataset 中唯一，则可以简写为：
 `VariableName`
@@ -68,9 +74,9 @@ REL解释器在运行时可以设置一个默认Dataset，切换默认Dataset会
 
 仿真节点引用使用点分段形式，支持以下形式：
 
-- 完整形式：`DatasetName.Group1...BlockName.VariableName`（最后两段为 Block 名 + 变量名，前面任意多段为 Group 路径）
+- 完整形式：`DatasetName.Group1.Group2.BlockName.VariableName`（倒数第二段为 Block 名，其余前缀为 Group 路径）
 - 数据集唯一变量简写：`DatasetName..VariableName`
-- 默认数据集下的路径：`Group1...BlockName.VariableName`（省略 Dataset 名）
+- 默认数据集下的路径：`Group1.Group2.BlockName.VariableName`（省略 Dataset 名，段数≥2）
 - 默认数据集且变量唯一时：`VariableName`
 
 其中每个名称段（`DatasetName`、Group 名、Block 名、`VariableName`）都必须满足标识符语法 `[A-Za-z_][A-Za-z0-9_]*`。
