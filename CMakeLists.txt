@@ -18,6 +18,7 @@ add_library(rel_core STATIC
     src/ast/ast_printer.cc
     src/parser/parser.cc
     src/eval/value.cc
+    src/eval/environment.cc
 )
 target_include_directories(rel_core PUBLIC src)
 target_link_libraries(rel_core PUBLIC xdataset)

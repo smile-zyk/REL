@@ -7,18 +7,25 @@ target_link_libraries(test_parser PRIVATE rel_core GTest::gtest_main)
 
 add_executable(test_value test_value.cc)
 target_link_libraries(test_value PRIVATE rel_core GTest::gtest_main)
-# Copy runtime DLLs next to the test binary on Windows so gtest_discover_tests
+
+add_executable(test_environment test_environment.cc)
+target_link_libraries(test_environment PRIVATE rel_core GTest::gtest_main)
+
+# Copy runtime DLLs next to test binaries on Windows so gtest_discover_tests
 # can find them during the build-time discovery step.
 if(WIN32)
-    add_custom_command(TARGET test_value POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_RUNTIME_DLLS:test_value>"
-            "$<TARGET_FILE_DIR:test_value>"
-        COMMAND_EXPAND_LISTS
-    )
+    foreach(_test_target test_value test_environment)
+        add_custom_command(TARGET ${_test_target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_RUNTIME_DLLS:${_test_target}>"
+                "$<TARGET_FILE_DIR:${_test_target}>"
+            COMMAND_EXPAND_LISTS
+        )
+    endforeach()
 endif()
 
 include(GoogleTest)
 gtest_discover_tests(test_scanner)
 gtest_discover_tests(test_parser)
 gtest_discover_tests(test_value)
+gtest_discover_tests(test_environment)
