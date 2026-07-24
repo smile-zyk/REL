@@ -17,10 +17,9 @@ namespace rel {
 //  Environment — flat variable table + Dataset context
 // =========================================================================
 //
-//  Holds:
-//    - User-defined variables (define / get)
-//    - Built-in constants (PI, e, boltzmann, ...)
-//    - Registered Datasets and a current default
+//  A pure storage container.  It does NOT know about language semantics
+//  such as built-in constants (PI, e, ...) — those are injected from the
+//  outside via init_builtin_constants().
 //
 //  resolve_reference() converts a parsed ReferenceExpr's segments into
 //  a Value by walking the Dataset tree or looking up variables.
@@ -28,7 +27,7 @@ namespace rel {
 class Environment
 {
 public:
-    Environment();
+    Environment() = default;
 
     // ---- variables ----
 
@@ -64,13 +63,16 @@ public:
     Value resolve_reference(const std::vector<RefSegment>& segments) const;
 
 private:
-    /// Resolve a numeric built-in constant; returns null_value() if not
-    /// a built-in.
-    static Value lookup_builtin(const std::string& name);
-
     tsl::ordered_map<std::string, Value> variables_;
     tsl::ordered_map<std::string, xdataset::Dataset*> datasets_;
     std::string default_dataset_name_;
 };
+
+// =========================================================================
+//  Free function — language semantics
+// =========================================================================
+
+/// Populate `env` with REL's built-in numeric constants (PI, e, etc.).
+void init_builtin_constants(Environment& env);
 
 } // namespace rel

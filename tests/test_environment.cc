@@ -107,6 +107,7 @@ TEST(EnvironmentTest, RedefineOverwrites)
 TEST(EnvironmentTest, BuiltinPi)
 {
     rel::Environment env;
+    rel::init_builtin_constants(env);
     rel::Value v = env.get("PI");
     EXPECT_TRUE(v.is_measurement());
     EXPECT_DOUBLE_EQ(v.as_measurement().as_scalar<double>(), 3.1415926535898);
@@ -115,6 +116,7 @@ TEST(EnvironmentTest, BuiltinPi)
 TEST(EnvironmentTest, BuiltinLowercasePi)
 {
     rel::Environment env;
+    rel::init_builtin_constants(env);
     rel::Value v = env.get("pi");
     EXPECT_DOUBLE_EQ(v.as_measurement().as_scalar<double>(), 3.1415926535898);
 }
@@ -122,6 +124,7 @@ TEST(EnvironmentTest, BuiltinLowercasePi)
 TEST(EnvironmentTest, BuiltinE)
 {
     rel::Environment env;
+    rel::init_builtin_constants(env);
     rel::Value v = env.get("e");
     EXPECT_DOUBLE_EQ(v.as_measurement().as_scalar<double>(), 2.718281822);
 }
@@ -129,6 +132,7 @@ TEST(EnvironmentTest, BuiltinE)
 TEST(EnvironmentTest, BuiltinBoltzmann)
 {
     rel::Environment env;
+    rel::init_builtin_constants(env);
     rel::Value v = env.get("boltzmann");
     EXPECT_TRUE(v.is_measurement());
     EXPECT_DOUBLE_EQ(v.as_measurement().as_scalar<double>(), 1.380658e-23);
@@ -137,6 +141,7 @@ TEST(EnvironmentTest, BuiltinBoltzmann)
 TEST(EnvironmentTest, BuiltinTinyReal)
 {
     rel::Environment env;
+    rel::init_builtin_constants(env);
     EXPECT_DOUBLE_EQ(env.get("tinyReal").as_measurement().as_scalar<double>(),
                      2.2e-308);
 }
@@ -181,6 +186,7 @@ TEST(EnvironmentTest, ResolveSingleSegmentVariable)
 TEST(EnvironmentTest, ResolveSingleSegmentBuiltin)
 {
     rel::Environment env;
+    rel::init_builtin_constants(env);
     rel::Value v = env.resolve_reference({S("PI")});
     EXPECT_TRUE(v.is_measurement());
 }

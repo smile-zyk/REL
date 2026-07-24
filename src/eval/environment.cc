@@ -10,28 +10,6 @@
 namespace rel {
 
 // =========================================================================
-//  Construction
-// =========================================================================
-
-Environment::Environment()
-{
-    // --- Built-in constants (REL.md, 内建常量) ------------------------
-    // Values are in SI base units; unit annotations are informational only.
-    define("PI",        Value::real(3.1415926535898));
-    define("pi",        Value::real(3.1415926535898));
-    define("e",         Value::real(2.718281822));
-    define("ln10",      Value::real(2.302585093));
-    define("boltzmann", Value::real(1.380658e-23));
-    define("qelectron", Value::real(1.60217733e-19));
-    define("planck",    Value::real(6.6260755e-34));
-    define("c0",        Value::real(2.99792e+08));
-    define("e0",        Value::real(8.85419e-12));
-    define("u0",        Value::real(12.5664e-07));
-    define("tinyReal",  Value::real(2.2e-308));
-    define("hugeReal",  Value::real(3.4e+38));
-}
-
-// =========================================================================
 //  Variables
 // =========================================================================
 
@@ -163,17 +141,23 @@ Value Environment::resolve_reference(
 }
 
 // =========================================================================
-//  Built-in lookup (static helper)
+//  init_builtin_constants (free function)
 // =========================================================================
 
-Value Environment::lookup_builtin(const std::string& name)
+void init_builtin_constants(Environment& env)
 {
-    // All built-ins are registered via define() in the constructor,
-    // so get() on a default-constructed Environment does the job.
-    // This static helper exists for callers that don't have an
-    // Environment handy.
-    Environment tmp;
-    return tmp.get(name);
+    env.define("PI",        Value::real(3.1415926535898));
+    env.define("pi",        Value::real(3.1415926535898));
+    env.define("e",         Value::real(2.718281822));
+    env.define("ln10",      Value::real(2.302585093));
+    env.define("boltzmann", Value::real(1.380658e-23));
+    env.define("qelectron", Value::real(1.60217733e-19));
+    env.define("planck",    Value::real(6.6260755e-34));
+    env.define("c0",        Value::real(2.99792e+08));
+    env.define("e0",        Value::real(8.85419e-12));
+    env.define("u0",        Value::real(12.5664e-07));
+    env.define("tinyReal",  Value::real(2.2e-308));
+    env.define("hugeReal",  Value::real(3.4e+38));
 }
 
 } // namespace rel
