@@ -43,10 +43,6 @@ Dataset 是一个树形结构，内部节点为 Group（逻辑分组），叶子
 
 例如 `noise.simulation.SP1.SP.Vout` 中：
 - `noise` — Dataset 名称
-- `simulation` / `SP1` — Group（中间分组节点）
-- `SP` — Block（叶子节点，包含独立变量和依赖变量）
-- `Vout` — 该 Block 内的 DataArray 变量
-- `noise` — Dataset 名称
 - `simulation` / `SP1` — Group（中间分组节点，可嵌套任意深度）
 - `SP` — Block（叶子节点，包含独立变量和依赖变量）
 - `Vout` — 该 Block 内的 DataArray 变量
@@ -74,7 +70,7 @@ REL解释器在运行时可以设置一个默认Dataset，切换默认Dataset会
 
 仿真节点引用使用点分段形式，支持以下形式：
 
-- 完整形式：`DatasetName.Group1.Group2.BlockName.VariableName`（倒数第二段为 Block 名，其余前缀为 Group 路径）
+- 完整形式：`DatasetName.Group1.Group2.BlockName.VariableName`Block 名，其余前（倒数第二段为 缀为 Group 路径）
 - 数据集唯一变量简写：`DatasetName..VariableName`
 - 默认数据集下的路径：`Group1.Group2.BlockName.VariableName`（省略 Dataset 名，段数≥2）
 - 默认数据集且变量唯一时：`VariableName`
