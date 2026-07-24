@@ -27,11 +27,11 @@ namespace
         return xdataset::Measurement::Integer(v);
     }
 
-    std::shared_ptr<xdataset::DataArray> make_data_array(const std::string& name)
+    std::shared_ptr<xdataset::DataArray> make_data_array()
     {
         using namespace xdataset;
         return std::make_shared<DataArray>(
-            DataArray::CreateIndependent(name, DataSeries::CreateScalar<double>()));
+            DataArray::CreateIndependent(DataSeries::CreateScalar<double>()));
     }
 } // namespace
 
@@ -57,7 +57,7 @@ TEST(ValueTest, ConstructFromMeasurement)
 
 TEST(ValueTest, ConstructFromDataArray)
 {
-    auto da = make_data_array("test_var");
+    auto da = make_data_array();
     Value v(da);
     EXPECT_FALSE(v.is_null());
     EXPECT_FALSE(v.is_measurement());
@@ -103,7 +103,7 @@ TEST(ValueTest, MoveAssignment)
 
 TEST(ValueTest, CopyDataArraySharesOwnership)
 {
-    auto da = make_data_array("shared");
+    auto da = make_data_array();
     Value v1(da);
     EXPECT_EQ(da.use_count(), 2); // da + v1
     {
@@ -135,7 +135,7 @@ TEST(ValueTest, MeasurementValueQueries)
 
 TEST(ValueTest, DataArrayValueQueries)
 {
-    Value v(make_data_array("x"));
+    Value v(make_data_array());
     EXPECT_FALSE(v.is_null());
     EXPECT_FALSE(v.is_measurement());
     EXPECT_TRUE(v.is_data_array());
@@ -159,14 +159,14 @@ TEST(ValueTest, AsMeasurementConstWorks)
 
 TEST(ValueTest, AsDataArrayReturnsSameObject)
 {
-    auto da = make_data_array("var");
+    auto da = make_data_array();
     Value v(da);
     EXPECT_EQ(&v.as_data_array(), da.get());
 }
 
 TEST(ValueTest, AsDataArrayConstWorks)
 {
-    auto da = make_data_array("var");
+    auto da = make_data_array();
     const Value v(da);
     EXPECT_EQ(&v.as_data_array(), da.get());
 }
@@ -183,7 +183,7 @@ TEST(ValueTest, AsMeasurementOnNullThrows)
 
 TEST(ValueTest, AsMeasurementOnDataArrayThrows)
 {
-    Value v(make_data_array("x"));
+    Value v(make_data_array());
     EXPECT_THROW(v.as_measurement(), boost::bad_get);
 }
 

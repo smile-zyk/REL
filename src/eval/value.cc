@@ -75,9 +75,9 @@ std::string Value::to_string() const
         return m.to_string();
     }
 
-    // DataArray
+    // DataArray: render via DataFrame ASCII table
     const xdataset::DataArray& da = as_data_array();
-    return da.to_string();
+    return da.GetOrCreateDataFrame().to_string();
 }
 
 std::string Value::to_string(const std::string& name)
@@ -91,10 +91,9 @@ std::string Value::to_string(const std::string& name)
         return m.to_dataframe(name).to_string();
     }
 
-    // DataArray
-    xdataset::DataArray& da = as_data_array();
-    da.set_name(name);
-    return da.to_string();
+    // DataArray: render with custom variable name
+    const xdataset::DataArray& da = as_data_array();
+    return da.GetOrCreateDataFrame(name).to_string();
 }
 
 // =========================================================================

@@ -81,7 +81,7 @@ public:
     std::string to_string() const;
 
     /// Named variant: Measurement → to_dataframe(name).to_string();
-    ///               DataArray   → set_name(name), then to_string().
+    ///               DataArray   → GetOrCreateDataFrame(name).to_string().
     std::string to_string(const std::string& name);
 
     // ---- raw storage ---------------------------------------------------
