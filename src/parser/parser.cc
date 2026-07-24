@@ -335,23 +335,20 @@ namespace rel
             NumberKind kind = classify_number_kind(base.lexeme);
             int radix = classify_radix(base.lexeme, kind);
 
-            std::string scale_factor;
-            std::string unit;
-            bool predefined_unit = false;
+            std::string suffix;
 
             if (match(TokenType::PREDEF_SCALED_UNIT))
             {
-                unit = previous().lexeme;
-                predefined_unit = true;
+                suffix = previous().lexeme;
             }
             else if (match(TokenType::SCALE_FACTOR))
             {
-                scale_factor = previous().lexeme;
-                if (match(TokenType::UNIT)) unit = previous().lexeme;
+                suffix = previous().lexeme;
+                if (match(TokenType::UNIT)) suffix += previous().lexeme;
             }
             else if (match(TokenType::UNIT))
             {
-                unit = previous().lexeme;
+                suffix = previous().lexeme;
             }
 
             return ExprPtr(new NumberExpr(base.line,
@@ -359,9 +356,7 @@ namespace rel
                                           kind,
                                           base.lexeme,
                                           radix,
-                                          scale_factor,
-                                          unit,
-                                          predefined_unit));
+                                          suffix));
         }
 
         if (match(TokenType::STRING_LITERAL))

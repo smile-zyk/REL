@@ -111,16 +111,12 @@ namespace rel
                    NumberKind kind_value,
                    std::string base_lexeme_value,
                    int radix_value,
-                   std::string scale_factor_value,
-                   std::string unit_value,
-                   bool predefined_unit_value);
+                   std::string suffix_value);
 
         NumberKind kind;
         std::string base_lexeme;
         int radix;
-        std::string scale_factor;
-        std::string unit;
-        bool predefined_unit;
+        std::string suffix;  // e.g. "GHz", "cm", "m", "MOhm", or ""
 
         void accept(ExprVisitor& visitor) const override;
     };

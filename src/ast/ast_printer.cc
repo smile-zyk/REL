@@ -125,17 +125,7 @@ namespace rel
 
     void AstPrinter::visit_number(const NumberExpr& expr)
     {
-        std::ostringstream oss;
-        oss << expr.base_lexeme;
-        if (expr.predefined_unit)
-        {
-            oss << expr.unit;
-        }
-        else
-        {
-            oss << expr.scale_factor << expr.unit;
-        }
-        out_ = oss.str();
+        out_ = expr.base_lexeme + expr.suffix;
     }
 
     void AstPrinter::visit_string(const StringExpr& expr)

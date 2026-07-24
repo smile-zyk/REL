@@ -27,16 +27,12 @@ namespace rel
                            NumberKind kind_value,
                            std::string base_lexeme_value,
                            int radix_value,
-                           std::string scale_factor_value,
-                           std::string unit_value,
-                           bool predefined_unit_value)
+                           std::string suffix_value)
         : Expr(line_value, column_value),
           kind(kind_value),
           base_lexeme(std::move(base_lexeme_value)),
           radix(radix_value),
-          scale_factor(std::move(scale_factor_value)),
-          unit(std::move(unit_value)),
-          predefined_unit(predefined_unit_value)
+          suffix(std::move(suffix_value))
     {
     }
 

@@ -19,6 +19,7 @@ add_library(rel_core STATIC
     src/parser/parser.cc
     src/eval/value.cc
     src/eval/environment.cc
+    src/eval/evaluator.cc
 )
 target_include_directories(rel_core PUBLIC src)
 target_link_libraries(rel_core PUBLIC xdataset)
@@ -26,6 +27,18 @@ target_link_libraries(rel_core PUBLIC xdataset)
 # CLI driver: REPL + file mode.
 add_executable(rel src/main.cc)
 target_link_libraries(rel PRIVATE rel_core)
+
+# Copy xdataset DLL and its dependencies next to rel.exe on Windows.
+if(WIN32)
+    add_custom_command(TARGET rel POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:xdataset>"
+            "$<TARGET_FILE_DIR:rel>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-mingw-dynamic/debug/bin/libunits.dll"
+            "$<TARGET_FILE_DIR:rel>"
+    )
+endif()
 
 # Tests.
 enable_testing()
