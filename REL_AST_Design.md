@@ -286,7 +286,7 @@ V --> Caller : return result
 | `NullExpr` | Spec 2.7 `KW_NULL` | — | `NULL` 字面量 |
 | `NumberExpr` | Spec 2.7 `<numeric_literal>` | `kind` / `base_lexeme` / `radix` / `scale_factor` / `unit` / `predefined_unit` | 数值字面量，携带进制、缩放因子与物理单位信息 |
 | `StringExpr` | Spec 2.7 `<string_literal>` / `<raw_string_literal>` | `value` / `raw` | 普通字符串按 Spec 1.3 解码转义；原始字符串 verbatim |
-| `ReferenceExpr` | Spec 2.7 `<reference>` | `segments` | 点分多段引用；内建常量（`PI`/`e`…）亦归此类，求值期解析 |
+| `ReferenceExpr` | Spec 2.7 `<reference>` | `segments` | 点分多段引用，对应 Dataset 树形路径；内建常量（`PI`/`e`…）亦归此类，求值期解析 |
 | `UnaryExpr` | Spec 2.5 `<unary_op>` | `op` / `operand` | 前缀 `!` `NOT` `~` `-` |
 | `BinaryExpr` | Spec 2.3–2.5 | `op` / `left` / `right` | 除短路逻辑与三元外的全部二元算符，统一左结合 |
 | `LogicalExpr` | Spec 2.3 | `op` / `left` / `right` | `&&`/`AND`、`\|\|`/`OR`，需短路求值 |
@@ -305,7 +305,9 @@ V --> Caller : return result
 - `NumberExpr.kind` 取 `Integer` / `Real` / `Imaginary`，由词法 `NUMERIC_BASE`
   形态决定（Spec 1.4 / 1.7 规则 2）；`radix` 取 `10` / `16` / `8`，仅整数有意义。
 - `ReferenceExpr.segments` 为有序段序列，每段记录段名与其“前置分隔符”
-  （首段无、`.` 或 `..`），覆盖 [REL.md](REL.md) 中四种引用形态。
+  （首段无、`.` 或 `..`）。求值时由 Environment 按 Spec 3.1 解析：
+  尾部两段为 Block 名 + DataArray 名，前面任意段为 Group 路径；
+  `..` 表示跨 Dataset 唯一变量查找。覆盖 [REL.md](REL.md) 中全部引用形态。
 - `*.op` 字段保存触发该节点的原始记号（`TokenType`），用于区分 `&&`/`AND`
   等别名的书写形式。
 

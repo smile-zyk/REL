@@ -82,7 +82,7 @@ public:
 
     /// Named variant: Measurement → to_dataframe(name).to_string();
     ///               DataArray   → GetOrCreateDataFrame(name).to_string().
-    std::string to_string(const std::string& name);
+    std::string to_string(const std::string& name, int max_rows = 32) const;
 
     // ---- raw storage ---------------------------------------------------
 

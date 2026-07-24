@@ -32,16 +32,29 @@ REL表达式由以下元素按照一定的语法规则构成
 
 ### 标识符
 #### 仿真节点
-仿真生成的变量在表达式中的引用方式可以具有不同程度的简化。通常，一个仿真节点变量的完整名称定义如下：
-`DatasetName.AnalysisName.AnalysisType.VariableName`
-如果VariableName在整个Dataset的命名唯一，那么可以简写为:
+仿真生成的变量在表达式中的引用方式可以具有不同程度的简化。
+
+Dataset 是一个树形结构，内部节点为 Group（逻辑分组），叶子节点为 Block（一次仿真结果，包含独立变量和依赖变量）。C++ API 使用 `/` 分隔层级，REL 语法使用 `.` 分隔层级。
+
+一个仿真变量引用的完整路径为：
+`DatasetName.group1.group2...BlockName.VariableName`
+
+例如 `noise.simulation.SP1.SP.Vout` 中：
+- `noise` — Dataset 名称
+- `simulation` / `SP1` — Group（中间分组节点，可嵌套任意深度）
+- `SP` — Block（叶子节点，包含独立变量和依赖变量）
+- `Vout` — 该 Block 内的 DataArray 变量
+
+如果 VariableName 在整个 Dataset 的命名唯一，那么可以简写为：
 `DatasetName..VariableName`
 其中，双点号 `..` 表示该变量在该数据集中是唯一的。
-如果当前REL运行的默认Dataset就是引用变量的Dataset，则可以进一步简化为:
+
+如果当前 REL 运行的默认 Dataset 就是引用变量的 Dataset，则可以进一步简化为：
+`group1.group2...BlockName.VariableName`
+
+如果该变量在默认 Dataset 中唯一，则可以简写为：
 `VariableName`
-如果并非唯一，但是节点在默认Dataset下定义,可以简写为:
-`AnalysisName.AnalysisType.VariableName`
-在大多数情况下，一个Dataset只包含一次分析的结果，因此通常仅使用变量名即可完成引用。双点号 .. 最常见的用途，是在需要将变量明确关联到非默认Dataset时使用。
+
 > 默认Dataset
 REL解释器在运行时可以设置一个默认Dataset，切换默认Dataset会改变变量的数据输入
 
@@ -55,12 +68,12 @@ REL解释器在运行时可以设置一个默认Dataset，切换默认Dataset会
 
 仿真节点引用使用点分段形式，支持以下形式：
 
-- 完整形式：`DatasetName.AnalysisName.AnalysisType.VariableName`
+- 完整形式：`DatasetName.Group1...BlockName.VariableName`（最后两段为 Block 名 + 变量名，前面任意多段为 Group 路径）
 - 数据集唯一变量简写：`DatasetName..VariableName`
-- 默认数据集下的完整分析路径：`AnalysisName.AnalysisType.VariableName`
+- 默认数据集下的路径：`Group1...BlockName.VariableName`（省略 Dataset 名）
 - 默认数据集且变量唯一时：`VariableName`
 
-其中每个名称段（`DatasetName`、`AnalysisName`、`AnalysisType`、`VariableName`）都必须满足标识符语法 `[A-Za-z_][A-Za-z0-9_]*`。
+其中每个名称段（`DatasetName`、Group 名、Block 名、`VariableName`）都必须满足标识符语法 `[A-Za-z_][A-Za-z0-9_]*`。
 
 #### 内建常量
 

@@ -225,3 +225,24 @@ WS                    = [ \t\f\r\n]+
 <string_literal> ::= STRING_LITERAL
 <raw_string_literal> ::= RAW_STRING_LITERAL
 ```
+
+## 3. 语义说明
+
+### 3.1 引用解析（\<reference\>）
+
+`<reference>` 是点 (`.`) 或双点 (`..`) 分隔的标识符序列，对应 runtime 中的变量查找与 Dataset 路径导航。
+
+底层 Dataset 为树形结构：Group（内部节点，仅含子 Group）→ Block（叶子节点，含独立/依赖变量 DataArray）。C++ API 使用 `/` 分隔路径段，REL 语法使用 `.`。
+
+| 段数 | 文法形式 | 语义 |
+|---|---|---|
+| N≥3 | `a.b...x.y` | 尾部两段 `x.y` = Block 名 + DataArray 名；前面任意段为 Group 路径（对应 C++ `a/b/.../x`）。若首段为 Dataset 名则从该 Dataset 查找；否则从默认 Dataset 查找。 |
+| 2 | `a..y` | 跨 Dataset 唯一变量查找：在 Dataset `a` 中查找全局唯一的 DataArray `y`。 |
+| 1 | `y` | 默认 Dataset 中的变量查找：先查内建常量，再查 Dataset 中全局唯一的 DataArray `y`。 |
+
+例：
+- `noise.simulation.SP1.SP.Vout` → `GetDataArray("simulation/SP1/SP", "Vout")` on Dataset `"noise"`
+- `simulation.SP1.SP.Vout` → 默认 Dataset 的同一路径
+- `noise..Vout` → `GetDataArray("Vout")` on Dataset `"noise"`（全局唯一）
+- `Vout` → 默认 Dataset 的 `GetDataArray("Vout")`（唯一时）
+```

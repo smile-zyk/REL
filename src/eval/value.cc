@@ -75,12 +75,11 @@ std::string Value::to_string() const
         return m.to_string();
     }
 
-    // DataArray: render via DataFrame ASCII table
     const xdataset::DataArray& da = as_data_array();
-    return da.GetOrCreateDataFrame().to_string();
+    return da.GetOrCreateDataFrame("data").to_string();
 }
 
-std::string Value::to_string(const std::string& name)
+std::string Value::to_string(const std::string& name, int max_rows) const
 {
     if (is_null())
         return "NULL";
@@ -93,7 +92,7 @@ std::string Value::to_string(const std::string& name)
 
     // DataArray: render with custom variable name
     const xdataset::DataArray& da = as_data_array();
-    return da.GetOrCreateDataFrame(name).to_string();
+    return da.GetOrCreateDataFrame(name).to_string(max_rows);
 }
 
 // =========================================================================
