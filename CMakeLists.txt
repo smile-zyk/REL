@@ -28,6 +28,15 @@ target_link_libraries(rel_core PUBLIC xdataset)
 add_executable(rel src/main.cc)
 target_link_libraries(rel PRIVATE rel_core)
 
+# Readline / editline for REPL history (up/down arrow navigation).
+if(APPLE)
+    find_library(EDIT_LIBRARY edit REQUIRED)
+    target_link_libraries(rel PRIVATE ${EDIT_LIBRARY})
+elseif(UNIX)
+    find_package(Readline REQUIRED)
+    target_link_libraries(rel PRIVATE Readline::Readline)
+endif()
+
 # Copy xdataset DLL and its dependencies next to rel.exe on Windows.
 if(WIN32)
     add_custom_command(TARGET rel POST_BUILD

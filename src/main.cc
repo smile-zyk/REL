@@ -10,6 +10,15 @@
 #include "parser/parser.h"
 #include "scanner/scanner.h"
 
+#ifdef _WIN32
+// No readline on Windows yet — fall back to std::getline.
+#elif __APPLE__
+#include <editline/readline.h>
+#else
+#include <readline/readline.h>
+#include <readline/history.h>
+#endif
+
 #include <cctype>
 #include <fstream>
 #include <iostream>
@@ -165,13 +174,15 @@ namespace
         std::cout << "REL interpreter.\n"
                   << "  expr        - evaluate and print\n"
                   << "  name = expr - bind and print\n"
-                  << "  Ctrl+Z then Enter (Windows) / Ctrl+D (Unix) to exit.\n";
+                  << "  Ctrl+D (Unix) / Ctrl+Z (Windows) to exit.\n";
 
-        std::string line;
         int line_no = 1;
         while (true)
         {
+#ifdef _WIN32
+            // TODO: enable readline on Windows (e.g. via vcpkg port)
             std::cout << ">>> " << std::flush;
+            std::string line;
             if (!std::getline(std::cin, line))
             {
                 std::cout << '\n';
@@ -180,6 +191,26 @@ namespace
             if (line.empty()) continue;
             eval_line(env, line, line_no);
             ++line_no;
+#else
+            char* raw = readline(">>> ");
+            if (!raw)
+            {
+                std::cout << '\n';
+                break;
+            }
+            std::string line(raw);
+            if (!line.empty())
+            {
+                add_history(raw);
+                free(raw);
+                eval_line(env, line, line_no);
+                ++line_no;
+            }
+            else
+            {
+                free(raw);
+            }
+#endif
         }
         return 0;
     }
