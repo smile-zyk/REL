@@ -9,8 +9,6 @@
 #include "data_series.h"
 #include "measurement.h"
 
-#include <Eigen/Dense>
-
 #include <gtest/gtest.h>
 
 #include <memory>

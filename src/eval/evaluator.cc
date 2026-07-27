@@ -5,11 +5,8 @@
 #include "measurement.h"
 #include "unit.h"
 
-#include <Eigen/Dense>
-
 #include <complex>
 #include <cstdlib>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -168,127 +165,52 @@ void Evaluator::visit_matrix(const MatrixExpr& expr)
 
     if (expr.items.empty()) { result_ = Value::null_value(); return; }
 
-    struct ItemInfo {
-        Measurement first_row;
-        std::size_t row_count;
-        bool        is_data_array;
-        Value       value;
-    };
-    std::vector<ItemInfo> infos;
-
+    // Evaluate all items once.
+    std::vector<Value> item_vals;
+    bool has_data_array = false;
     for (const auto& item : expr.items)
     {
         Value v = evaluate(*item);
         if (v.is_null()) { result_ = Value::null_value(); return; }
-
-        ItemInfo info;
-        info.value = v;
-        if (v.is_measurement())
-        {
-            info.first_row     = v.as_measurement();
-            info.row_count     = 1;
-            info.is_data_array = false;
-        }
-        else
-        {
-            const DataArray& da = v.as_data_array();
-            info.first_row     = da.data().measurement_at(0);
-            info.row_count     = da.data().size();
-            info.is_data_array = true;
-        }
-        infos.push_back(info);
+        if (v.is_data_array()) has_data_array = true;
+        item_vals.push_back(v);
     }
-
-    // Validate uniformity.
-    const DataKind  kind  = infos[0].first_row.data_kind();
-    const DataType  dtype = infos[0].first_row.data_type();
-    const std::vector<Index>& shape = infos[0].first_row.shape();
-    std::size_t max_rows = 0;
-    for (const auto& info : infos)
-    {
-        if (info.first_row.data_kind() != kind ||
-            info.first_row.data_type() != dtype ||
-            info.first_row.shape()     != shape)
-            throw std::runtime_error("matrix: all items must have same kind/dtype/shape");
-        if (info.row_count > max_rows) max_rows = info.row_count;
-    }
-    for (const auto& info : infos)
-    {
-        if (info.row_count != 1 && info.row_count != max_rows)
-            throw std::runtime_error("matrix: row counts must be 1 or equal");
-    }
-
-    bool has_data_array = false;
-    for (const auto& info : infos)
-        if (info.is_data_array) { has_data_array = true; break; }
 
     if (!has_data_array)
     {
-        // Pure Measurement: shape promotion only when N > 1.
-        // Single item: return as-is.
-        if (infos.size() == 1)
+        // Pure Measurement: single item returns as-is.
+        if (item_vals.size() == 1)
         {
-            result_ = Value(infos[0].first_row);
+            result_ = item_vals[0];
             return;
         }
 
-        if (kind == DataKind::kScalar)
-        {
-            // Scalar × N → Vector(N).  Handle Integer vs Real dtype.
-            Eigen::VectorXd vec(static_cast<Eigen::Index>(infos.size()));
-            for (std::size_t i = 0; i < infos.size(); ++i)
-            {
-                if (dtype == DataType::kInteger)
-                    vec[static_cast<Eigen::Index>(i)] = static_cast<double>(
-                        infos[i].first_row.as_scalar<int>());
-                else
-                    vec[static_cast<Eigen::Index>(i)] = infos[i].first_row.as_scalar<double>();
-            }
-            result_ = Value(Measurement::Vector(vec));
-            if (infos[0].first_row.unit().has_dimension())
-                result_.as_measurement().set_unit(infos[0].first_row.unit());
-        }
-        else if (kind == DataKind::kVector)
-        {
-            // Vector(w) × N → Matrix(N, w)
-            Index w = shape[0];
-            Index n = static_cast<Index>(infos.size());
-            Eigen::MatrixXd mat(n, w);
-            for (Index i = 0; i < n; ++i)
-            {
-                auto v = infos[static_cast<std::size_t>(i)].first_row.as_vector<double>();
-                mat.row(i) = v;
-            }
-            result_ = Value(Measurement::Matrix(mat));
-            if (infos[0].first_row.unit().has_dimension())
-                result_.as_measurement().set_unit(infos[0].first_row.unit());
-        }
-        else
-        {
-            throw std::runtime_error("matrix: cannot combine Matrix items (max rank is 2)");
-        }
+        std::vector<Measurement> values;
+        for (auto& v : item_vals)
+            values.push_back(v.as_measurement());
+        result_ = Value(Concat(values));
         return;
     }
 
-    // DataArray path.
-    DataSeries ds(kind, dtype, shape);
-    ds.resize(0);
-    for (const auto& info : infos)
+    // Mixed or pure DataArray: promote Measurements to 1-row DataArrays.
+    std::vector<DataArray> values;
+    for (auto& v : item_vals)
     {
-        if (info.is_data_array)
+        if (v.is_measurement())
         {
-            const DataArray& da = info.value.as_data_array();
-            const DataSeries& src = da.data();
-            for (std::size_t i = 0; i < src.size(); ++i)
-                ds.append(src.measurement_at(i));
+            const Measurement& m = v.as_measurement();
+            DataSeries ds(m.data_kind(), m.data_type(), m.shape());
+            ds.set_unit(m.unit());
+            ds.append(m);
+            values.push_back(DataArray::CreateIndependent(ds));
         }
         else
         {
-            for (std::size_t i = 0; i < max_rows; ++i)
-                ds.append(info.first_row);
+            values.push_back(v.as_data_array());
         }
     }
-    result_ = Value(std::make_shared<DataArray>(DataArray::CreateIndependent(ds)));
+
+    result_ = Value(std::make_shared<DataArray>(Concat(values)));
 }
 
 // =========================================================================
