@@ -108,13 +108,6 @@ void Evaluator::visit_sweep(const SweepExpr& expr)
 {
     using namespace xdataset;
 
-    if (expr.items.empty())
-    {
-        DataSeries ds(DataKind::kScalar, DataType::kReal, {});
-        result_ = Value(std::make_shared<DataArray>(DataArray::CreateIndependent(ds)));
-        return;
-    }
-
     // Evaluate and flatten all items to measurements.
     std::vector<Measurement> rows;
     for (const auto& item : expr.items)
@@ -134,25 +127,18 @@ void Evaluator::visit_sweep(const SweepExpr& expr)
         }
     }
 
-    if (rows.empty()) { result_ = Value::null_value(); return; }
-
-    // Validate uniformity.
-    const DataKind  kind  = rows[0].data_kind();
-    const DataType  dtype = rows[0].data_type();
-    const std::vector<Index>& shape = rows[0].shape();
-    for (std::size_t i = 1; i < rows.size(); ++i)
+    // Combine handles: dtype promotion, scalar broadcast, shape
+    // validation, and Independent DataArray construction.
+    // Empty sweep: Combine throws, so handle it explicitly.
+    if (rows.empty())
     {
-        if (rows[i].data_kind() != kind || rows[i].data_type() != dtype ||
-            rows[i].shape() != shape)
-            throw std::runtime_error("sweep: all items must have same kind/dtype/shape");
+        DataSeries ds(DataKind::kScalar, DataType::kReal, {});
+        result_ = Value(std::make_shared<DataArray>(DataArray::CreateIndependent(ds)));
     }
-
-    DataSeries ds(kind, dtype, shape);
-    ds.resize(0);
-    for (auto& m : rows)
-        ds.append(m);
-
-    result_ = Value(std::make_shared<DataArray>(DataArray::CreateIndependent(ds)));
+    else
+    {
+        result_ = Value(std::make_shared<DataArray>(Combine(rows)));
+    }
 }
 
 // =========================================================================
@@ -189,6 +175,13 @@ void Evaluator::visit_matrix(const MatrixExpr& expr)
         for (auto& v : item_vals)
             values.push_back(v.as_measurement());
         result_ = Value(Concat(values));
+        return;
+    }
+
+    // DataArray path: single DataArray or Measurement returns as-is.
+    if (item_vals.size() == 1)
+    {
+        result_ = item_vals[0];
         return;
     }
 

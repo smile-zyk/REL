@@ -7,6 +7,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Third-party: xdataset (multi-dimensional data structures for REL).
+# Enable HDF5 if it's available on the system.
+if(DEFINED ENV{HDF5_ROOT} OR EXISTS "C:/msys64/mingw64/bin/libhdf5-320.dll")
+    set(XDATASET_ENABLE_HDF5 ON CACHE BOOL "" FORCE)
+endif()
 add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
 
 # Core library: scanner, parser, AST, evaluator (linked by both the CLI and
@@ -47,6 +51,13 @@ if(WIN32)
             "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-mingw-dynamic/debug/bin/libunits.dll"
             "$<TARGET_FILE_DIR:rel>"
     )
+    if(XDATASET_ENABLE_HDF5 AND HDF5_ROOT)
+        add_custom_command(TARGET rel POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${HDF5_ROOT}/bin/libhdf5-320.dll"
+                "$<TARGET_FILE_DIR:rel>"
+        )
+    endif()
 endif()
 
 # Tests.
