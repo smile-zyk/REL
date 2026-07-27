@@ -97,7 +97,13 @@ namespace
         }
 
         rel::Evaluator evaluator(env);
-        rel::Value value = evaluator.evaluate(*result.expr);
+        rel::Value value;
+        try {
+            value = evaluator.evaluate(*result.expr);
+        } catch (const std::exception& e) {
+            std::cerr << "runtime error: " << e.what() << std::endl;
+            return 1;
+        }
         std::cout << value.to_string() << '\n';
         return 0;
     }
@@ -134,7 +140,13 @@ namespace
         }
 
         rel::Evaluator evaluator(env);
-        rel::Value v = evaluator.evaluate(*result.expr);
+        rel::Value v;
+        try {
+            v = evaluator.evaluate(*result.expr);
+        } catch (const std::exception& e) {
+            std::cerr << "runtime error: " << e.what() << std::endl;
+            return 1;
+        }
         env.define(name, v);
         std::cout << v.to_string(name) << '\n';
         return 0;
@@ -159,7 +171,7 @@ namespace
             if (!line.empty())
             {
                 std::cout << "--- line " << line_no << ": " << line << '\n';
-                if (eval_line(env, line, line_no) != 0) return 1;
+                eval_line(env, line, line_no);
             }
             ++line_no;
         }
