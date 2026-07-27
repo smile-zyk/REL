@@ -137,7 +137,11 @@ void Evaluator::visit_sweep(const SweepExpr& expr)
     }
     else
     {
-        result_ = Value(std::make_shared<DataArray>(Combine(rows)));
+        // Combine yields a Dependent DataArray (no multi_dimension_spec).
+        // Re-wrap as Independent so GetOrCreateDataFrame() works.
+        DataArray combined = Combine(rows);
+        DataSeries ds = combined.data();
+        result_ = Value(std::make_shared<DataArray>(DataArray::CreateIndependent(ds)));
     }
 }
 
