@@ -137,10 +137,7 @@ void Evaluator::visit_sweep(const SweepExpr& expr)
     }
     else
     {
-        // Combine produces a Dependent DataArray; re-wrap as Independent.
-        DataArray combined = Combine(rows);
-        DataSeries ds = combined.data();
-        result_ = Value(std::make_shared<DataArray>(DataArray::CreateIndependent(ds)));
+        result_ = Value(std::make_shared<DataArray>(Combine(rows)));
     }
 }
 
