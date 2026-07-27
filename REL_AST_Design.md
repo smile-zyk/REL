@@ -293,8 +293,8 @@ V --> Caller : return result
 | `CallExpr` | Spec 2.6 `<postfix_tail>` | `callee` / `args` | 函数调用或矩阵索引；`args` 中空槽表示缺省参数 |
 | `IndexExpr` | Spec 2.6 `<postfix_tail>` | `object` / `indices` | sweep 索引，可连用，索引项可为序列 |
 | `GroupingExpr` | Spec 2.6 `( expr )` | `inner` | 分组，保真打印用；求值等价于内部表达式 |
-| `SweepExpr` | Spec 2.6 `<sweep_generator>` | `items` | `[ ... ]` 生成器，拼接为一个 sweep |
-| `MatrixExpr` | Spec 2.6 `<matrix_generator>` | `items` | `{ ... }` 生成器，拼接为一个矩阵 |
+| `SweepExpr` | Spec 2.6 `<sweep_generator>` | `items` | `[ ... ]`，逐行纵向拼接为 Independent DataArray（见 §5.5） |
+| `MatrixExpr` | Spec 2.6 `<matrix_generator>` | `items` | `{ ... }`，行级横向合并为 Measurement 或 DataArray（见 §5.5） |
 | `RangeExpr` | Spec 2.6 `<seq_expr>` | `start` / `step`（可空）/ `stop` | `start::stop` 或 `start::step::stop` |
 | `NullRangeExpr` | Spec 2.6 `<seq_expr> ::= OP_SEQ` | — | 裸序列 `::`，仅索引上下文合法 |
 
@@ -349,7 +349,26 @@ parser 在语法错误时不构造半成品节点，本设计不引入 `ErrorExp
 的策略一致（见 [src/scanner/scanner.h](src/scanner/scanner.h)）。若后续需要
 容错式编辑器场景，可再补充 `ErrorExpr`。
 
-### 5.5 递归下降命名约定
+### 5.6 SweepExpr 与 MatrixExpr 求值语义
+
+**SweepExpr（`[ ... ]`）** 将每个 item 视为若干行数据（Measurement 为一行，DataArray 展开为其 data 的 N 行），逐行纵向拼接。结果永远是 Independent DataArray，无上游坐标轴。不同 item 的行数可以不等，但每行的 shape（Scalar / Vector / Matrix）必须一致。
+
+```
+[1, 2, 3]          → 3 个 Scalar → 3 行 → DataArray(3行, spec=[Regular(3)])
+[a(2行), b(3行)]    → 2 + 3 = 5 行 → DataArray(5行)
+```
+
+**MatrixExpr（`{ ... }`）** 将每个 item 视为若干行数据，行级横向合并。所有 item 的每行 shape 一致。行数要么相等，要么为 1（单行 item 广播重复到最大行数）。例如 `(3行, 1行, 3行)` 合法，`(3行, 2行)` 非法。
+
+若所有 item 均为纯 Measurement（各恰好一行），结果升阶为 Measurement：Scalar × N → Vector(N)，Vector(w) × N → Matrix(N, w)。一旦任一 item 是 DataArray，结果保持 DataArray，沿数据行合并并保留坐标结构。
+
+```
+{1, 2, 3}          → 3 Scalar → Vector(3)               [Measurement]
+{[1,2], [3,4]}     → 2 Vector(2) → Matrix(2,2)           [Measurement]
+{DA(3行), M}        → 含 DA → DA，M 广播为 3 行             [DataArray]
+```
+
+### 5.7 递归下降命名约定
 
 为与 crafting interpreters 风格保持一致，parser 的实现函数命名使用：
 

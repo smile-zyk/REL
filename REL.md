@@ -283,9 +283,30 @@ REL 不支持注释语法（例如 `//` 或 `/* ... */` 均不属于语言语法
 
 #### 索引
 
-- `[]`：用作 sweep 索引器（`a[i]`、`a[i, j, k]`）或 sweep 生成器（`[expr_list]`）。索引可连续使用，如 `a[i][j]`；生成器形式将 `expr_list` 元素拼接为一个 sweep，例如 `[1, 2, 3]` 与 `[1::1::3]` 都生成 sweep `1, 2, 3`。
+- `[]`：用作 **sweep 索引器**（`a[i]`、`a[i, j, k]`）或 **sweep 生成器**（`[expr_list]`）。
+
+  **sweep 索引器**作用于左侧对象（如 `a[i][j]` 的连续索引），按维度施加选择器。
+
+  **sweep 生成器**将 `expr_list` 中每一项视为若干行数据，逐行纵向拼接为一个新的 Independent DataArray。不同 item 的行数可以不等（各行拼接），但每行的 shape 必须一致。一个 Scalar 字面量或 Measurement 被视为一行对应 shape 的数据。结果始终为 DataArray (Independent)，无上游坐标轴。
+
+  ```
+  [1, 2, 3]       → 3 个 Scalar → 3 行 Scalar → DataArray(3行, spec=[Regular(3)])
+  [a(2行), b(3行)]  → 2 + 3 = 5 行 → DataArray(5行)
+  ```
+
 - `()`：当左侧为矩阵对象时解释为矩阵索引（如 `a(i, j)`、`a(1::1::3, 3)`），否则解释为函数调用。
-- `{}`：用作矩阵生成器（`{expr_list}`），将 `expr_list` 元素拼接为一个矩阵，例如 `{1, 2, 3}` 与 `{1::1::3}` 都生成矩阵 `1, 2, 3`。
+
+- `{}`：用作 **矩阵生成器**（`{expr_list}`）。将 `expr_list` 中每一项视为若干行数据，合并为一个结果。
+
+  **行数规则**：所有 item 的行数要么相等，要么为 1（仅一行的 item 会被广播重复以匹配最大行数）。例如 `(3行, 1行, 3行)` 允许，`(3行, 2行)` 不允许。每行的 shape（Scalar 或 Vector 或 Matrix）必须一致。
+
+  **结果类型**：纯 Measurement（每个 item 恰好一行，视为一个标量或向量或矩阵值）时，结果升阶为 Measurement：Scalar × N → Vector(N)，Vector(w) × N → Matrix(N, w)。只要任一 item 是 DataArray，结果即为 DataArray。
+
+  ```
+  {1, 2, 3}        → 3 个 Scalar → Vector(3)                  [Measurement]
+  {[1,2], [3,4]}   → 2 个 Vector(2) → Matrix(2,2)             [Measurement]
+  {DA(3行), M}      → 含 DataArray → 结果保持 DataArray         [DataArray]
+  ```
 
 ### 条件表达式
 
