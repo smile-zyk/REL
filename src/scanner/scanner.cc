@@ -412,8 +412,7 @@ namespace rel
         void Scanner::scan_numeric_literal()
         {
             // Spec 2.7: <numeric_literal> ::= <numeric_base> <numeric_suffix_opt>
-            // The two parts are emitted as separate tokens (NUMERIC_BASE plus,
-            // optionally, one of PREDEF_SCALED_UNIT / SCALE_FACTOR / UNIT).
+            // NUMERIC_BASE and optionally NUMERIC_SUFFIX.
             scan_numeric_base();
             scan_numeric_suffix();
         }
@@ -486,10 +485,9 @@ namespace rel
 
         void Scanner::scan_numeric_suffix()
         {
-            // Spec 1.7 rule 3:
-            //   try PREDEF_SCALED_UNIT, then SCALE_FACTOR (UNIT?), then UNIT.
-            // We pick the longest overall match; on a tie, the higher priority
-            // form wins.
+            // Spec 1.7 rule 3: longest valid suffix emitted as a single
+            // NUMERIC_SUFFIX token.
+            // Priority: PREDEF_SCALED_UNIT > SCALE_FACTOR + UNIT > UNIT.
             const char* rest = source_.data() + current_;
             const std::size_t rest_size = source_.size() - current_;
 
@@ -506,38 +504,18 @@ namespace rel
 
             const std::size_t unit_len = match_unit(rest, rest_size);
 
-            // PREDEF wins if its length is the maximum (ties broken in its
-            // favour by priority).
-            if (predef_len > 0 && predef_len >= form2_len && predef_len >= unit_len)
-            {
-                mark_token_start();
-                for (std::size_t i = 0; i < predef_len; ++i) advance();
-                emit(TokenType::PREDEF_SCALED_UNIT);
-                return;
-            }
+            // Pick the longest match.
+            std::size_t best_len = predef_len;
+            if (form2_len > best_len) best_len = form2_len;
+            if (unit_len > best_len)  best_len = unit_len;
 
-            // SF (+ optional UNIT) wins over UNIT-alone on ties (priority).
-            if (sf_len > 0 && form2_len >= unit_len)
+            if (best_len > 0)
             {
                 mark_token_start();
-                advance();  // single-char SCALE_FACTOR
-                emit(TokenType::SCALE_FACTOR);
-                if (sf_unit_len > 0)
-                {
-                    mark_token_start();
-                    for (std::size_t i = 0; i < sf_unit_len; ++i) advance();
-                    emit(TokenType::UNIT);
-                }
+                for (std::size_t i = 0; i < best_len; ++i) advance();
+                emit(TokenType::NUMERIC_SUFFIX);
                 return;
             }
-
-            if (unit_len > 0)
-            {
-                mark_token_start();
-                for (std::size_t i = 0; i < unit_len; ++i) advance();
-                emit(TokenType::UNIT);
-                return;
-            }
-            // No suffix; nothing more to emit.
+            // No suffix.
         }
 } // namespace rel

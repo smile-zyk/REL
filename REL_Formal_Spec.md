@@ -56,8 +56,6 @@ RBRACE                = \}
 COMMA                 = ,
 DOT                   = \.
 DDOT                  = \.\.
-
-NUMERIC_SUFFIX        = (?:(?:PREDEF_SCALED_UNIT)|(?:SCALE_FACTOR(?:UNIT)?)|(?:UNIT))
 ```
 
 ### 1.3 字符串字面量
@@ -103,7 +101,7 @@ WS                    = [ \t\f\r\n]+
 
 1. **最长匹配优先（maximal munch）**：在当前位置总是选择能匹配的最长记号。由此保证多字符运算符优先于其前缀单字符运算符，即 `**` 优先于 `*`、`::` 优先于 `:`、`..`（DDOT）优先于 `.`（DOT）、`<<`/`<=` 优先于 `<`、`>>`/`>=` 优先于 `>`、`!=` 优先于 `!`、`||` 优先于 `|`、`&&` 优先于 `&`。
 2. **数值字面量整体最长匹配**：`NUMERIC_LITERAL = NUMERIC_BASE NUMERIC_SUFFIX?` 作为整体按最长匹配切分。当 `0` 后紧跟 `[xX]` 与至少一个十六进制位时识别为 `INT_HEX`（否则会被切为 `0` + 标识符 `x...`）；其余 `INT_DEC` / `REAL_NUM` / `IMAG_NUM` 形态共享同一吃字符路径，由最长匹配自然区分（末尾 `i` 归入 `IMAG_NUM`，出现 `.` 或 `[eE]` 归入 `REAL_NUM`，否则为 `INT_DEC`）。`INT_OCT` 与 `INT_DEC` 在词法层不区分，统一作为 `NUMERIC_BASE` 发射，进制由后续阶段按字面量首字符识别。
-3. **数值后缀扫描**：在 `NUMERIC_BASE` 之后，按 `PREDEF_SCALED_UNIT → SCALE_FACTOR UNIT? → UNIT` 顺序做最长匹配，将合法后缀整块作为 `NUMERIC_SUFFIX` 记号发射。若 scale factor 后跟随字母序列但未构成合法单位（如 `Mz`、`MHZ`），将 scale factor 及后续字母一起吞掉并发射 `INVALID` 记号，避免解析器产生语义不明的多余标识符记号。
+3. **数值后缀扫描**：在 `NUMERIC_BASE` 之后，按 `PREDEF_SCALED_UNIT → SCALE_FACTOR UNIT? → UNIT` 顺序做最长匹配，将合法后缀整块作为 `NUMERIC_SUFFIX` 记号发射。
 4. **关键字与标识符**：先按 `IDENTIFIER` 最长匹配，再判定其是否为关键字（`if/then/elseif/else/AND/OR/NOT/EQUALS/NOTEQUALS/NULL`）。内建常量（如 `PI`、`e`、`ln10`）不是关键字，按普通标识符（`reference`）处理，其值在求值期解析。
 5. **输入结束**：`<eof>` 表示输入耗尽，不对应任何字符记号。
 

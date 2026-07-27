@@ -336,20 +336,8 @@ namespace rel
             int radix = classify_radix(base.lexeme, kind);
 
             std::string suffix;
-
-            if (match(TokenType::PREDEF_SCALED_UNIT))
-            {
+            if (match(TokenType::NUMERIC_SUFFIX))
                 suffix = previous().lexeme;
-            }
-            else if (match(TokenType::SCALE_FACTOR))
-            {
-                suffix = previous().lexeme;
-                if (match(TokenType::UNIT)) suffix += previous().lexeme;
-            }
-            else if (match(TokenType::UNIT))
-            {
-                suffix = previous().lexeme;
-            }
 
             return ExprPtr(new NumberExpr(base.line,
                                           base.column,

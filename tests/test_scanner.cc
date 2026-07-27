@@ -241,19 +241,17 @@ void test_unit_alone()
     auto t = scan("8Hz");
     EXPECT_EQ_INT(t.size(), 3u);
     EXPECT(t[0].type == TokenType::NUMERIC_BASE);
-    EXPECT(t[1].type == TokenType::UNIT);
+    EXPECT(t[1].type == TokenType::NUMERIC_SUFFIX);
     EXPECT_EQ_STR(t[1].lexeme, "Hz");
 }
 
 void test_scale_factor_with_unit()
 {
     auto t = scan("8kHz");
-    EXPECT_EQ_INT(t.size(), 4u);
+    EXPECT_EQ_INT(t.size(), 3u);
     EXPECT(t[0].type == TokenType::NUMERIC_BASE);
-    EXPECT(t[1].type == TokenType::SCALE_FACTOR);
-    EXPECT_EQ_STR(t[1].lexeme, "k");
-    EXPECT(t[2].type == TokenType::UNIT);
-    EXPECT_EQ_STR(t[2].lexeme, "Hz");
+    EXPECT(t[1].type == TokenType::NUMERIC_SUFFIX);
+    EXPECT_EQ_STR(t[1].lexeme, "kHz");
 }
 
 void test_scale_factor_alone()
@@ -261,20 +259,20 @@ void test_scale_factor_alone()
     auto t = scan("8M");
     EXPECT_EQ_INT(t.size(), 3u);
     EXPECT(t[0].type == TokenType::NUMERIC_BASE);
-    EXPECT(t[1].type == TokenType::SCALE_FACTOR);
+    EXPECT(t[1].type == TokenType::NUMERIC_SUFFIX);
     EXPECT_EQ_STR(t[1].lexeme, "M");
 }
 
 void test_predef_scaled_unit()
 {
     auto t = scan("8mil 8mils 8cm 8dB");
-    EXPECT(t[1].type == TokenType::PREDEF_SCALED_UNIT);
+    EXPECT(t[1].type == TokenType::NUMERIC_SUFFIX);
     EXPECT_EQ_STR(t[1].lexeme, "mil");
-    EXPECT(t[3].type == TokenType::PREDEF_SCALED_UNIT);
+    EXPECT(t[3].type == TokenType::NUMERIC_SUFFIX);
     EXPECT_EQ_STR(t[3].lexeme, "mils");
-    EXPECT(t[5].type == TokenType::PREDEF_SCALED_UNIT);
+    EXPECT(t[5].type == TokenType::NUMERIC_SUFFIX);
     EXPECT_EQ_STR(t[5].lexeme, "cm");
-    EXPECT(t[7].type == TokenType::PREDEF_SCALED_UNIT);
+    EXPECT(t[7].type == TokenType::NUMERIC_SUFFIX);
     EXPECT_EQ_STR(t[7].lexeme, "dB");
 }
 
@@ -285,7 +283,7 @@ void test_spec_example_8ms_splits_as_8_m_and_s()
     EXPECT_EQ_INT(t.size(), 4u);
     EXPECT(t[0].type == TokenType::NUMERIC_BASE);
     EXPECT_EQ_STR(t[0].lexeme, "8");
-    EXPECT(t[1].type == TokenType::SCALE_FACTOR);
+    EXPECT(t[1].type == TokenType::NUMERIC_SUFFIX);
     EXPECT_EQ_STR(t[1].lexeme, "m");
     EXPECT(t[2].type == TokenType::IDENTIFIER);
     EXPECT_EQ_STR(t[2].lexeme, "s");
@@ -294,9 +292,9 @@ void test_spec_example_8ms_splits_as_8_m_and_s()
 void test_unit_longest_match_meters_over_meter()
 {
     auto t = scan("8meters 8meter");
-    EXPECT(t[1].type == TokenType::UNIT);
+    EXPECT(t[1].type == TokenType::NUMERIC_SUFFIX);
     EXPECT_EQ_STR(t[1].lexeme, "meters");
-    EXPECT(t[3].type == TokenType::UNIT);
+    EXPECT(t[3].type == TokenType::NUMERIC_SUFFIX);
     EXPECT_EQ_STR(t[3].lexeme, "meter");
 }
 
@@ -305,17 +303,17 @@ void test_predef_overrides_scale_factor_form()
     // "mil" (3 chars, PREDEF) beats SF "m" + nothing (1 char).
     auto t = scan("8mil");
     EXPECT_EQ_INT(t.size(), 3u);
-    EXPECT(t[1].type == TokenType::PREDEF_SCALED_UNIT);
+    EXPECT(t[1].type == TokenType::NUMERIC_SUFFIX);
     EXPECT_EQ_STR(t[1].lexeme, "mil");
 }
 
 void test_predef_followed_by_identifier_chars()
 {
-    // "8milky" -> "8" + PREDEF "mil" + IDENTIFIER "ky".
+    // "8milky" -> "8" + NUMERIC_SUFFIX "mil" + IDENTIFIER "ky".
     auto t = scan("8milky");
     EXPECT_EQ_INT(t.size(), 4u);
     EXPECT(t[0].type == TokenType::NUMERIC_BASE);
-    EXPECT(t[1].type == TokenType::PREDEF_SCALED_UNIT);
+    EXPECT(t[1].type == TokenType::NUMERIC_SUFFIX);
     EXPECT_EQ_STR(t[1].lexeme, "mil");
     EXPECT(t[2].type == TokenType::IDENTIFIER);
     EXPECT_EQ_STR(t[2].lexeme, "ky");
@@ -327,7 +325,7 @@ void test_unit_alone_meter_not_scale_factor_m_eter()
     // SF "m" + (no unit, since "eter" is not a UNIT).
     auto t = scan("8meter");
     EXPECT_EQ_INT(t.size(), 3u);
-    EXPECT(t[1].type == TokenType::UNIT);
+    EXPECT(t[1].type == TokenType::NUMERIC_SUFFIX);
     EXPECT_EQ_STR(t[1].lexeme, "meter");
 }
 
@@ -422,17 +420,15 @@ void test_realistic_if_expression()
     EXPECT(t[3].type == TokenType::OP_GE);
     EXPECT(t[4].type == TokenType::NUMERIC_BASE);
     EXPECT_EQ_STR(t[4].lexeme, "8");
-    EXPECT(t[5].type == TokenType::SCALE_FACTOR);
-    EXPECT_EQ_STR(t[5].lexeme, "k");
-    EXPECT(t[6].type == TokenType::UNIT);
-    EXPECT_EQ_STR(t[6].lexeme, "Hz");
-    EXPECT(t[7].type == TokenType::RPAREN);
-    EXPECT(t[8].type == TokenType::KW_THEN);
-    EXPECT(t[9].type == TokenType::NUMERIC_BASE);
-    EXPECT_EQ_STR(t[9].lexeme, "1.5e-3");
-    EXPECT(t[10].type == TokenType::KW_ELSE);
-    EXPECT(t[11].type == TokenType::KW_NULL);
-    EXPECT(t[12].type == TokenType::END_OF_INPUT);
+    EXPECT(t[5].type == TokenType::NUMERIC_SUFFIX);
+    EXPECT_EQ_STR(t[5].lexeme, "kHz");
+    EXPECT(t[6].type == TokenType::RPAREN);
+    EXPECT(t[7].type == TokenType::KW_THEN);
+    EXPECT(t[8].type == TokenType::NUMERIC_BASE);
+    EXPECT_EQ_STR(t[8].lexeme, "1.5e-3");
+    EXPECT(t[9].type == TokenType::KW_ELSE);
+    EXPECT(t[10].type == TokenType::KW_NULL);
+    EXPECT(t[11].type == TokenType::END_OF_INPUT);
 }
 
 TEST(ScannerTest, AllCases)

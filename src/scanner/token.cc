@@ -60,9 +60,7 @@ namespace rel
             case TokenType::RAW_STRING_LITERAL: return "RAW_STRING_LITERAL";
 
             case TokenType::NUMERIC_BASE: return "NUMERIC_BASE";
-            case TokenType::PREDEF_SCALED_UNIT: return "PREDEF_SCALED_UNIT";
-            case TokenType::SCALE_FACTOR: return "SCALE_FACTOR";
-            case TokenType::UNIT: return "UNIT";
+            case TokenType::NUMERIC_SUFFIX: return "NUMERIC_SUFFIX";
 
             case TokenType::END_OF_INPUT: return "END_OF_INPUT";
             case TokenType::INVALID: return "INVALID";

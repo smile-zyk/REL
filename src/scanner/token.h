@@ -87,17 +87,13 @@ namespace rel
         RAW_STRING_LITERAL,
 
         // -----------------------------------------------------------------
-        // Numeric literal parts (Spec 1.4 / 1.5)
-        // The numeric literal is split into separate terminals so the
-        // parser can apply Spec 1.7 rule 3 (suffix scan): NUMERIC_BASE is
-        // followed optionally by PREDEF_SCALED_UNIT, or SCALE_FACTOR with
-        // an optional UNIT, or a bare UNIT. The base alternative order is
-        // fixed: imaginary -> hex -> real -> octal -> decimal.
+        // Numeric literal suffix (Spec 1.5)
+        // NUMERIC_SUFFIX is emitted as a single token.  The scanner
+        // greedily matches the longest valid suffix using the priority
+        // PREDEF_SCALED_UNIT > SCALE_FACTOR + UNIT > UNIT.
         // -----------------------------------------------------------------
-        NUMERIC_BASE,       // 123 / 0x1F / 3.14 / 077 / 2i ...
-        PREDEF_SCALED_UNIT, // mil mils in ft mi cm PHz dB nmi
-        SCALE_FACTOR,       // T G M K k _ m u n p f a
-        UNIT,               // Hz Ohm Ohms S F H meter(s) sec V A W ...
+        NUMERIC_BASE,    // 123 / 0x1F / 3.14 / 077 / 2i ...
+        NUMERIC_SUFFIX,  // GHz, cm, mV, Hz, Ohm, dB, ...
 
         // -----------------------------------------------------------------
         // Control tokens (not produced by any regex in Spec 1)
