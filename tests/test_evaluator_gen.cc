@@ -215,3 +215,18 @@ TEST(RegressionTest, SweepWithUnitsToString)
     std::string s = v.to_string();
     EXPECT_FALSE(s.empty());
 }
+
+TEST(RegressionTest, MatrixWithSweepAndScalarConcat)
+{
+    // {[1,2GHz], 3}: Sweep(2 rows Scalar) + M(1 row broadcast).
+    // Currently Concat produces 2 rows of Scalar; desired is 2 rows of Vector(2).
+    // See: xdataset Concat shape-promotion & unit-propagation bug.
+    rel::Value v = eval_string("{[1,2GHz], 3}");
+    EXPECT_TRUE(v.is_data_array());
+    EXPECT_EQ(v.as_data_array().data().size(), 2u);
+    // TODO: should be Vector, not Scalar:
+    EXPECT_EQ(v.as_data_array().data().data_kind(), xdataset::DataKind::kVector);
+    std::string s = v.to_string();
+    EXPECT_FALSE(s.empty());
+    // TODO: 1 and 3 should NOT inherit GHz unit
+}
