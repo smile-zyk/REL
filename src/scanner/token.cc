@@ -71,8 +71,8 @@ namespace rel
     std::string to_string(const Token& token)
     {
         // Compact fragment that reads naturally inside a sentence, e.g.
-        //   syntax error: unexpected `then` (line 2, column 5)
-        //   syntax error: unexpected <end of input> (line 5, column 1)
+        //   unexpected `then`
+        //   unexpected <end of input>
         std::ostringstream oss;
 
         switch (token.type)
@@ -100,7 +100,6 @@ namespace rel
             default: oss << '`' << token.lexeme << '`'; break;
         }
 
-        oss << " (line " << token.line << ", column " << token.column << ')';
         return oss.str();
     }
 } // namespace rel
