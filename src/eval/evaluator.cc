@@ -3,10 +3,13 @@
 #include "data_array.h"
 #include "data_series.h"
 #include "measurement.h"
+#include "parser/parser.h"
+#include "scanner/scanner.h"
 #include "unit.h"
 
 #include <complex>
 #include <cstdlib>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -137,11 +140,7 @@ void Evaluator::visit_sweep(const SweepExpr& expr)
     }
     else
     {
-        // Combine yields a Dependent DataArray (no multi_dimension_spec).
-        // Re-wrap as Independent so GetOrCreateDataFrame() works.
-        DataArray combined = Combine(rows);
-        DataSeries ds = combined.data();
-        result_ = Value(std::make_shared<DataArray>(DataArray::CreateIndependent(ds)));
+        result_ = Value(std::make_shared<DataArray>(Combine(rows)));
     }
 }
 
@@ -225,5 +224,23 @@ void Evaluator::visit_index(const IndexExpr&)           { result_ = Value::null_
 void Evaluator::visit_grouping(const GroupingExpr&)     { result_ = Value::null_value(); }
 void Evaluator::visit_range(const RangeExpr&)           { result_ = Value::null_value(); }
 void Evaluator::visit_null_range(const NullRangeExpr&)  { result_ = Value::null_value(); }
+
+// =========================================================================
+//  eval_string — source → Value
+// =========================================================================
+
+Value eval_string(const std::string& source)
+{
+    Scanner scanner(source);
+    Parser parser(scanner.scan_tokens());
+    ParseResult result = parser.parse();
+
+    if (!result.ok())
+        throw std::runtime_error(result.errors[0].message);
+
+    Environment env;
+    Evaluator evaluator(env);
+    return evaluator.evaluate(*result.expr);
+}
 
 } // namespace rel

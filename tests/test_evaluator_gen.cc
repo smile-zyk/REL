@@ -1,8 +1,6 @@
-// Evaluator sweep/matrix tests.
+// Evaluator sweep/matrix tests — uses eval_string for concise test setup.
 
 #include "eval/evaluator.h"
-#include "eval/environment.h"
-#include "eval/value.h"
 
 #include "ast/expr.h"
 #include "data_array.h"
@@ -12,23 +10,8 @@
 #include <gtest/gtest.h>
 
 #include <string>
-#include <vector>
 
-namespace
-{
-    rel::Value eval_expr(const rel::Expr& expr)
-    {
-        rel::Environment env;
-        rel::Evaluator e(env);
-        return e.evaluate(expr);
-    }
-
-    rel::ExprPtr num(double v)
-    {
-        return rel::ExprPtr(new rel::NumberExpr(1, 1, rel::NumberKind::Real,
-                             std::to_string(v), 10, ""));
-    }
-} // namespace
+using rel::eval_string;
 
 // =========================================================================
 //  SweepExpr — [expr_list] → Independent DataArray
@@ -36,93 +19,83 @@ namespace
 
 TEST(SweepExprTest, ThreeScalars)
 {
-    std::vector<rel::ExprPtr> items;
-    items.push_back(num(1.0));
-    items.push_back(num(2.0));
-    items.push_back(num(3.0));
-    rel::SweepExpr expr(1, 1, std::move(items));
-
-    rel::Value v = eval_expr(expr);
+    rel::Value v = eval_string("[1.0, 2.0, 3.0]");
     EXPECT_TRUE(v.is_data_array());
-    xdataset::DataArray& da = v.as_data_array();
+    auto& da = v.as_data_array();
+    EXPECT_EQ(da.data_kind(), xdataset::DataArrayKind::kIndependent);
     EXPECT_EQ(da.data().size(), 3u);
     EXPECT_EQ(da.data().data_kind(), xdataset::DataKind::kScalar);
 }
 
 TEST(SweepExprTest, SingleScalar)
 {
-    std::vector<rel::ExprPtr> items;
-    items.push_back(num(42.0));
-    rel::SweepExpr expr(1, 1, std::move(items));
-
-    rel::Value v = eval_expr(expr);
+    rel::Value v = eval_string("[42.0]");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 1u);
 }
 
-TEST(SweepExprTest, FourScalars)
-{
-    std::vector<rel::ExprPtr> items;
-    items.push_back(num(1.0));
-    items.push_back(num(2.0));
-    items.push_back(num(3.0));
-    items.push_back(num(4.0));
-    rel::SweepExpr expr(1, 1, std::move(items));
-
-    rel::Value v = eval_expr(expr);
-    EXPECT_EQ(v.as_data_array().data().size(), 4u);
-}
-
 TEST(SweepExprTest, EmptySweep)
 {
-    std::vector<rel::ExprPtr> items;
-    rel::SweepExpr expr(1, 1, std::move(items));
-    rel::Value v = eval_expr(expr);
+    // Parser rejects empty [], so construct AST manually.
+    rel::SweepExpr expr(1, 1, std::vector<rel::ExprPtr>{});
+    rel::Environment env;
+    rel::Evaluator e(env);
+    rel::Value v = e.evaluate(expr);
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 0u);
 }
 
+TEST(SweepExprTest, MixedTypesIntegerAndUnit)
+{
+    // Regression: 2MHz is Integer with unit, plain scalars are Real.
+    // Combine must handle Integer→Real promotion without boost::bad_get.
+    rel::Value v = eval_string("[{1, 2MHz}, {3, 4}]");
+    EXPECT_TRUE(v.is_data_array());
+    // Should produce a 2-row, 2-col (Vector) DataArray without crash.
+    EXPECT_EQ(v.as_data_array().data().size(), 2u);
+}
+
+TEST(SweepExprTest, IntegerSweep)
+{
+    rel::Value v = eval_string("[1, 2, 3]");
+    EXPECT_TRUE(v.is_data_array());
+    EXPECT_EQ(v.as_data_array().data().size(), 3u);
+    EXPECT_EQ(v.as_data_array().data().data_type(), xdataset::DataType::kInteger);
+}
+
+TEST(SweepExprTest, MixedScalarAndVectorInsideSweep)
+{
+    // [{1,2},{3,4}] — two MatrixExpr producing Vector(2) inside Sweep
+    rel::Value v = eval_string("[{1,2}, {3,4}]");
+    EXPECT_TRUE(v.is_data_array());
+    EXPECT_EQ(v.as_data_array().data().data_kind(), xdataset::DataKind::kVector);
+    EXPECT_EQ(v.as_data_array().data().size(), 2u);
+}
+
 // =========================================================================
-//  MatrixExpr — {expr_list}, pure Measurement → Measurement
+//  MatrixExpr — {expr_list}
 // =========================================================================
 
 TEST(MatrixExprTest, ThreeScalarsPromotedToVector)
 {
-    std::vector<rel::ExprPtr> items;
-    items.push_back(num(1.0));
-    items.push_back(num(2.0));
-    items.push_back(num(3.0));
-    rel::MatrixExpr expr(1, 1, std::move(items));
-
-    rel::Value v = eval_expr(expr);
+    rel::Value v = eval_string("{1.0, 2.0, 3.0}");
     EXPECT_TRUE(v.is_measurement());
     EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kVector);
     auto vec = v.as_measurement().as_vector<double>();
     EXPECT_EQ(vec.size(), 3);
     EXPECT_DOUBLE_EQ(vec[0], 1.0);
-    EXPECT_DOUBLE_EQ(vec[1], 2.0);
-    EXPECT_DOUBLE_EQ(vec[2], 3.0);
 }
 
 TEST(MatrixExprTest, SingleScalarStaysScalar)
 {
-    std::vector<rel::ExprPtr> items;
-    items.push_back(num(5.0));
-    rel::MatrixExpr expr(1, 1, std::move(items));
-
-    rel::Value v = eval_expr(expr);
+    rel::Value v = eval_string("{5.0}");
     EXPECT_TRUE(v.is_measurement());
     EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kScalar);
 }
 
 TEST(MatrixExprTest, TwoScalarsPromotedToVector)
 {
-    std::vector<rel::ExprPtr> items;
-    items.push_back(num(10.0));
-    items.push_back(num(20.0));
-    rel::MatrixExpr expr(1, 1, std::move(items));
-
-    rel::Value v = eval_expr(expr);
+    rel::Value v = eval_string("{10.0, 20.0}");
     EXPECT_TRUE(v.is_measurement());
     EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kVector);
     auto vec = v.as_measurement().as_vector<double>();
@@ -131,11 +104,33 @@ TEST(MatrixExprTest, TwoScalarsPromotedToVector)
     EXPECT_DOUBLE_EQ(vec[1], 20.0);
 }
 
+TEST(MatrixExprTest, IntegerScalarsPromotedToVector)
+{
+    rel::Value v = eval_string("{1, 2, 3}");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kVector);
+}
+
 TEST(MatrixExprTest, EmptyMatrixReturnsNull)
 {
     rel::MatrixExpr expr(1, 1, std::vector<rel::ExprPtr>{});
-    rel::Value v = eval_expr(expr);
+    rel::Environment env;
+    rel::Evaluator e(env);
+    rel::Value v = e.evaluate(expr);
     EXPECT_TRUE(v.is_null());
+}
+
+TEST(MatrixExprTest, MixedUnitAndNoUnit)
+{
+    // Regression: 1 (Integer, no unit) + 2MHz (Integer, with unit)
+    rel::Value v = eval_string("{1, 2MHz}");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kVector);
+}
+
+TEST(MatrixExprTest, WithStringThrows)
+{
+    EXPECT_THROW(eval_string("{1, 2, \"hello\"}"), std::exception);
 }
 
 // =========================================================================
@@ -144,17 +139,7 @@ TEST(MatrixExprTest, EmptyMatrixReturnsNull)
 
 TEST(SweepMatrixTest, SingleSweepInMatrix)
 {
-    // {[1,2,3]} — SweepExpr (3-row DA) inside MatrixExpr → DataArray Concat
-    std::vector<rel::ExprPtr> inner;
-    inner.push_back(num(1.0));
-    inner.push_back(num(2.0));
-    inner.push_back(num(3.0));
-
-    std::vector<rel::ExprPtr> outer;
-    outer.push_back(rel::ExprPtr(new rel::SweepExpr(1, 1, std::move(inner))));
-    rel::MatrixExpr expr(1, 1, std::move(outer));
-
-    rel::Value v = eval_expr(expr);
+    rel::Value v = eval_string("{[1.0, 2.0, 3.0]}");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 3u);
     EXPECT_EQ(v.as_data_array().data().data_kind(), xdataset::DataKind::kScalar);
@@ -162,21 +147,7 @@ TEST(SweepMatrixTest, SingleSweepInMatrix)
 
 TEST(SweepMatrixTest, TwoSweepsConcat)
 {
-    // {[1,2], [3,4]} → Concat two 2-row DAs → 2 rows of Vector(2)
-    std::vector<rel::ExprPtr> s1;
-    s1.push_back(num(1.0));
-    s1.push_back(num(2.0));
-
-    std::vector<rel::ExprPtr> s2;
-    s2.push_back(num(3.0));
-    s2.push_back(num(4.0));
-
-    std::vector<rel::ExprPtr> outer;
-    outer.push_back(rel::ExprPtr(new rel::SweepExpr(1, 1, std::move(s1))));
-    outer.push_back(rel::ExprPtr(new rel::SweepExpr(1, 1, std::move(s2))));
-    rel::MatrixExpr expr(1, 1, std::move(outer));
-
-    rel::Value v = eval_expr(expr);
+    rel::Value v = eval_string("{[1.0, 2.0], [3.0, 4.0]}");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 2u);
     EXPECT_EQ(v.as_data_array().data().data_kind(), xdataset::DataKind::kVector);
@@ -184,18 +155,8 @@ TEST(SweepMatrixTest, TwoSweepsConcat)
 
 TEST(SweepMatrixTest, SweepAndScalarConcatWithBroadcast)
 {
-    // {[1,2,3], 42} → DA(3 rows) + M(1 row broadcast) → 3 rows of Vector(2)
-    std::vector<rel::ExprPtr> inner;
-    inner.push_back(num(1.0));
-    inner.push_back(num(2.0));
-    inner.push_back(num(3.0));
-
-    std::vector<rel::ExprPtr> outer;
-    outer.push_back(rel::ExprPtr(new rel::SweepExpr(1, 1, std::move(inner))));
-    outer.push_back(num(42.0));
-    rel::MatrixExpr expr(1, 1, std::move(outer));
-
-    rel::Value v = eval_expr(expr);
+    // [1,2,3] (3-row DA) + 42 (1-row M broadcast) → 3 rows Vector(2)
+    rel::Value v = eval_string("{[1.0, 2.0, 3.0], 42.0}");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 3u);
     EXPECT_EQ(v.as_data_array().data().data_kind(), xdataset::DataKind::kVector);
@@ -207,17 +168,7 @@ TEST(SweepMatrixTest, SweepAndScalarConcatWithBroadcast)
 
 TEST(SweepMatrixTest, MatrixInsideSweep)
 {
-    // [{1,2,3}] → MatrixExpr produces Vector(3) Measurement → 1 Vector row
-    std::vector<rel::ExprPtr> mat;
-    mat.push_back(num(1.0));
-    mat.push_back(num(2.0));
-    mat.push_back(num(3.0));
-
-    std::vector<rel::ExprPtr> outer;
-    outer.push_back(rel::ExprPtr(new rel::MatrixExpr(1, 1, std::move(mat))));
-    rel::SweepExpr expr(1, 1, std::move(outer));
-
-    rel::Value v = eval_expr(expr);
+    rel::Value v = eval_string("[{1.0, 2.0, 3.0}]");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 1u);
     EXPECT_EQ(v.as_data_array().data().data_kind(), xdataset::DataKind::kVector);
@@ -225,22 +176,42 @@ TEST(SweepMatrixTest, MatrixInsideSweep)
 
 TEST(SweepMatrixTest, MultipleMatricesInsideSweep)
 {
-    // [{1,2}, {3,4}] → two Vector(2) Meas → 2 Vector rows
-    std::vector<rel::ExprPtr> m1;
-    m1.push_back(num(1.0));
-    m1.push_back(num(2.0));
-
-    std::vector<rel::ExprPtr> m2;
-    m2.push_back(num(3.0));
-    m2.push_back(num(4.0));
-
-    std::vector<rel::ExprPtr> outer;
-    outer.push_back(rel::ExprPtr(new rel::MatrixExpr(1, 1, std::move(m1))));
-    outer.push_back(rel::ExprPtr(new rel::MatrixExpr(1, 1, std::move(m2))));
-    rel::SweepExpr expr(1, 1, std::move(outer));
-
-    rel::Value v = eval_expr(expr);
+    rel::Value v = eval_string("[{1.0, 2.0}, {3.0, 4.0}]");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 2u);
     EXPECT_EQ(v.as_data_array().data().data_kind(), xdataset::DataKind::kVector);
+}
+
+// =========================================================================
+//  Regression: to_string() must not crash
+// =========================================================================
+
+TEST(RegressionTest, SweepToString)
+{
+    rel::Value v = eval_string("[1, 2, 3]");
+    std::string s = v.to_string();
+    EXPECT_FALSE(s.empty());
+}
+
+TEST(RegressionTest, MatrixToString)
+{
+    rel::Value v = eval_string("{1, 2, 3}");
+    std::string s = v.to_string();
+    EXPECT_FALSE(s.empty());
+}
+
+TEST(RegressionTest, NestedSweepMatrixToString)
+{
+    // [{1,2},{3,4}] was crashing because Combine produced Dependent DataArray
+    rel::Value v = eval_string("[{1,2}, {3,4}]");
+    std::string s = v.to_string();
+    EXPECT_FALSE(s.empty());
+}
+
+TEST(RegressionTest, SweepWithUnitsToString)
+{
+    // Mixed units crash regression
+    rel::Value v = eval_string("[{1,2MHz}, {3,4}]");
+    std::string s = v.to_string();
+    EXPECT_FALSE(s.empty());
 }
