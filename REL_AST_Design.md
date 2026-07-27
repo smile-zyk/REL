@@ -86,9 +86,7 @@ class NumberExpr {
   +kind : NumberKind
   +base_lexeme : string
   +radix : int
-  +scale_factor : string
-  +unit : string
-  +predefined_unit : bool
+  +suffix : string
 }
 class StringExpr {
   +value : string
@@ -284,7 +282,7 @@ V --> Caller : return result
 | 节点 | 文法依据 | 关键字段 | 说明 |
 |---|---|---|---|
 | `NullExpr` | Spec 2.7 `KW_NULL` | — | `NULL` 字面量 |
-| `NumberExpr` | Spec 2.7 `<numeric_literal>` | `kind` / `base_lexeme` / `radix` / `scale_factor` / `unit` / `predefined_unit` | 数值字面量，携带进制、缩放因子与物理单位信息 |
+| `NumberExpr` | Spec 2.7 `<numeric_literal>` | `kind` / `base_lexeme` / `radix` / `suffix` | 数值字面量，`suffix` 为完整的 `NUMERIC_SUFFIX` 记号（缩放因子 + 单位或预定义单位），求值时直接交给 `Unit::parse` |
 | `StringExpr` | Spec 2.7 `<string_literal>` / `<raw_string_literal>` | `value` / `raw` | 普通字符串按 Spec 1.3 解码转义；原始字符串 verbatim |
 | `ReferenceExpr` | Spec 2.7 `<reference>` | `segments` | 点分多段引用，对应 Dataset 树形路径；内建常量（`PI`/`e`…）亦归此类，求值期解析 |
 | `UnaryExpr` | Spec 2.5 `<unary_op>` | `op` / `operand` | 前缀 `!` `NOT` `~` `-` |
@@ -317,8 +315,8 @@ V --> Caller : return result
   非法（[REL.md](REL.md) 函数一节）。
 - **裸序列**：`::` 仅出现在索引上下文（如 `a[::, 1]`）；出现在 `[]` / `{}`
   生成器中非法。
-- **数值后缀**：`scale_factor` 在前、`unit` 在后；命中 `predefined_scaled_unit`
-  后不再叠加缩放因子或单位（Spec 1.5）。
+- **数值后缀**：整个后缀作为 `NUMERIC_SUFFIX` 记号发射并存入 `suffix` 字段，
+  不再拆分为独立的 scale factor / unit / predefined unit token（Spec 1.5 / 1.7 规则 3）。
 
 ---
 
