@@ -488,6 +488,19 @@ namespace rel
             // Spec 1.7 rule 3: longest valid suffix emitted as a single
             // NUMERIC_SUFFIX token.
             // Priority: PREDEF_SCALED_UNIT > SCALE_FACTOR + UNIT > UNIT.
+
+            // Skip whitespace between numeric base and suffix (e.g. "1 Hz").
+            while (current_ < source_.size())
+            {
+                char c = source_[current_];
+                if (c == ' ' || c == '\t' || c == '\f' || c == '\r')
+                {
+                    ++current_;
+                    continue;
+                }
+                break;
+            }
+
             const char* rest = source_.data() + current_;
             const std::size_t rest_size = source_.size() - current_;
 
