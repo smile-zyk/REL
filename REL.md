@@ -3,9 +3,18 @@ REL(ResultsView Expression Language/后处理表达式语言) 是一种对仿真
 
 主要特点为：
 1. REL 是一种专用于基于多维仿真数据的结果计算表达式的DSL(Domain-Specific Language)
-2. REL 操作的数据和表达式计算的结果统一为一种多维仿真数据结构
+2. REL 操作的数据和表达式计算的结果只有两种类型：**DataArray**（多维仿真数据）和 **Measurement**（单行数据），详见[数据类型](#数据类型)
 3. REL 兼容Keysight ADS AEL Mesaure Expression的语法
 4. REL 支持使用Python拓展更多的函数
+
+## 数据类型
+
+REL 中的值只有两种：
+
+- **DataArray** — 多维仿真数据结构。包含自身数据（若干行）和关联的坐标轴信息，区分两种角色：坐标轴变量（记录扫描点）和观测变量（挂载在某组坐标轴上的仿真结果）。DataArray 可以是一个仿真变量、一个 sweep 生成结果，或一次算术运算的产物。
+- **Measurement** — 单行数据。携带一个标量 / 向量 / 矩阵值和一个物理单位，不含坐标信息。Scalar 字面量、字符串、算术中间结果均以 Measurement 表示。Measurement 可视为 DataArray 中的一行，也可在纯值运算中独立出现。
+
+表达式求值结果要么是一个 Measurement（如 `3 + 4`、`{1,2,3}`），要么是一个 DataArray（如 `[1,2,3]`、带坐标的变量引用）。两种类型在算术、比较、逻辑、索引等操作中均可混合参与。
 
 一个 REL 输入由单个表达式构成：
 ```REL
