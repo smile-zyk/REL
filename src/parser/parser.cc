@@ -549,6 +549,9 @@ namespace rel
         ParseError err;
         err.line = token.line;
         err.column = token.column;
+        err.kind = (token.type == TokenType::INVALID)
+                       ? ErrorKind::Lexical
+                       : ErrorKind::Syntax;
 
         std::ostringstream oss;
         oss << message;

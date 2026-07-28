@@ -8,10 +8,17 @@
 
 namespace rel
 {
+    enum class ErrorKind
+    {
+        Lexical,  // scanner-level (INVALID token)
+        Syntax,   // parser-level (grammar mismatch)
+    };
+
     struct ParseError
     {
         int line;
         int column;
+        ErrorKind kind;
         std::string message;
     };
 

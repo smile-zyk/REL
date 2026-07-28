@@ -90,8 +90,11 @@ namespace
             for (std::size_t i = 0; i < result.errors.size(); ++i)
             {
                 const rel::ParseError& err = result.errors[i];
-                std::cerr << "line " << err.line << ", column " << err.column
-                          << ": " << err.message << '\n';
+                const char* label = (err.kind == rel::ErrorKind::Lexical)
+                                   ? "lexical error"
+                                   : "syntax error";
+            std::cerr << label << ": line " << err.line << ", column "
+                      << err.column << ": " << err.message << '\n';
             }
             return 1;
         }
@@ -133,8 +136,11 @@ namespace
             for (std::size_t i = 0; i < result.errors.size(); ++i)
             {
                 const rel::ParseError& err = result.errors[i];
-                std::cerr << "line " << err.line << ", column " << err.column
-                          << ": " << err.message << '\n';
+                const char* label = (err.kind == rel::ErrorKind::Lexical)
+                                   ? "lexical error"
+                                   : "syntax error";
+            std::cerr << label << ": line " << err.line << ", column "
+                      << err.column << ": " << err.message << '\n';
             }
             return 1;
         }
