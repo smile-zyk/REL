@@ -107,7 +107,7 @@ namespace rel
         {
         }
 
-        std::vector<Token> Scanner::scan_tokens()
+        ScanResult Scanner::scan()
         {
             while (!is_at_end())
             {
@@ -133,7 +133,7 @@ namespace rel
             // Synthetic END_OF_INPUT (Spec 1.7 rule 5).
             mark_token_start();
             emit(TokenType::END_OF_INPUT, "");
-            return std::move(tokens_);
+            return {std::move(tokens_), std::move(errors_)};
         }
 
         // ---------------------------------------------------------------------
@@ -182,6 +182,16 @@ namespace rel
         void Scanner::emit(TokenType type, std::string lexeme)
         {
             tokens_.push_back(Token{type, std::move(lexeme), start_line_, start_col_});
+        }
+
+        void Scanner::add_error(const std::string& message)
+        {
+            Error err;
+            err.kind    = ErrorKind::Lexical;
+            err.line    = start_line_;
+            err.column  = start_col_;
+            err.message = message;
+            errors_.push_back(std::move(err));
         }
 
         // ---------------------------------------------------------------------
@@ -248,7 +258,7 @@ namespace rel
                 case '=':
                     // The spec has no bare '=' token. Lone '=' is a lexical error.
                     if (match('=')) { emit(TokenType::OP_EQ); return; }
-                    emit(TokenType::INVALID);
+                    add_error("unexpected '=' (did you mean '=='?)");
                     return;
                 case '!':
                     emit(match('=') ? TokenType::OP_NE : TokenType::OP_LNOT);
@@ -282,11 +292,11 @@ namespace rel
                 case '\'':
                     if (match('\'')) { scan_raw_string_literal(); return; }
                     // Single quote on its own is not part of any production.
-                    emit(TokenType::INVALID);
+                    add_error("stray '\'' in input");
                     return;
 
                 default:
-                    emit(TokenType::INVALID);
+                    add_error("unexpected character");
                     return;
             }
         }
@@ -343,8 +353,8 @@ namespace rel
                             }
                             else
                             {
-                                emit(TokenType::INVALID);
-                                return;
+                                add_error("invalid hex escape in string");
+                                continue;
                             }
                             break;
                         case '0':
@@ -357,13 +367,14 @@ namespace rel
                             }
                             else
                             {
-                                emit(TokenType::INVALID);
-                                return;
+                                add_error("invalid octal escape in string");
+                                continue;
                             }
                             break;
                         default:
-                            emit(TokenType::INVALID);
-                            return;
+                            advance();
+                            add_error("invalid escape sequence in string");
+                            continue;
                     }
                     continue;
                 }
@@ -378,7 +389,7 @@ namespace rel
                 advance();
             }
             // Reached EOF without a closing quote.
-            emit(TokenType::INVALID);
+            add_error("unterminated string");
         }
 
         void Scanner::scan_raw_string_literal()
@@ -402,7 +413,7 @@ namespace rel
                 }
                 advance();
             }
-            emit(TokenType::INVALID);
+            add_error("unterminated raw string");
         }
 
         // ---------------------------------------------------------------------
@@ -489,17 +500,8 @@ namespace rel
             // NUMERIC_SUFFIX token.
             // Priority: PREDEF_SCALED_UNIT > SCALE_FACTOR + UNIT > UNIT.
 
-            // Skip whitespace between numeric base and suffix (e.g. "1 Hz").
-            while (current_ < source_.size())
-            {
-                char c = source_[current_];
-                if (c == ' ' || c == '\t' || c == '\f' || c == '\r')
-                {
-                    ++current_;
-                    continue;
-                }
-                break;
-            }
+            // Optional whitespace between NUMERIC_BASE and suffix ("1 Hz").
+            while (!is_at_end() && (peek() == ' ' || peek() == '\t')) advance();
 
             const char* rest = source_.data() + current_;
             const std::size_t rest_size = source_.size() - current_;
@@ -521,6 +523,15 @@ namespace rel
             std::size_t best_len = predef_len;
             if (form2_len > best_len) best_len = form2_len;
             if (unit_len > best_len)  best_len = unit_len;
+
+            // Right-boundary guard: the suffix must not be followed by an
+            // alphanumeric character, otherwise it's part of an identifier
+            // or keyword (e.g. "1AND1" → 1, AND, 1, not 1A, ND1;
+            // "8ms" → 8, ms instead of 8, m, s).
+            if (best_len > 0 && is_alnum(peek(best_len)))
+            {
+                best_len = 0;
+            }
 
             if (best_len > 0)
             {

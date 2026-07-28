@@ -23,7 +23,9 @@ add_library(rel_core STATIC
     src/parser/parser.cc
     src/eval/value.cc
     src/eval/environment.cc
+    src/eval/error.cc
     src/eval/evaluator.cc
+    src/rel.cc
 )
 target_include_directories(rel_core PUBLIC src)
 target_link_libraries(rel_core PUBLIC xdataset)

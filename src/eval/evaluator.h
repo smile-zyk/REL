@@ -50,17 +50,18 @@ private:
     /// Parse base_lexeme according to radix into a double.
     static double parse_base(const std::string& lexeme, int radix);
 
+    /// Apply a unary operator to a Value.
+    Value apply_unary(TokenType op, const Value& operand);
+
+    /// Apply a binary operator to two Values.
+    Value apply_binary(TokenType op, const Value& lhs, const Value& rhs);
+
+    /// Apply a short-circuit logical operator.
+    Value apply_logical(TokenType op, const LogicalExpr& expr);
+
     Environment& env_;
     Value result_;
 };
 
 // =========================================================================
-//  Convenience: source string → Value (scan + parse + evaluate)
-// =========================================================================
-
-/// Parse and evaluate a single REL expression from a source string.
-/// Uses a temporary Environment (no Dataset, no built-in constants).
-/// Throws std::runtime_error on parse failure.
-Value eval_string(const std::string& source);
-
 } // namespace rel

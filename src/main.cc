@@ -82,20 +82,21 @@ namespace
                        int line_no)
     {
         rel::Scanner scanner(source, line_no);
-        rel::Parser parser(scanner.scan_tokens());
+        rel::ScanResult scanResult = scanner.scan();
+        if (!scanResult.ok())
+        {
+            for (const auto& err : scanResult.errors)
+                std::cerr << err.to_string() << '\n';
+            return 1;
+        }
+
+        rel::Parser parser(std::move(scanResult.tokens));
         rel::ParseResult result = parser.parse();
 
         if (!result.ok())
         {
-            for (std::size_t i = 0; i < result.errors.size(); ++i)
-            {
-                const rel::ParseError& err = result.errors[i];
-                const char* label = (err.kind == rel::ErrorKind::Lexical)
-                                   ? "lexical error"
-                                   : "syntax error";
-            std::cerr << label << ": line " << err.line << ", column "
-                      << err.column << ": " << err.message << '\n';
-            }
+            for (const auto& err : result.errors)
+                std::cerr << err.to_string() << '\n';
             return 1;
         }
 
@@ -104,7 +105,12 @@ namespace
         try {
             value = evaluator.evaluate(*result.expr);
         } catch (const std::exception& e) {
-            std::cerr << "runtime error: " << e.what() << std::endl;
+            rel::Error err;
+            err.kind    = rel::ErrorKind::RunTime;
+            err.line    = result.expr->line;
+            err.column  = result.expr->column;
+            err.message = e.what();
+            std::cerr << err.to_string() << std::endl;
             return 1;
         }
         std::cout << value.to_string() << '\n';
@@ -128,20 +134,21 @@ namespace
         }
 
         rel::Scanner scanner(expr_str, line_no);
-        rel::Parser parser(scanner.scan_tokens());
+        rel::ScanResult scanResult = scanner.scan();
+        if (!scanResult.ok())
+        {
+            for (const auto& err : scanResult.errors)
+                std::cerr << err.to_string() << '\n';
+            return 1;
+        }
+
+        rel::Parser parser(std::move(scanResult.tokens));
         rel::ParseResult result = parser.parse();
 
         if (!result.ok())
         {
-            for (std::size_t i = 0; i < result.errors.size(); ++i)
-            {
-                const rel::ParseError& err = result.errors[i];
-                const char* label = (err.kind == rel::ErrorKind::Lexical)
-                                   ? "lexical error"
-                                   : "syntax error";
-            std::cerr << label << ": line " << err.line << ", column "
-                      << err.column << ": " << err.message << '\n';
-            }
+            for (const auto& err : result.errors)
+                std::cerr << err.to_string() << '\n';
             return 1;
         }
 
@@ -150,7 +157,12 @@ namespace
         try {
             v = evaluator.evaluate(*result.expr);
         } catch (const std::exception& e) {
-            std::cerr << "runtime error: " << e.what() << std::endl;
+            rel::Error err;
+            err.kind    = rel::ErrorKind::RunTime;
+            err.line    = result.expr->line;
+            err.column  = result.expr->column;
+            err.message = e.what();
+            std::cerr << err.to_string() << std::endl;
             return 1;
         }
         env.define(name, v);

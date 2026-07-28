@@ -546,7 +546,7 @@ namespace rel
 
     void Parser::report_at(const Token& token, const std::string& message)
     {
-        ParseError err;
+        Error err;
         err.line = token.line;
         err.column = token.column;
         err.kind = (token.type == TokenType::INVALID)

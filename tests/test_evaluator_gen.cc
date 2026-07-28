@@ -1,6 +1,7 @@
-// Evaluator sweep/matrix tests — uses eval_string for concise test setup.
+﻿// Evaluator sweep/matrix tests -> uses eval for concise test setup.
 
 #include "eval/evaluator.h"
+#include "rel.h"
 
 #include "ast/expr.h"
 #include "data_array.h"
@@ -11,15 +12,15 @@
 
 #include <string>
 
-using rel::eval_string;
+using rel::eval;
 
 // =========================================================================
-//  SweepExpr — [expr_list] → Independent DataArray
+//  SweepExpr -> [expr_list] -> Independent DataArray
 // =========================================================================
 
 TEST(SweepExprTest, ThreeScalars)
 {
-    rel::Value v = eval_string("[1.0, 2.0, 3.0]");
+    rel::Value v = eval("[1.0, 2.0, 3.0]");
     EXPECT_TRUE(v.is_data_array());
     auto& da = v.as_data_array();
     EXPECT_EQ(da.data_kind(), xdataset::DataArrayKind::kIndependent);
@@ -29,7 +30,7 @@ TEST(SweepExprTest, ThreeScalars)
 
 TEST(SweepExprTest, SingleScalar)
 {
-    rel::Value v = eval_string("[42.0]");
+    rel::Value v = eval("[42.0]");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 1u);
 }
@@ -48,8 +49,8 @@ TEST(SweepExprTest, EmptySweep)
 TEST(SweepExprTest, MixedTypesIntegerAndUnit)
 {
     // Regression: 2MHz is Integer with unit, plain scalars are Real.
-    // Combine must handle Integer→Real promotion without boost::bad_get.
-    rel::Value v = eval_string("[{1, 2MHz}, {3, 4}]");
+    // Combine must handle Integer->Real promotion without boost::bad_get.
+    rel::Value v = eval("[{1, 2MHz}, {3, 4}]");
     EXPECT_TRUE(v.is_data_array());
     // Should produce a 2-row, 2-col (Vector) DataArray without crash.
     EXPECT_EQ(v.as_data_array().data().size(), 2u);
@@ -57,7 +58,7 @@ TEST(SweepExprTest, MixedTypesIntegerAndUnit)
 
 TEST(SweepExprTest, IntegerSweep)
 {
-    rel::Value v = eval_string("[1, 2, 3]");
+    rel::Value v = eval("[1, 2, 3]");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 3u);
     EXPECT_EQ(v.as_data_array().data().data_type(), xdataset::DataType::kInteger);
@@ -65,20 +66,20 @@ TEST(SweepExprTest, IntegerSweep)
 
 TEST(SweepExprTest, MixedScalarAndVectorInsideSweep)
 {
-    // [{1,2},{3,4}] — two MatrixExpr producing Vector(2) inside Sweep
-    rel::Value v = eval_string("[{1,2}, {3,4}]");
+    // [{1,2},{3,4}] -> two MatrixExpr producing Vector(2) inside Sweep
+    rel::Value v = eval("[{1,2}, {3,4}]");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().data_kind(), xdataset::DataKind::kVector);
     EXPECT_EQ(v.as_data_array().data().size(), 2u);
 }
 
 // =========================================================================
-//  MatrixExpr — {expr_list}
+//  MatrixExpr -> {expr_list}
 // =========================================================================
 
 TEST(MatrixExprTest, ThreeScalarsPromotedToVector)
 {
-    rel::Value v = eval_string("{1.0, 2.0, 3.0}");
+    rel::Value v = eval("{1.0, 2.0, 3.0}");
     EXPECT_TRUE(v.is_measurement());
     EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kVector);
     auto vec = v.as_measurement().as_vector<double>();
@@ -88,14 +89,14 @@ TEST(MatrixExprTest, ThreeScalarsPromotedToVector)
 
 TEST(MatrixExprTest, SingleScalarStaysScalar)
 {
-    rel::Value v = eval_string("{5.0}");
+    rel::Value v = eval("{5.0}");
     EXPECT_TRUE(v.is_measurement());
     EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kScalar);
 }
 
 TEST(MatrixExprTest, TwoScalarsPromotedToVector)
 {
-    rel::Value v = eval_string("{10.0, 20.0}");
+    rel::Value v = eval("{10.0, 20.0}");
     EXPECT_TRUE(v.is_measurement());
     EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kVector);
     auto vec = v.as_measurement().as_vector<double>();
@@ -106,7 +107,7 @@ TEST(MatrixExprTest, TwoScalarsPromotedToVector)
 
 TEST(MatrixExprTest, IntegerScalarsPromotedToVector)
 {
-    rel::Value v = eval_string("{1, 2, 3}");
+    rel::Value v = eval("{1, 2, 3}");
     EXPECT_TRUE(v.is_measurement());
     EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kVector);
 }
@@ -123,14 +124,14 @@ TEST(MatrixExprTest, EmptyMatrixReturnsNull)
 TEST(MatrixExprTest, MixedUnitAndNoUnit)
 {
     // Regression: 1 (Integer, no unit) + 2MHz (Integer, with unit)
-    rel::Value v = eval_string("{1, 2MHz}");
+    rel::Value v = eval("{1, 2MHz}");
     EXPECT_TRUE(v.is_measurement());
     EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kVector);
 }
 
 TEST(MatrixExprTest, WithStringThrows)
 {
-    EXPECT_THROW(eval_string("{1, 2, \"hello\"}"), std::exception);
+    EXPECT_THROW(eval("{1, 2, \"hello\"}"), std::exception);
 }
 
 // =========================================================================
@@ -139,7 +140,7 @@ TEST(MatrixExprTest, WithStringThrows)
 
 TEST(SweepMatrixTest, SingleSweepInMatrix)
 {
-    rel::Value v = eval_string("{[1.0, 2.0, 3.0]}");
+    rel::Value v = eval("{[1.0, 2.0, 3.0]}");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 3u);
     EXPECT_EQ(v.as_data_array().data().data_kind(), xdataset::DataKind::kScalar);
@@ -147,7 +148,7 @@ TEST(SweepMatrixTest, SingleSweepInMatrix)
 
 TEST(SweepMatrixTest, TwoSweepsConcat)
 {
-    rel::Value v = eval_string("{[1.0, 2.0], [3.0, 4.0]}");
+    rel::Value v = eval("{[1.0, 2.0], [3.0, 4.0]}");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 2u);
     EXPECT_EQ(v.as_data_array().data().data_kind(), xdataset::DataKind::kVector);
@@ -155,8 +156,8 @@ TEST(SweepMatrixTest, TwoSweepsConcat)
 
 TEST(SweepMatrixTest, SweepAndScalarConcatWithBroadcast)
 {
-    // [1,2,3] (3-row DA) + 42 (1-row M broadcast) → 3 rows Vector(2)
-    rel::Value v = eval_string("{[1.0, 2.0, 3.0], 42.0}");
+    // [1,2,3] (3-row DA) + 42 (1-row M broadcast) -> 3 rows Vector(2)
+    rel::Value v = eval("{[1.0, 2.0, 3.0], 42.0}");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 3u);
     EXPECT_EQ(v.as_data_array().data().data_kind(), xdataset::DataKind::kVector);
@@ -168,7 +169,7 @@ TEST(SweepMatrixTest, SweepAndScalarConcatWithBroadcast)
 
 TEST(SweepMatrixTest, MatrixInsideSweep)
 {
-    rel::Value v = eval_string("[{1.0, 2.0, 3.0}]");
+    rel::Value v = eval("[{1.0, 2.0, 3.0}]");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 1u);
     EXPECT_EQ(v.as_data_array().data().data_kind(), xdataset::DataKind::kVector);
@@ -176,7 +177,7 @@ TEST(SweepMatrixTest, MatrixInsideSweep)
 
 TEST(SweepMatrixTest, MultipleMatricesInsideSweep)
 {
-    rel::Value v = eval_string("[{1.0, 2.0}, {3.0, 4.0}]");
+    rel::Value v = eval("[{1.0, 2.0}, {3.0, 4.0}]");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 2u);
     EXPECT_EQ(v.as_data_array().data().data_kind(), xdataset::DataKind::kVector);
@@ -188,14 +189,14 @@ TEST(SweepMatrixTest, MultipleMatricesInsideSweep)
 
 TEST(RegressionTest, SweepToString)
 {
-    rel::Value v = eval_string("[1, 2, 3]");
+    rel::Value v = eval("[1, 2, 3]");
     std::string s = v.to_string();
     EXPECT_FALSE(s.empty());
 }
 
 TEST(RegressionTest, MatrixToString)
 {
-    rel::Value v = eval_string("{1, 2, 3}");
+    rel::Value v = eval("{1, 2, 3}");
     std::string s = v.to_string();
     EXPECT_FALSE(s.empty());
 }
@@ -203,7 +204,7 @@ TEST(RegressionTest, MatrixToString)
 TEST(RegressionTest, NestedSweepMatrixToString)
 {
     // [{1,2},{3,4}] was crashing because Combine produced Dependent DataArray
-    rel::Value v = eval_string("[{1,2}, {3,4}]");
+    rel::Value v = eval("[{1,2}, {3,4}]");
     std::string s = v.to_string();
     EXPECT_FALSE(s.empty());
 }
@@ -211,7 +212,7 @@ TEST(RegressionTest, NestedSweepMatrixToString)
 TEST(RegressionTest, SweepWithUnitsToString)
 {
     // Mixed units crash regression
-    rel::Value v = eval_string("[{1,2MHz}, {3,4}]");
+    rel::Value v = eval("[{1,2MHz}, {3,4}]");
     std::string s = v.to_string();
     EXPECT_FALSE(s.empty());
 }
@@ -221,7 +222,7 @@ TEST(RegressionTest, MatrixWithSweepAndScalarConcat)
     // {[1,2GHz], 3}: Sweep(2 rows Scalar) + M(1 row broadcast).
     // Currently Concat produces 2 rows of Scalar; desired is 2 rows of Vector(2).
     // See: xdataset Concat shape-promotion & unit-propagation bug.
-    rel::Value v = eval_string("{[1,2GHz], 3}");
+    rel::Value v = eval("{[1,2GHz], 3}");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 2u);
     // TODO: should be Vector, not Scalar:

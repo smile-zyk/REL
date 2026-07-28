@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ast/expr.h"
+#include "eval/error.h"
 #include "scanner/token.h"
 
 #include <string>
@@ -8,24 +9,10 @@
 
 namespace rel
 {
-    enum class ErrorKind
-    {
-        Lexical,  // scanner-level (INVALID token)
-        Syntax,   // parser-level (grammar mismatch)
-    };
-
-    struct ParseError
-    {
-        int line;
-        int column;
-        ErrorKind kind;
-        std::string message;
-    };
-
     struct ParseResult
     {
         ExprPtr expr;
-        std::vector<ParseError> errors;
+        std::vector<Error> errors;
 
         bool ok() const;
     };
@@ -94,6 +81,6 @@ namespace rel
 
         std::vector<Token> tokens_;
         std::size_t current_;
-        std::vector<ParseError> errors_;
+        std::vector<Error> errors_;
     };
 } // namespace rel

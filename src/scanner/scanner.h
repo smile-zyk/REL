@@ -1,5 +1,6 @@
 #pragma once
 
+#include "eval/error.h"
 #include "token.h"
 
 #include <cstddef>
@@ -8,26 +9,39 @@
 
 namespace rel
 {
-    // Hand-written single-pass scanner that turns a string of source text
-    // into a list of tokens defined in REL_Formal_Spec.md sections 1 and 2.
+    // ========================================================================
+    // ScanResult — scanner output
+    // ========================================================================
+
+    struct ScanResult
+    {
+        std::vector<Token> tokens;      // up to the first error, or all
+        std::vector<Error> errors;      // lexical errors encountered
+
+        bool ok() const { return errors.empty(); }
+    };
+
+    // ========================================================================
+    // Scanner — hand-written single-pass lexer
+    // ========================================================================
+    //
+    // Turns a string of source text into tokens defined in
+    // REL_Formal_Spec.md sections 1 and 2.
     //
     // Usage:
     //   Scanner s(line, line_no);
-    //   for (const auto& t : s.scan_tokens()) { ... }
+    //   ScanResult result = s.scan();
     //
-    // The scanner is one-shot: construct, call scan_tokens() once, then
-    // discard. The returned vector always ends with one END_OF_INPUT token.
-    // Lexical errors produce INVALID tokens instead of throwing so the
-    // parser can collect more than one diagnostic per source line.
+    // The scanner is one-shot: construct, call scan() once, then discard.
+    // The returned tokens always end with one END_OF_INPUT token.
+    // Lexical errors are collected in ScanResult::errors (no INVALID tokens).
+
     class Scanner
     {
     public:
-        // `initial_line` lets a driver feed the scanner one source line at
-        // a time (REPL / file mode) while still producing useful
-        // line:column information.
         explicit Scanner(std::string source, int initial_line = 1);
 
-        std::vector<Token> scan_tokens();
+        ScanResult scan();
 
     private:
         // --- Driver ------------------------------------------------------
@@ -44,6 +58,9 @@ namespace rel
         void emit(TokenType type);
         void emit(TokenType type, std::string lexeme);
 
+        // --- Error collection -------------------------------------------
+        void add_error(const std::string& message);
+
         // --- Sub-scanners -----------------------------------------------
         void scan_identifier_or_keyword();
         void scan_string_literal();
@@ -55,6 +72,7 @@ namespace rel
         // --- State ------------------------------------------------------
         std::string source_;
         std::vector<Token> tokens_;
+        std::vector<Error> errors_;
         std::size_t start_ = 0;       // start offset of the current token
         std::size_t current_ = 0;     // next char to consume
         std::size_t line_start_ = 0;  // offset of the current line's first char

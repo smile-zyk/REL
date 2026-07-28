@@ -11,7 +11,9 @@ namespace
     rel::ParseResult parse_line(const std::string& source)
     {
         rel::Scanner scanner(source);
-        rel::Parser parser(scanner.scan_tokens());
+        rel::ScanResult sr = scanner.scan();
+        EXPECT_TRUE(sr.ok());
+        rel::Parser parser(std::move(sr.tokens));
         return parser.parse();
     }
 

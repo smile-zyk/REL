@@ -1,7 +1,8 @@
-// Evaluator step-1 tests: literals only.  All other node types return null.
+﻿// Evaluator step-1 tests: literals only.  All other node types return null.
 
 #include "eval/evaluator.h"
 #include "eval/environment.h"
+#include "rel.h"
 #include "eval/value.h"
 
 #include "ast/expr.h"
@@ -208,22 +209,20 @@ TEST(EvaluatorLitTest, RawString)
 //  Stubs: all other node types return null
 // =========================================================================
 
-TEST(EvaluatorLitTest, UnaryIsNullSoFar)
+TEST(EvaluatorLitTest, UnaryNowWorks)
 {
-    rel::NullExpr inner(1, 1);
-    rel::UnaryExpr expr(1, 1, rel::TokenType::OP_SUB,
-                        std::unique_ptr<rel::Expr>(new rel::NullExpr(1, 1)));
-    rel::Value v = eval_expr(expr);
-    EXPECT_TRUE(v.is_null());
+    // Unary operators are now implemented.
+    rel::Value v = rel::eval("-42");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().as_scalar<int>(), -42);
 }
 
-TEST(EvaluatorLitTest, BinaryIsNullSoFar)
+TEST(EvaluatorLitTest, BinaryNowWorks)
 {
-    rel::BinaryExpr expr(1, 1, rel::TokenType::OP_ADD,
-                         std::unique_ptr<rel::Expr>(new rel::NullExpr(1, 1)),
-                         std::unique_ptr<rel::Expr>(new rel::NullExpr(1, 1)));
-    rel::Value v = eval_expr(expr);
-    EXPECT_TRUE(v.is_null());
+    // Binary operators are now implemented.
+    rel::Value v = rel::eval("1 + 2");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 3);
 }
 
 TEST(EvaluatorLitTest, ReferenceIsNullSoFar)
