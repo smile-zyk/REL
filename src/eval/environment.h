@@ -2,14 +2,12 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "ast/expr.h"
 #include "eval/value.h"
-
-namespace xdataset {
-    class Dataset;
-} // namespace xdataset
+#include "dataset.h"
 
 namespace rel {
 
@@ -32,47 +30,44 @@ public:
     // ---- variables ----
 
     /// Bind or rebind a name.  Overwrites existing bindings silently.
-    void define(const std::string& name, Value value);
+    void Define(const std::string& name, Value value);
 
     /// Look up a variable in the flat table.
     /// Returns Value::null_value() when not found.
-    Value get(const std::string& name) const;
+    Value Get(const std::string& name) const;
 
     // ---- datasets ----
 
-    /// Register a Dataset (does NOT take ownership).
-    void add_dataset(xdataset::Dataset* ds);
+    /// Register a Dataset, transferring ownership to the Environment.
+    void AddDataset(std::unique_ptr<xdataset::Dataset> ds);
+
+    /// Remove a Dataset by name.  If it is the current default,
+    /// the default is cleared.  Returns the removed Dataset, or nullptr.
+    std::unique_ptr<xdataset::Dataset> RemoveDataset(const std::string& name);
 
     /// Set the default Dataset for unqualified references.
-    void set_default_dataset(const std::string& name);
+    void SetDefaultDataset(const std::string& name);
 
     /// The current default Dataset, or nullptr.
-    xdataset::Dataset* default_dataset() const;
+    xdataset::Dataset* DefaultDataset() const;
 
     // ---- reference resolution ----
 
     /// Convert parsed reference segments into a Value.
     ///
-    /// Single-segment: variables_ → built-in constants → default dataset
+    /// Single-segment: variables_ -> built-in constants -> default dataset
     ///                 unique-name shortcut.
     /// Two-segment DDot: dataset..variable (unique across that dataset).
     /// Two-or-more Dot:  the last segment is the variable name,
     ///                    the second-to-last is the block name,
     ///                    all preceding segments form the group path.
     ///                    First segment may optionally be a dataset name.
-    Value resolve_reference(const std::vector<RefSegment>& segments) const;
+    Value ResolveReference(const std::vector<RefSegment>& segments) const;
 
 private:
-    tsl::ordered_map<std::string, Value> variables_;
-    tsl::ordered_map<std::string, xdataset::Dataset*> datasets_;
+    std::unordered_map<std::string, Value> variables_;
+    std::unordered_map<std::string, std::unique_ptr<xdataset::Dataset>> datasets_;
     std::string default_dataset_name_;
 };
-
-// =========================================================================
-//  Free function — language semantics
-// =========================================================================
-
-/// Populate `env` with REL's built-in numeric constants (PI, e, etc.).
-void init_builtin_constants(Environment& env);
 
 } // namespace rel

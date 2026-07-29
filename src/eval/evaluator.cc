@@ -21,14 +21,14 @@ namespace rel {
 
 Evaluator::Evaluator(Environment& env)
     : env_(env)
-    , result_(Value::null_value())
+    , result_(Value::Null())
 {}
 
 // =========================================================================
 //  Entry point
 // =========================================================================
 
-Value Evaluator::evaluate(const Expr& expr)
+Value Evaluator::Evaluate(const Expr& expr)
 {
     expr.accept(*this);
     return std::move(result_);
@@ -60,7 +60,7 @@ double Evaluator::parse_base(const std::string& lexeme, int radix)
 
 void Evaluator::visit_null(const NullExpr& /*expr*/)
 {
-    result_ = Value::null_value();
+    result_ = Value::Null();
 }
 
 // =========================================================================
@@ -87,11 +87,11 @@ void Evaluator::visit_number(const NumberExpr& expr)
     }
 
     if (expr.kind == NumberKind::Integer)
-        result_ = Value::integer(static_cast<int>(base_val));
+        result_ = Value::Integer(static_cast<int>(base_val));
     else if (expr.kind == NumberKind::Imaginary)
         result_ = Value(xdataset::Measurement(std::complex<double>(0.0, base_val)));
     else
-        result_ = Value::real(base_val);
+        result_ = Value::Real(base_val);
 }
 
 // =========================================================================
@@ -100,7 +100,7 @@ void Evaluator::visit_number(const NumberExpr& expr)
 
 void Evaluator::visit_string(const StringExpr& expr)
 {
-    result_ = Value::string_value(expr.value);
+    result_ = Value::String(expr.value);
 }
 
 // =========================================================================
@@ -115,8 +115,8 @@ void Evaluator::visit_sweep(const SweepExpr& expr)
     std::vector<Measurement> rows;
     for (const auto& item : expr.items)
     {
-        Value v = evaluate(*item);
-        if (v.is_null()) { result_ = Value::null_value(); return; }
+        Value v = Evaluate(*item);
+        if (v.is_null()) { result_ = Value::Null(); return; }
         if (v.is_measurement())
         {
             rows.push_back(v.as_measurement());
@@ -152,15 +152,15 @@ void Evaluator::visit_matrix(const MatrixExpr& expr)
 {
     using namespace xdataset;
 
-    if (expr.items.empty()) { result_ = Value::null_value(); return; }
+    if (expr.items.empty()) { result_ = Value::Null(); return; }
 
     // Evaluate all items once.
     std::vector<Value> item_vals;
     bool has_data_array = false;
     for (const auto& item : expr.items)
     {
-        Value v = evaluate(*item);
-        if (v.is_null()) { result_ = Value::null_value(); return; }
+        Value v = Evaluate(*item);
+        if (v.is_null()) { result_ = Value::Null(); return; }
         if (v.is_data_array()) has_data_array = true;
         item_vals.push_back(v);
     }
@@ -226,7 +226,7 @@ Value Evaluator::apply_unary(TokenType op, const Value& operand)
             case TokenType::OP_LNOT:
             case TokenType::KW_NOT:  return Value(!m);
             case TokenType::OP_BNOT: return Value(~m);
-            default: return Value::null_value();
+            default: return Value::Null();
         }
     }
     else if (operand.is_data_array())
@@ -238,10 +238,10 @@ Value Evaluator::apply_unary(TokenType op, const Value& operand)
             case TokenType::OP_LNOT:
             case TokenType::KW_NOT:  return Value(std::make_shared<DataArray>(!da));
             case TokenType::OP_BNOT: return Value(std::make_shared<DataArray>(~da));
-            default: return Value::null_value();
+            default: return Value::Null();
         }
     }
-    return Value::null_value();
+    return Value::Null();
 }
 
 // =========================================================================
@@ -287,7 +287,7 @@ Value Evaluator::apply_binary(TokenType op, const Value& lhs, const Value& rhs)
         REL_BINARY_OP(OP_BOR,   operator| )
         REL_BINARY_OP(OP_POW,   pow)
         default:
-            return Value::null_value();
+            return Value::Null();
     }
 }
 
@@ -318,22 +318,22 @@ static bool is_truthy(const Value& v)
 
 Value Evaluator::apply_logical(TokenType op, const LogicalExpr& expr)
 {
-    Value lhs = evaluate(*expr.left);
-    if (lhs.is_null()) return Value::null_value();
+    Value lhs = Evaluate(*expr.left);
+    if (lhs.is_null()) return Value::Null();
 
     bool is_and = (op == TokenType::OP_LAND || op == TokenType::KW_AND);
     bool lhsT = is_truthy(lhs);
 
     if (is_and && !lhsT)
-        return Value::boolean_value(false);
+        return Value::BooleanValue(false);
     if (!is_and && lhsT)
-        return Value::boolean_value(true);
+        return Value::BooleanValue(true);
 
-    Value rhs = evaluate(*expr.right);
-    if (rhs.is_null()) return Value::null_value();
+    Value rhs = Evaluate(*expr.right);
+    if (rhs.is_null()) return Value::Null();
     bool rhsT = is_truthy(rhs);
 
-    return Value::boolean_value(rhsT);
+    return Value::BooleanValue(rhsT);
 }
 
 // =========================================================================
@@ -342,8 +342,8 @@ Value Evaluator::apply_logical(TokenType op, const LogicalExpr& expr)
 
 void Evaluator::visit_unary(const UnaryExpr& expr)
 {
-    Value operand = evaluate(*expr.operand);
-    if (operand.is_null()) { result_ = Value::null_value(); return; }
+    Value operand = Evaluate(*expr.operand);
+    if (operand.is_null()) { result_ = Value::Null(); return; }
     result_ = apply_unary(expr.op, operand);
 }
 
@@ -353,9 +353,9 @@ void Evaluator::visit_unary(const UnaryExpr& expr)
 
 void Evaluator::visit_binary(const BinaryExpr& expr)
 {
-    Value lhs = evaluate(*expr.left);
-    Value rhs = evaluate(*expr.right);
-    if (lhs.is_null() || rhs.is_null()) { result_ = Value::null_value(); return; }
+    Value lhs = Evaluate(*expr.left);
+    Value rhs = Evaluate(*expr.right);
+    if (lhs.is_null() || rhs.is_null()) { result_ = Value::Null(); return; }
     result_ = apply_binary(expr.op, lhs, rhs);
 }
 
@@ -374,19 +374,19 @@ void Evaluator::visit_logical(const LogicalExpr& expr)
 
 void Evaluator::visit_grouping(const GroupingExpr& expr)
 {
-    result_ = evaluate(*expr.inner);
+    result_ = Evaluate(*expr.inner);
 }
 
 // =========================================================================
 //  Stubs
 // =========================================================================
 
-void Evaluator::visit_reference(const ReferenceExpr&)  { result_ = Value::null_value(); }
-void Evaluator::visit_conditional(const ConditionalExpr&) { result_ = Value::null_value(); }
-void Evaluator::visit_if(const IfExpr&)                 { result_ = Value::null_value(); }
-void Evaluator::visit_call(const CallExpr&)             { result_ = Value::null_value(); }
-void Evaluator::visit_index(const IndexExpr&)           { result_ = Value::null_value(); }
-void Evaluator::visit_range(const RangeExpr&)           { result_ = Value::null_value(); }
-void Evaluator::visit_null_range(const NullRangeExpr&)  { result_ = Value::null_value(); }
+void Evaluator::visit_reference(const ReferenceExpr&)  { result_ = Value::Null(); }
+void Evaluator::visit_conditional(const ConditionalExpr&) { result_ = Value::Null(); }
+void Evaluator::visit_if(const IfExpr&)                 { result_ = Value::Null(); }
+void Evaluator::visit_call(const CallExpr&)             { result_ = Value::Null(); }
+void Evaluator::visit_index(const IndexExpr&)           { result_ = Value::Null(); }
+void Evaluator::visit_range(const RangeExpr&)           { result_ = Value::Null(); }
+void Evaluator::visit_null_range(const NullRangeExpr&)  { result_ = Value::Null(); }
 
 } // namespace rel

@@ -18,7 +18,7 @@ namespace rel
         std::vector<Token> tokens;      // up to the first error, or all
         std::vector<Error> errors;      // lexical errors encountered
 
-        bool ok() const { return errors.empty(); }
+        bool Ok() const { return errors.empty(); }
     };
 
     // ========================================================================
@@ -41,7 +41,7 @@ namespace rel
     public:
         explicit Scanner(std::string source, int initial_line = 1);
 
-        ScanResult scan();
+        ScanResult Scan();
 
     private:
         // --- Driver ------------------------------------------------------

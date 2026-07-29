@@ -64,22 +64,7 @@ const xdataset::DataArray& Value::as_data_array() const
 //  Formatting
 // =========================================================================
 
-std::string Value::to_string() const
-{
-    if (is_null())
-        return "NULL";
-
-    if (is_measurement())
-    {
-        const xdataset::Measurement& m = as_measurement();
-        return m.to_string();
-    }
-
-    const xdataset::DataArray& da = as_data_array();
-    return da.GetOrCreateDataFrame("data").to_string();
-}
-
-std::string Value::to_string(const std::string& name, int max_rows) const
+std::string Value::Format(const std::string& name, int max_rows) const
 {
     if (is_null())
         return "NULL";
@@ -90,36 +75,37 @@ std::string Value::to_string(const std::string& name, int max_rows) const
         return m.to_dataframe(name).to_string();
     }
 
-    // DataArray: render with custom variable name
+    // DataArray: render with custom or default variable name
     const xdataset::DataArray& da = as_data_array();
-    return da.GetOrCreateDataFrame(name).to_string(max_rows);
+    const std::string& header = name.empty() ? "data" : name;
+    return da.GetOrCreateDataFrame(header).to_string(max_rows);
 }
 
 // =========================================================================
 //  Factory helpers
 // =========================================================================
 
-Value Value::null_value()
+Value Value::Null()
 {
     return Value();
 }
 
-Value Value::real(double v)
+Value Value::Real(double v)
 {
     return Value(xdataset::Measurement::Real(v));
 }
 
-Value Value::integer(int v)
+Value Value::Integer(int v)
 {
     return Value(xdataset::Measurement::Integer(v));
 }
 
-Value Value::boolean_value(bool b)
+Value Value::BooleanValue(bool b)
 {
     return Value(xdataset::Measurement::Integer(b ? 1 : 0));
 }
 
-Value Value::string_value(const std::string& s)
+Value Value::String(const std::string& s)
 {
     return Value(xdataset::Measurement::String(s));
 }

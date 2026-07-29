@@ -26,7 +26,7 @@ public:
     explicit Evaluator(Environment& env);
 
     /// Top-level entry point.
-    Value evaluate(const Expr& expr);
+    Value Evaluate(const Expr& expr);
 
     // ---- ExprVisitor interface ----
     void visit_null(const NullExpr& expr) override;

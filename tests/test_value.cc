@@ -203,24 +203,24 @@ TEST(ValueTest, AsDataArrayOnMeasurementThrows)
 //  to_string
 // =========================================================================
 
-TEST(ValueTest, NullToString)
+TEST(ValueTest, NullFormat)
 {
     Value v;
-    EXPECT_EQ(v.to_string(), "NULL");
+    EXPECT_EQ(v.Format(), "NULL");
 }
 
-TEST(ValueTest, MeasurementScalarRealToString)
+TEST(ValueTest, MeasurementScalarRealFormat)
 {
     Value v(make_scalar_real(3.14));
-    std::string s = v.to_string();
+    std::string s = v.Format();
     // Measurement::to_string() renders numeric value.
     EXPECT_NE(s.find("3.14"), std::string::npos);
 }
 
-TEST(ValueTest, MeasurementScalarIntegerToString)
+TEST(ValueTest, MeasurementScalarIntegerFormat)
 {
     Value v(make_scalar_int(42));
-    std::string s = v.to_string();
+    std::string s = v.Format();
     EXPECT_NE(s.find("42"), std::string::npos);
 }
 
@@ -230,13 +230,13 @@ TEST(ValueTest, MeasurementScalarIntegerToString)
 
 TEST(ValueTest, FactoryNull)
 {
-    Value v = Value::null_value();
+    Value v = Value::Null();
     EXPECT_TRUE(v.is_null());
 }
 
 TEST(ValueTest, FactoryReal)
 {
-    Value v = Value::real(3.14);
+    Value v = Value::Real(3.14);
     EXPECT_TRUE(v.is_measurement());
     const xdataset::Measurement& m = v.as_measurement();
     EXPECT_EQ(m.data_kind(), xdataset::DataKind::kScalar);
@@ -246,7 +246,7 @@ TEST(ValueTest, FactoryReal)
 
 TEST(ValueTest, FactoryInteger)
 {
-    Value v = Value::integer(42);
+    Value v = Value::Integer(42);
     EXPECT_TRUE(v.is_measurement());
     const xdataset::Measurement& m = v.as_measurement();
     EXPECT_EQ(m.data_kind(), xdataset::DataKind::kScalar);
@@ -256,21 +256,21 @@ TEST(ValueTest, FactoryInteger)
 
 TEST(ValueTest, FactoryBooleanTrue)
 {
-    Value v = Value::boolean_value(true);
+    Value v = Value::BooleanValue(true);
     EXPECT_TRUE(v.is_measurement());
     EXPECT_EQ(v.as_measurement().as_scalar<int>(), 1);
 }
 
 TEST(ValueTest, FactoryBooleanFalse)
 {
-    Value v = Value::boolean_value(false);
+    Value v = Value::BooleanValue(false);
     EXPECT_TRUE(v.is_measurement());
     EXPECT_EQ(v.as_measurement().as_scalar<int>(), 0);
 }
 
 TEST(ValueTest, FactoryString)
 {
-    Value v = Value::string_value("hello");
+    Value v = Value::String("hello");
     EXPECT_TRUE(v.is_measurement());
     const xdataset::Measurement& m = v.as_measurement();
     EXPECT_EQ(m.data_kind(), xdataset::DataKind::kScalar);

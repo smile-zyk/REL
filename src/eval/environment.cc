@@ -2,8 +2,6 @@
 
 #include "dataset.h"
 
-#include <tsl/ordered_map.h>
-
 #include <sstream>
 #include <stdexcept>
 
@@ -13,40 +11,55 @@ namespace rel {
 //  Variables
 // =========================================================================
 
-void Environment::define(const std::string& name, Value value)
+void Environment::Define(const std::string& name, Value value)
 {
     variables_[name] = std::move(value);
 }
 
-Value Environment::get(const std::string& name) const
+Value Environment::Get(const std::string& name) const
 {
     auto it = variables_.find(name);
     if (it != variables_.end())
         return it->second;
-    return Value::null_value();
+    return Value::Null();
 }
 
 // =========================================================================
 //  Datasets
 // =========================================================================
 
-void Environment::add_dataset(xdataset::Dataset* ds)
+void Environment::AddDataset(std::unique_ptr<xdataset::Dataset> ds)
 {
-    datasets_[ds->name()] = ds;
+    std::string name = ds->name();
+    datasets_[std::move(name)] = std::move(ds);
 }
 
-void Environment::set_default_dataset(const std::string& name)
+std::unique_ptr<xdataset::Dataset> Environment::RemoveDataset(const std::string& name)
+{
+    auto it = datasets_.find(name);
+    if (it == datasets_.end())
+        return nullptr;
+
+    if (default_dataset_name_ == name)
+        default_dataset_name_.clear();
+
+    auto ds = std::move(it->second);
+    datasets_.erase(it);
+    return ds;
+}
+
+void Environment::SetDefaultDataset(const std::string& name)
 {
     default_dataset_name_ = name;
 }
 
-xdataset::Dataset* Environment::default_dataset() const
+xdataset::Dataset* Environment::DefaultDataset() const
 {
     if (default_dataset_name_.empty())
         return nullptr;
     auto it = datasets_.find(default_dataset_name_);
     if (it != datasets_.end())
-        return it->second;
+        return it->second.get();
     return nullptr;
 }
 
@@ -54,11 +67,11 @@ xdataset::Dataset* Environment::default_dataset() const
 //  Reference resolution
 // =========================================================================
 
-Value Environment::resolve_reference(
+Value Environment::ResolveReference(
     const std::vector<RefSegment>& segments) const
 {
     if (segments.empty())
-        return Value::null_value();
+        return Value::Null();
 
     // ---- 1 segment: variable lookup ---------------------------------
     if (segments.size() == 1)
@@ -66,12 +79,12 @@ Value Environment::resolve_reference(
         const std::string& name = segments[0].name;
 
         // 1a) User-defined / built-in
-        Value v = get(name);
+        Value v = Get(name);
         if (!v.is_null())
             return v;
 
         // 1b) Unique lookup in default dataset
-        xdataset::Dataset* ds = default_dataset();
+        xdataset::Dataset* ds = DefaultDataset();
         if (ds && ds->HasUniqueDataArray(name))
         {
             return Value(std::make_shared<xdataset::DataArray>(
@@ -92,7 +105,7 @@ Value Environment::resolve_reference(
                 "unknown Dataset '" + segments[0].name + "'");
         }
 
-        xdataset::Dataset* ds = it->second;
+        xdataset::Dataset* ds = it->second.get();
         return Value(std::make_shared<xdataset::DataArray>(
             ds->GetDataArray(segments[1].name)));
     }
@@ -100,13 +113,13 @@ Value Environment::resolve_reference(
     // ---- ≥2 segments Dot: path navigation ---------------------------
     {
         // Determine which Dataset to use.
-        xdataset::Dataset* ds = default_dataset();
+        xdataset::Dataset* ds = DefaultDataset();
         std::size_t start = 0;
 
         auto it = datasets_.find(segments[0].name);
         if (it != datasets_.end())
         {
-            ds = it->second;
+            ds = it->second.get();
             start = 1;
         }
 
@@ -138,26 +151,6 @@ Value Environment::resolve_reference(
         return Value(std::make_shared<xdataset::DataArray>(
             ds->GetDataArray(path.str(), segments.back().name)));
     }
-}
-
-// =========================================================================
-//  init_builtin_constants (free function)
-// =========================================================================
-
-void init_builtin_constants(Environment& env)
-{
-    env.define("PI",        Value::real(3.1415926535898));
-    env.define("pi",        Value::real(3.1415926535898));
-    env.define("e",         Value::real(2.718281822));
-    env.define("ln10",      Value::real(2.302585093));
-    env.define("boltzmann", Value::real(1.380658e-23));
-    env.define("qelectron", Value::real(1.60217733e-19));
-    env.define("planck",    Value::real(6.6260755e-34));
-    env.define("c0",        Value::real(2.99792e+08));
-    env.define("e0",        Value::real(8.85419e-12));
-    env.define("u0",        Value::real(12.5664e-07));
-    env.define("tinyReal",  Value::real(2.2e-308));
-    env.define("hugeReal",  Value::real(3.4e+38));
 }
 
 } // namespace rel

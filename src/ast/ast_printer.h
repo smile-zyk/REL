@@ -9,7 +9,7 @@ namespace rel
     class AstPrinter : public ExprVisitor
     {
     public:
-        std::string print(const Expr& expr);
+        std::string Print(const Expr& expr);
 
         void visit_null(const NullExpr& expr) override;
         void visit_number(const NumberExpr& expr) override;

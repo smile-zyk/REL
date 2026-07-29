@@ -1,6 +1,7 @@
 // Environment tests powered by GoogleTest.
 
 #include "eval/environment.h"
+#include "rel.h"
 
 #include "data_series.h"
 #include "dataset.h"
@@ -79,25 +80,25 @@ namespace
 TEST(EnvironmentTest, DefineAndGet)
 {
     rel::Environment env;
-    env.define("x", rel::Value::real(3.14));
-    env.define("y", rel::Value::integer(42));
+    env.Define("x", rel::Value::Real(3.14));
+    env.Define("y", rel::Value::Integer(42));
 
-    EXPECT_DOUBLE_EQ(env.get("x").as_measurement().as_scalar<double>(), 3.14);
-    EXPECT_EQ(env.get("y").as_measurement().as_scalar<int>(), 42);
+    EXPECT_DOUBLE_EQ(env.Get("x").as_measurement().as_scalar<double>(), 3.14);
+    EXPECT_EQ(env.Get("y").as_measurement().as_scalar<int>(), 42);
 }
 
 TEST(EnvironmentTest, GetUndefinedReturnsNull)
 {
     rel::Environment env;
-    EXPECT_TRUE(env.get("nonexistent").is_null());
+    EXPECT_TRUE(env.Get("nonexistent").is_null());
 }
 
 TEST(EnvironmentTest, RedefineOverwrites)
 {
     rel::Environment env;
-    env.define("x", rel::Value::integer(1));
-    env.define("x", rel::Value::integer(2));
-    EXPECT_EQ(env.get("x").as_measurement().as_scalar<int>(), 2);
+    env.Define("x", rel::Value::Integer(1));
+    env.Define("x", rel::Value::Integer(2));
+    EXPECT_EQ(env.Get("x").as_measurement().as_scalar<int>(), 2);
 }
 
 // =========================================================================
@@ -107,8 +108,8 @@ TEST(EnvironmentTest, RedefineOverwrites)
 TEST(EnvironmentTest, BuiltinPi)
 {
     rel::Environment env;
-    rel::init_builtin_constants(env);
-    rel::Value v = env.get("PI");
+    rel::InitBuiltinConstants(env);
+    rel::Value v = env.Get("PI");
     EXPECT_TRUE(v.is_measurement());
     EXPECT_DOUBLE_EQ(v.as_measurement().as_scalar<double>(), 3.1415926535898);
 }
@@ -116,24 +117,24 @@ TEST(EnvironmentTest, BuiltinPi)
 TEST(EnvironmentTest, BuiltinLowercasePi)
 {
     rel::Environment env;
-    rel::init_builtin_constants(env);
-    rel::Value v = env.get("pi");
+    rel::InitBuiltinConstants(env);
+    rel::Value v = env.Get("pi");
     EXPECT_DOUBLE_EQ(v.as_measurement().as_scalar<double>(), 3.1415926535898);
 }
 
 TEST(EnvironmentTest, BuiltinE)
 {
     rel::Environment env;
-    rel::init_builtin_constants(env);
-    rel::Value v = env.get("e");
+    rel::InitBuiltinConstants(env);
+    rel::Value v = env.Get("e");
     EXPECT_DOUBLE_EQ(v.as_measurement().as_scalar<double>(), 2.718281822);
 }
 
 TEST(EnvironmentTest, BuiltinBoltzmann)
 {
     rel::Environment env;
-    rel::init_builtin_constants(env);
-    rel::Value v = env.get("boltzmann");
+    rel::InitBuiltinConstants(env);
+    rel::Value v = env.Get("boltzmann");
     EXPECT_TRUE(v.is_measurement());
     EXPECT_DOUBLE_EQ(v.as_measurement().as_scalar<double>(), 1.380658e-23);
 }
@@ -141,8 +142,8 @@ TEST(EnvironmentTest, BuiltinBoltzmann)
 TEST(EnvironmentTest, BuiltinTinyReal)
 {
     rel::Environment env;
-    rel::init_builtin_constants(env);
-    EXPECT_DOUBLE_EQ(env.get("tinyReal").as_measurement().as_scalar<double>(),
+    rel::InitBuiltinConstants(env);
+    EXPECT_DOUBLE_EQ(env.Get("tinyReal").as_measurement().as_scalar<double>(),
                      2.2e-308);
 }
 
@@ -153,20 +154,20 @@ TEST(EnvironmentTest, BuiltinTinyReal)
 TEST(EnvironmentTest, AddDatasetAndSetDefault)
 {
     rel::Environment env;
-    xdataset::Dataset ds("noise");
-    ds.AddBlock("SP1/SP", make_block_info());
+    std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
+    ds->AddBlock("SP1/SP", make_block_info());
 
-    env.add_dataset(&ds);
-    env.set_default_dataset("noise");
+    env.AddDataset(std::move(ds));
+    env.SetDefaultDataset("noise");
 
-    ASSERT_NE(env.default_dataset(), nullptr);
-    EXPECT_EQ(env.default_dataset()->name(), "noise");
+    ASSERT_NE(env.DefaultDataset(), nullptr);
+    EXPECT_EQ(env.DefaultDataset()->name(), "noise");
 }
 
 TEST(EnvironmentTest, DefaultDatasetNullWhenNotSet)
 {
     rel::Environment env;
-    EXPECT_EQ(env.default_dataset(), nullptr);
+    EXPECT_EQ(env.DefaultDataset(), nullptr);
 }
 
 // =========================================================================
@@ -176,9 +177,9 @@ TEST(EnvironmentTest, DefaultDatasetNullWhenNotSet)
 TEST(EnvironmentTest, ResolveSingleSegmentVariable)
 {
     rel::Environment env;
-    env.define("x", rel::Value::real(1.5));
+    env.Define("x", rel::Value::Real(1.5));
 
-    rel::Value v = env.resolve_reference({S("x")});
+    rel::Value v = env.ResolveReference({S("x")});
     EXPECT_TRUE(v.is_measurement());
     EXPECT_DOUBLE_EQ(v.as_measurement().as_scalar<double>(), 1.5);
 }
@@ -186,28 +187,28 @@ TEST(EnvironmentTest, ResolveSingleSegmentVariable)
 TEST(EnvironmentTest, ResolveSingleSegmentBuiltin)
 {
     rel::Environment env;
-    rel::init_builtin_constants(env);
-    rel::Value v = env.resolve_reference({S("PI")});
+    rel::InitBuiltinConstants(env);
+    rel::Value v = env.ResolveReference({S("PI")});
     EXPECT_TRUE(v.is_measurement());
 }
 
 TEST(EnvironmentTest, ResolveSingleSegmentUnique)
 {
     rel::Environment env;
-    xdataset::Dataset ds("noise");
-    ds.AddBlock("SP1/SP", make_block_info());
-    env.add_dataset(&ds);
-    env.set_default_dataset("noise");
+    std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
+    ds->AddBlock("SP1/SP", make_block_info());
+    env.AddDataset(std::move(ds));
+    env.SetDefaultDataset("noise");
 
     // Both "freq" and "Vout" are unique in this dataset.
-    rel::Value v = env.resolve_reference({S("Vout")});
+    rel::Value v = env.ResolveReference({S("Vout")});
     EXPECT_TRUE(v.is_data_array());
 }
 
 TEST(EnvironmentTest, ResolveSingleSegmentUndefinedThrows)
 {
     rel::Environment env;
-    EXPECT_THROW(env.resolve_reference({S("no_such_var")}),
+    EXPECT_THROW(env.ResolveReference({S("no_such_var")}),
                  std::runtime_error);
 }
 
@@ -218,15 +219,15 @@ TEST(EnvironmentTest, ResolveSingleSegmentUndefinedThrows)
 TEST(EnvironmentTest, ResolveDDot)
 {
     rel::Environment env;
-    xdataset::Dataset ds("noise");
-    ds.AddBlock("SP1/SP", make_block_info());
-    env.add_dataset(&ds);
+    std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
+    ds->AddBlock("SP1/SP", make_block_info());
+    env.AddDataset(std::move(ds));
 
     std::vector<rel::RefSegment> segs;
     segs.push_back(S("noise"));
     segs.push_back(S("Vout", rel::RefSeparator::DDot));
 
-    rel::Value v = env.resolve_reference(segs);
+    rel::Value v = env.ResolveReference(segs);
     EXPECT_TRUE(v.is_data_array());
 }
 
@@ -237,7 +238,7 @@ TEST(EnvironmentTest, ResolveDDotUnknownDatasetThrows)
     segs.push_back(S("nope"));
     segs.push_back(S("x", rel::RefSeparator::DDot));
 
-    EXPECT_THROW(env.resolve_reference(segs), std::runtime_error);
+    EXPECT_THROW(env.ResolveReference(segs), std::runtime_error);
 }
 
 // =========================================================================
@@ -247,10 +248,10 @@ TEST(EnvironmentTest, ResolveDDotUnknownDatasetThrows)
 TEST(EnvironmentTest, ResolveDotPathDefaultDataset)
 {
     rel::Environment env;
-    xdataset::Dataset ds("noise");
-    ds.AddBlock("simulation/SP1/SP", make_block_info());
-    env.add_dataset(&ds);
-    env.set_default_dataset("noise");
+    std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
+    ds->AddBlock("simulation/SP1/SP", make_block_info());
+    env.AddDataset(std::move(ds));
+    env.SetDefaultDataset("noise");
 
     // simulation.SP1.SP.Vout
     std::vector<rel::RefSegment> segs;
@@ -259,16 +260,16 @@ TEST(EnvironmentTest, ResolveDotPathDefaultDataset)
     segs.push_back(Dot("SP"));
     segs.push_back(S("Vout"));
 
-    rel::Value v = env.resolve_reference(segs);
+    rel::Value v = env.ResolveReference(segs);
     EXPECT_TRUE(v.is_data_array());
 }
 
 TEST(EnvironmentTest, ResolveDotPathExplicitDataset)
 {
     rel::Environment env;
-    xdataset::Dataset ds("noise");
-    ds.AddBlock("simulation/SP1/SP", make_block_info());
-    env.add_dataset(&ds);
+    std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
+    ds->AddBlock("simulation/SP1/SP", make_block_info());
+    env.AddDataset(std::move(ds));
 
     // noise.simulation.SP1.SP.Vout
     std::vector<rel::RefSegment> segs;
@@ -278,24 +279,24 @@ TEST(EnvironmentTest, ResolveDotPathExplicitDataset)
     segs.push_back(Dot("SP"));
     segs.push_back(S("Vout"));
 
-    rel::Value v = env.resolve_reference(segs);
+    rel::Value v = env.ResolveReference(segs);
     EXPECT_TRUE(v.is_data_array());
 }
 
 TEST(EnvironmentTest, ResolveDotPathMinimalBlockVar)
 {
     rel::Environment env;
-    xdataset::Dataset ds("noise");
-    ds.AddBlock("SP", make_block_info());
-    env.add_dataset(&ds);
-    env.set_default_dataset("noise");
+    std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
+    ds->AddBlock("SP", make_block_info());
+    env.AddDataset(std::move(ds));
+    env.SetDefaultDataset("noise");
 
     // SP.Vout  (block + variable, no group)
     std::vector<rel::RefSegment> segs;
     segs.push_back(Dot("SP"));
     segs.push_back(S("Vout"));
 
-    rel::Value v = env.resolve_reference(segs);
+    rel::Value v = env.ResolveReference(segs);
     EXPECT_TRUE(v.is_data_array());
 }
 
@@ -303,10 +304,10 @@ TEST(EnvironmentTest, ResolveDotPathWithoutDefaultDatasetThrows)
 {
     rel::Environment env;
 
-    // SP.Vout — no default dataset set
+    // SP.Vout -- no default dataset set
     std::vector<rel::RefSegment> segs;
     segs.push_back(Dot("SP"));
     segs.push_back(S("Vout"));
 
-    EXPECT_THROW(env.resolve_reference(segs), std::runtime_error);
+    EXPECT_THROW(env.ResolveReference(segs), std::runtime_error);
 }

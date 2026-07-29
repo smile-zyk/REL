@@ -30,7 +30,7 @@ namespace rel
         }
     }
 
-    std::string AstPrinter::print(const Expr& expr)
+    std::string AstPrinter::Print(const Expr& expr)
     {
         expr.accept(*this);
         return out_;
@@ -39,7 +39,7 @@ namespace rel
     std::string AstPrinter::print_ptr(const ExprPtr& expr)
     {
         if (!expr) return "<empty>";
-        return print(*expr);
+        return Print(*expr);
     }
 
     std::string AstPrinter::parenthesize(const std::string& head,
@@ -51,15 +51,15 @@ namespace rel
         oss << '(' << head;
         if (first)
         {
-            oss << ' ' << print(*first);
+            oss << ' ' << Print(*first);
         }
         if (second)
         {
-            oss << ' ' << print(*second);
+            oss << ' ' << Print(*second);
         }
         if (third)
         {
-            oss << ' ' << print(*third);
+            oss << ' ' << Print(*third);
         }
         oss << ')';
         return oss.str();
@@ -180,17 +180,17 @@ namespace rel
         oss << "(if";
         for (std::size_t i = 0; i < expr.branches.size(); ++i)
         {
-            oss << " (branch " << print(*expr.branches[i].condition) << ' '
-                << print(*expr.branches[i].value) << ')';
+            oss << " (branch " << Print(*expr.branches[i].condition) << ' '
+                << Print(*expr.branches[i].value) << ')';
         }
-        oss << " (else " << print(*expr.else_value) << ')' << ')';
+        oss << " (else " << Print(*expr.else_value) << ')' << ')';
         out_ = oss.str();
     }
 
     void AstPrinter::visit_call(const CallExpr& expr)
     {
         std::ostringstream oss;
-        oss << "(call " << print(*expr.callee);
+        oss << "(call " << Print(*expr.callee);
         for (std::size_t i = 0; i < expr.args.size(); ++i)
         {
             oss << ' ' << print_ptr(expr.args[i]);
@@ -202,10 +202,10 @@ namespace rel
     void AstPrinter::visit_index(const IndexExpr& expr)
     {
         std::ostringstream oss;
-        oss << "(index " << print(*expr.object);
+        oss << "(index " << Print(*expr.object);
         for (std::size_t i = 0; i < expr.indices.size(); ++i)
         {
-            oss << ' ' << print(*expr.indices[i]);
+            oss << ' ' << Print(*expr.indices[i]);
         }
         oss << ')';
         out_ = oss.str();
@@ -223,7 +223,7 @@ namespace rel
         for (std::size_t i = 0; i < expr.items.size(); ++i)
         {
             if (i > 0) oss << ", ";
-            oss << print(*expr.items[i]);
+            oss << Print(*expr.items[i]);
         }
         oss << "]";
         out_ = oss.str();
@@ -236,7 +236,7 @@ namespace rel
         for (std::size_t i = 0; i < expr.items.size(); ++i)
         {
             if (i > 0) oss << ", ";
-            oss << print(*expr.items[i]);
+            oss << Print(*expr.items[i]);
         }
         oss << "}";
         out_ = oss.str();
@@ -247,12 +247,12 @@ namespace rel
         std::ostringstream oss;
         if (expr.step)
         {
-            oss << "(:: " << print(*expr.start) << ' ' << print(*expr.step) << ' '
-                << print(*expr.stop) << ')';
+            oss << "(:: " << Print(*expr.start) << ' ' << Print(*expr.step) << ' '
+                << Print(*expr.stop) << ')';
         }
         else
         {
-            oss << "(:: " << print(*expr.start) << ' ' << print(*expr.stop) << ')';
+            oss << "(:: " << Print(*expr.start) << ' ' << Print(*expr.stop) << ')';
         }
         out_ = oss.str();
     }

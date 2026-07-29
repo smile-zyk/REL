@@ -74,15 +74,13 @@ public:
 
     // ---- formatting ----------------------------------------------------
 
-    /// Human-readable string:
-    ///   null          → "NULL"
-    ///   Measurement   → compact "[a, b]" / "{...}" / "3.14 GHz" + unit
-    ///   DataArray     → DataFrame CSV
-    std::string to_string() const;
-
-    /// Named variant: Measurement → to_dataframe(name).to_string();
-    ///               DataArray   → GetOrCreateDataFrame(name).to_string().
-    std::string to_string(const std::string& name, int max_rows = 32) const;
+    /// Human-readable string.
+    /// When `name` is empty: Measurement renders inline (e.g. "3.14 GHz"),
+    /// DataArray renders as DataFrame with a default header.
+    /// When `name` is given: Measurement is wrapped in a named DataFrame;
+    /// DataArray uses the name as its header.  `max_rows` caps output rows
+    /// (0 = no limit).
+    std::string Format(const std::string& name = "data", int max_rows = 0) const;
 
     // ---- raw storage ---------------------------------------------------
 
@@ -90,11 +88,11 @@ public:
 
     // ---- convenience factories -----------------------------------------
 
-    static Value null_value();
-    static Value real(double v);
-    static Value integer(int v);
-    static Value boolean_value(bool b);       // → Integer 1 or 0
-    static Value string_value(const std::string& s);
+    static Value Null();
+    static Value Real(double v);
+    static Value Integer(int v);
+    static Value BooleanValue(bool b);       // -> Integer 1 or 0
+    static Value String(const std::string& s);
 
 private:
     Storage storage_;

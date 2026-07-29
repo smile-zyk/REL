@@ -107,7 +107,7 @@ namespace rel
         {
         }
 
-        ScanResult Scanner::scan()
+        ScanResult Scanner::Scan()
         {
             while (!is_at_end())
             {

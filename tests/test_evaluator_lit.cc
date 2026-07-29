@@ -23,13 +23,13 @@ namespace
     {
         rel::Environment env;
         rel::Evaluator e(env);
-        return e.evaluate(expr);
+        return e.Evaluate(expr);
     }
 
     rel::Environment make_env_with_builtins()
     {
         rel::Environment env;
-        rel::init_builtin_constants(env);
+        rel::InitBuiltinConstants(env);
         return env;
     }
 } // namespace
@@ -43,7 +43,7 @@ TEST(EvaluatorLitTest, Null)
     rel::NullExpr expr(1, 1);
     rel::Value v = eval_expr(expr);
     EXPECT_TRUE(v.is_null());
-    EXPECT_EQ(v.to_string(), "NULL");
+    EXPECT_EQ(v.Format(), "NULL");
 }
 
 // =========================================================================
@@ -212,7 +212,7 @@ TEST(EvaluatorLitTest, RawString)
 TEST(EvaluatorLitTest, UnaryNowWorks)
 {
     // Unary operators are now implemented.
-    rel::Value v = rel::eval("-42");
+    rel::Value v = rel::Eval("-42");
     EXPECT_TRUE(v.is_measurement());
     EXPECT_EQ(v.as_measurement().as_scalar<int>(), -42);
 }
@@ -220,7 +220,7 @@ TEST(EvaluatorLitTest, UnaryNowWorks)
 TEST(EvaluatorLitTest, BinaryNowWorks)
 {
     // Binary operators are now implemented.
-    rel::Value v = rel::eval("1 + 2");
+    rel::Value v = rel::Eval("1 + 2");
     EXPECT_TRUE(v.is_measurement());
     EXPECT_EQ(v.as_measurement().as_scalar<int>(), 3);
 }

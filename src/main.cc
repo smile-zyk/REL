@@ -7,6 +7,7 @@
 
 #include "eval/environment.h"
 #include "eval/evaluator.h"
+#include "rel.h"
 #include "parser/parser.h"
 #include "scanner/scanner.h"
 
@@ -82,8 +83,8 @@ namespace
                        int line_no)
     {
         rel::Scanner scanner(source, line_no);
-        rel::ScanResult scanResult = scanner.scan();
-        if (!scanResult.ok())
+        rel::ScanResult scanResult = scanner.Scan();
+        if (!scanResult.Ok())
         {
             for (const auto& err : scanResult.errors)
                 std::cerr << err.to_string() << '\n';
@@ -91,9 +92,9 @@ namespace
         }
 
         rel::Parser parser(std::move(scanResult.tokens));
-        rel::ParseResult result = parser.parse();
+        rel::ParseResult result = parser.Parse();
 
-        if (!result.ok())
+        if (!result.Ok())
         {
             for (const auto& err : result.errors)
                 std::cerr << err.to_string() << '\n';
@@ -103,7 +104,7 @@ namespace
         rel::Evaluator evaluator(env);
         rel::Value value;
         try {
-            value = evaluator.evaluate(*result.expr);
+            value = evaluator.Evaluate(*result.expr);
         } catch (const std::exception& e) {
             rel::Error err;
             err.kind    = rel::ErrorKind::RunTime;
@@ -113,7 +114,7 @@ namespace
             std::cerr << err.to_string() << std::endl;
             return 1;
         }
-        std::cout << value.to_string() << '\n';
+        std::cout << value.Format() << '\n';
         return 0;
     }
 
@@ -134,8 +135,8 @@ namespace
         }
 
         rel::Scanner scanner(expr_str, line_no);
-        rel::ScanResult scanResult = scanner.scan();
-        if (!scanResult.ok())
+        rel::ScanResult scanResult = scanner.Scan();
+        if (!scanResult.Ok())
         {
             for (const auto& err : scanResult.errors)
                 std::cerr << err.to_string() << '\n';
@@ -143,9 +144,9 @@ namespace
         }
 
         rel::Parser parser(std::move(scanResult.tokens));
-        rel::ParseResult result = parser.parse();
+        rel::ParseResult result = parser.Parse();
 
-        if (!result.ok())
+        if (!result.Ok())
         {
             for (const auto& err : result.errors)
                 std::cerr << err.to_string() << '\n';
@@ -155,7 +156,7 @@ namespace
         rel::Evaluator evaluator(env);
         rel::Value v;
         try {
-            v = evaluator.evaluate(*result.expr);
+            v = evaluator.Evaluate(*result.expr);
         } catch (const std::exception& e) {
             rel::Error err;
             err.kind    = rel::ErrorKind::RunTime;
@@ -165,15 +166,15 @@ namespace
             std::cerr << err.to_string() << std::endl;
             return 1;
         }
-        env.define(name, v);
-        std::cout << v.to_string(name) << '\n';
+        env.Define(name, v);
+        std::cout << v.Format(name) << '\n';
         return 0;
     }
 
     int run_file(const char* path)
     {
         rel::Environment env;
-        rel::init_builtin_constants(env);
+        rel::InitBuiltinConstants(env);
 
         std::ifstream file(path);
         if (!file)
@@ -199,7 +200,7 @@ namespace
     int run_repl()
     {
         rel::Environment env;
-        rel::init_builtin_constants(env);
+        rel::InitBuiltinConstants(env);
 
         std::cout << "REL interpreter.\n"
                   << "  expr        - evaluate and print\n"

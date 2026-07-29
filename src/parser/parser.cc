@@ -20,11 +20,11 @@ namespace rel
         }
     }
 
-    bool ParseResult::ok() const { return expr.get() != nullptr && errors.empty(); }
+    bool ParseResult::Ok() const { return expr.get() != nullptr && errors.empty(); }
 
     Parser::Parser(std::vector<Token> tokens) : tokens_(std::move(tokens)), current_(0) {}
 
-    ParseResult Parser::parse()
+    ParseResult Parser::Parse()
     {
         ParseResult result;
         result.expr = expression();
@@ -277,8 +277,8 @@ namespace rel
         {
             Token open = previous();
             ExprPtr inner = expression();
-            consume(TokenType::RPAREN, "expected ')' after grouped expression");
             if (!inner) return ExprPtr();
+            consume(TokenType::RPAREN, "expected ')' after grouped expression");
             return ExprPtr(new GroupingExpr(open.line, open.column, std::move(inner)));
         }
 

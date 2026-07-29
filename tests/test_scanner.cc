@@ -17,14 +17,14 @@ namespace
     std::vector<Token> scan(const std::string& src)
     {
         Scanner s(src);
-        rel::ScanResult sr = s.scan();
+        rel::ScanResult sr = s.Scan();
         return sr.tokens;
     }
 
     rel::ScanResult scan_with_errors(const std::string& src)
     {
         Scanner s(src);
-        return s.scan();
+        return s.Scan();
     }
 }
 
@@ -325,7 +325,7 @@ TEST(ScannerTest, StringWithEscapes)
 TEST(ScannerTest, UnterminatedStringIsInvalid)
 {
     auto r = scan_with_errors("\"oops");
-    ASSERT_FALSE(r.ok());
+    ASSERT_FALSE(r.Ok());
     ASSERT_EQ(r.errors.size(), 1u);
     EXPECT_EQ(r.errors[0].kind, rel::ErrorKind::Lexical);
 }
@@ -333,7 +333,7 @@ TEST(ScannerTest, UnterminatedStringIsInvalid)
 TEST(ScannerTest, BadEscapeIsInvalid)
 {
     auto r = scan_with_errors("\"\\q\"");
-    ASSERT_FALSE(r.ok());
+    ASSERT_FALSE(r.Ok());
     ASSERT_EQ(r.errors.size(), 1u);
     EXPECT_EQ(r.errors[0].kind, rel::ErrorKind::Lexical);
 }
@@ -352,7 +352,7 @@ TEST(ScannerTest, RawStringLiteral)
 TEST(ScannerTest, UnknownCharacterIsInvalid)
 {
     auto r = scan_with_errors("@");
-    ASSERT_FALSE(r.ok());
+    ASSERT_FALSE(r.Ok());
     ASSERT_EQ(r.errors.size(), 1u);
     EXPECT_EQ(r.errors[0].kind, rel::ErrorKind::Lexical);
 }
@@ -360,7 +360,7 @@ TEST(ScannerTest, UnknownCharacterIsInvalid)
 TEST(ScannerTest, BareEqualsIsInvalid)
 {
     auto r = scan_with_errors("=");
-    ASSERT_FALSE(r.ok());
+    ASSERT_FALSE(r.Ok());
     ASSERT_EQ(r.errors.size(), 1u);
     EXPECT_EQ(r.errors[0].kind, rel::ErrorKind::Lexical);
 }
@@ -382,8 +382,8 @@ TEST(ScannerTest, LineAndColumnTracking)
 TEST(ScannerTest, InitialLineOffset)
 {
     Scanner s("foo", 42);
-    rel::ScanResult sr = s.scan();
-    ASSERT_TRUE(sr.ok());
+    rel::ScanResult sr = s.Scan();
+    ASSERT_TRUE(sr.Ok());
     EXPECT_EQ(sr.tokens[0].line, 42);
     EXPECT_EQ(sr.tokens[0].column, 1);
 }

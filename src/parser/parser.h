@@ -14,7 +14,7 @@ namespace rel
         ExprPtr expr;
         std::vector<Error> errors;
 
-        bool ok() const;
+        bool Ok() const;
     };
 
     class Parser
@@ -22,7 +22,7 @@ namespace rel
     public:
         explicit Parser(std::vector<Token> tokens);
 
-        ParseResult parse();
+        ParseResult Parse();
 
     private:
         struct ArgList
