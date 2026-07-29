@@ -72,7 +72,7 @@ std::string Value::Format(const std::string& name, int max_rows) const
     if (is_measurement())
     {
         const xdataset::Measurement& m = as_measurement();
-        return m.to_dataframe(name).to_string();
+        return m.to_dataframe(name).to_string(max_rows);
     }
 
     // DataArray: render with custom or default variable name

@@ -80,7 +80,7 @@ public:
     /// When `name` is given: Measurement is wrapped in a named DataFrame;
     /// DataArray uses the name as its header.  `max_rows` caps output rows
     /// (0 = no limit).
-    std::string Format(const std::string& name = "data", int max_rows = 0) const;
+    std::string Format(const std::string& name = "data", int max_rows = 32) const;
 
     // ---- raw storage ---------------------------------------------------
 

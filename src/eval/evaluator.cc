@@ -378,10 +378,27 @@ void Evaluator::visit_grouping(const GroupingExpr& expr)
 }
 
 // =========================================================================
+//  visit_reference — resolve identifier / dotted path via Environment
+// =========================================================================
+
+void Evaluator::visit_reference(const ReferenceExpr& expr)
+{
+    try
+    {
+        result_ = env_.ResolveReference(expr.segments);
+    }
+    catch (const std::exception& e)
+    {
+        throw std::runtime_error(
+            std::string("line ") + std::to_string(expr.line) +
+            ", column " + std::to_string(expr.column) + ": " + e.what());
+    }
+}
+
+// =========================================================================
 //  Stubs
 // =========================================================================
 
-void Evaluator::visit_reference(const ReferenceExpr&)  { result_ = Value::Null(); }
 void Evaluator::visit_conditional(const ConditionalExpr&) { result_ = Value::Null(); }
 void Evaluator::visit_if(const IfExpr&)                 { result_ = Value::Null(); }
 void Evaluator::visit_call(const CallExpr&)             { result_ = Value::Null(); }
