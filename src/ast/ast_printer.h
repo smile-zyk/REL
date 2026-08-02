@@ -11,8 +11,8 @@ namespace rel
     public:
         std::string Print(const Expr& expr);
 
-        void visit_null(const NullExpr& expr) override;
         void visit_number(const NumberExpr& expr) override;
+        void visit_boolean(const BooleanExpr& expr) override;
         void visit_string(const StringExpr& expr) override;
         void visit_reference(const ReferenceExpr& expr) override;
         void visit_unary(const UnaryExpr& expr) override;

@@ -80,24 +80,24 @@ namespace
 TEST(EnvironmentTest, DefineAndGet)
 {
     rel::Environment env;
-    env.Define("x", rel::Value::Real(3.14));
-    env.Define("y", rel::Value::Integer(42));
+    env.Define("x", rel::Value(xdataset::Measurement::Real(3.14)));
+    env.Define("y", rel::Value(xdataset::Measurement::Integer(42)));
 
     EXPECT_DOUBLE_EQ(env.Get("x").as_measurement().as_scalar<double>(), 3.14);
     EXPECT_EQ(env.Get("y").as_measurement().as_scalar<int>(), 42);
 }
 
-TEST(EnvironmentTest, GetUndefinedReturnsNull)
+TEST(EnvironmentTest, GetUndefinedReturnsDefault)
 {
     rel::Environment env;
-    EXPECT_TRUE(env.Get("nonexistent").is_null());
+    EXPECT_TRUE(env.Get("nonexistent").is_measurement());
 }
 
 TEST(EnvironmentTest, RedefineOverwrites)
 {
     rel::Environment env;
-    env.Define("x", rel::Value::Integer(1));
-    env.Define("x", rel::Value::Integer(2));
+    env.Define("x", rel::Value(xdataset::Measurement::Integer(1)));
+    env.Define("x", rel::Value(xdataset::Measurement::Integer(2)));
     EXPECT_EQ(env.Get("x").as_measurement().as_scalar<int>(), 2);
 }
 
@@ -177,7 +177,7 @@ TEST(EnvironmentTest, DefaultDatasetNullWhenNotSet)
 TEST(EnvironmentTest, ResolveSingleSegmentVariable)
 {
     rel::Environment env;
-    env.Define("x", rel::Value::Real(1.5));
+    env.Define("x", rel::Value(xdataset::Measurement::Real(1.5)));
 
     rel::Value v = env.ResolveReference({S("x")});
     EXPECT_TRUE(v.is_measurement());

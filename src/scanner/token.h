@@ -23,7 +23,8 @@ namespace rel
         KW_NOT,       // NOT        (alias of !,  see Spec 2.5 unary_op)
         KW_EQUALS,    // EQUALS     (alias of ==, see Spec 2.4)
         KW_NOTEQUALS, // NOTEQUALS  (alias of !=, see Spec 2.4)
-        KW_NULL,      // NULL       (literal, see Spec 2.7)
+        KW_TRUE,      // TRUE       boolean literal
+        KW_FALSE,     // FALSE      boolean literal
 
         // -----------------------------------------------------------------
         // Identifier (Spec 1.1)

@@ -6,6 +6,9 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# ---- Test environment: load case/test_env.json at startup ----
+add_compile_definitions(REL_LOAD_TEST_ENV)
+
 # Third-party: xdataset (multi-dimensional data structures for REL).
 # Enable HDF5 if it's available on the system.
 if(DEFINED ENV{HDF5_ROOT} OR EXISTS "C:/msys64/mingw64/bin/libhdf5-320.dll")
@@ -21,8 +24,8 @@ add_library(rel_core STATIC
     src/ast/expr.cc
     src/ast/ast_printer.cc
     src/parser/parser.cc
-    src/eval/value.cc
     src/eval/environment.cc
+    src/eval/environment_config.cc
     src/eval/error.cc
     src/eval/evaluator.cc
     src/rel.cc

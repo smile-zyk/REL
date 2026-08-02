@@ -37,7 +37,8 @@ namespace rel
                     {"NOT",       TokenType::KW_NOT},
                     {"EQUALS",    TokenType::KW_EQUALS},
                     {"NOTEQUALS", TokenType::KW_NOTEQUALS},
-                    {"NULL",      TokenType::KW_NULL},
+                    {"TRUE",      TokenType::KW_TRUE},
+                    {"FALSE",     TokenType::KW_FALSE},
                 };
                 return kTable;
             }

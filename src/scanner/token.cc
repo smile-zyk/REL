@@ -17,7 +17,8 @@ namespace rel
             case TokenType::KW_NOT: return "KW_NOT";
             case TokenType::KW_EQUALS: return "KW_EQUALS";
             case TokenType::KW_NOTEQUALS: return "KW_NOTEQUALS";
-            case TokenType::KW_NULL: return "KW_NULL";
+            case TokenType::KW_TRUE: return "KW_TRUE";
+            case TokenType::KW_FALSE: return "KW_FALSE";
 
             case TokenType::IDENTIFIER: return "IDENTIFIER";
 

@@ -52,8 +52,8 @@ TEST(ScannerTest, WhitespaceOnlySource)
 
 TEST(ScannerTest, AllKeywords)
 {
-    auto t = scan("if then elseif else AND OR NOT EQUALS NOTEQUALS NULL");
-    ASSERT_EQ(t.size(), 11u);
+    auto t = scan("if then elseif else AND OR NOT EQUALS NOTEQUALS TRUE FALSE");
+    ASSERT_EQ(t.size(), 12u);
     EXPECT_EQ(t[0].type, TokenType::KW_IF);
     EXPECT_EQ(t[1].type, TokenType::KW_THEN);
     EXPECT_EQ(t[2].type, TokenType::KW_ELSEIF);
@@ -63,8 +63,9 @@ TEST(ScannerTest, AllKeywords)
     EXPECT_EQ(t[6].type, TokenType::KW_NOT);
     EXPECT_EQ(t[7].type, TokenType::KW_EQUALS);
     EXPECT_EQ(t[8].type, TokenType::KW_NOTEQUALS);
-    EXPECT_EQ(t[9].type, TokenType::KW_NULL);
-    EXPECT_EQ(t[10].type, TokenType::END_OF_INPUT);
+    EXPECT_EQ(t[9].type, TokenType::KW_TRUE);
+    EXPECT_EQ(t[10].type, TokenType::KW_FALSE);
+    EXPECT_EQ(t[11].type, TokenType::END_OF_INPUT);
 }
 
 TEST(ScannerTest, BuiltinConstantsAreIdentifiers)
@@ -81,9 +82,9 @@ TEST(ScannerTest, BuiltinConstantsAreIdentifiers)
 
 TEST(ScannerTest, KeywordsAreCaseSensitive)
 {
-    auto t = scan("and or not equals notequals null");
-    ASSERT_EQ(t.size(), 7u);
-    for (int i = 0; i < 6; ++i)
+    auto t = scan("and or not equals notequals true false");
+    ASSERT_EQ(t.size(), 8u);
+    for (int i = 0; i < 7; ++i)
         EXPECT_EQ(t[i].type, TokenType::IDENTIFIER);
 }
 
@@ -394,7 +395,7 @@ TEST(ScannerTest, InitialLineOffset)
 
 TEST(ScannerTest, RealisticIfExpression)
 {
-    auto t = scan("if (x >= 8kHz) then 1.5e-3 else NULL");
+    auto t = scan("if (x >= 8kHz) then 1.5e-3 else TRUE");
     EXPECT_EQ(t[0].type,  TokenType::KW_IF);
     EXPECT_EQ(t[1].type,  TokenType::LPAREN);
     EXPECT_EQ(t[2].type,  TokenType::IDENTIFIER);
@@ -409,6 +410,6 @@ TEST(ScannerTest, RealisticIfExpression)
     EXPECT_EQ(t[8].type,  TokenType::NUMERIC_BASE);
     EXPECT_EQ(t[8].lexeme, "1.5e-3");
     EXPECT_EQ(t[9].type,  TokenType::KW_ELSE);
-    EXPECT_EQ(t[10].type, TokenType::KW_NULL);
+    EXPECT_EQ(t[10].type, TokenType::KW_TRUE);
     EXPECT_EQ(t[11].type, TokenType::END_OF_INPUT);
 }

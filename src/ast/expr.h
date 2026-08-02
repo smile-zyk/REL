@@ -11,8 +11,8 @@ namespace rel
     class ExprVisitor;
 
     class Expr;
-    class NullExpr;
     class NumberExpr;
+    class BooleanExpr;
     class StringExpr;
     class ReferenceExpr;
     class UnaryExpr;
@@ -66,8 +66,8 @@ namespace rel
     public:
         virtual ~ExprVisitor() {}
 
-        virtual void visit_null(const NullExpr& expr) = 0;
         virtual void visit_number(const NumberExpr& expr) = 0;
+        virtual void visit_boolean(const BooleanExpr& expr) = 0;
         virtual void visit_string(const StringExpr& expr) = 0;
         virtual void visit_reference(const ReferenceExpr& expr) = 0;
         virtual void visit_unary(const UnaryExpr& expr) = 0;
@@ -96,10 +96,13 @@ namespace rel
         virtual void accept(ExprVisitor& visitor) const = 0;
     };
 
-    class NullExpr : public Expr
+    class BooleanExpr : public Expr
     {
     public:
-        NullExpr(int line_value, int column_value);
+        BooleanExpr(int line_value, int column_value, bool value_value);
+
+        bool value;
+
         void accept(ExprVisitor& visitor) const override;
     };
 

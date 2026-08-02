@@ -37,22 +37,18 @@ TEST(SweepExprTest, SingleScalar)
 
 TEST(SweepExprTest, EmptySweep)
 {
-    // Parser rejects empty [], so construct AST manually.
+    // Empty sweep now returns default Measurement (empty handled before OperationSweep).
     rel::SweepExpr expr(1, 1, std::vector<rel::ExprPtr>{});
     rel::Environment env;
     rel::Evaluator e(env);
     rel::Value v = e.Evaluate(expr);
-    EXPECT_TRUE(v.is_data_array());
-    EXPECT_EQ(v.as_data_array().data().size(), 0u);
+    EXPECT_TRUE(v.is_measurement());
 }
 
 TEST(SweepExprTest, MixedTypesIntegerAndUnit)
 {
-    // Regression: 2MHz is Integer with unit, plain scalars are Real.
-    // Combine must handle Integer->Real promotion without boost::bad_get.
     rel::Value v = Eval("[{1, 2MHz}, {3, 4}]");
     EXPECT_TRUE(v.is_data_array());
-    // Should produce a 2-row, 2-col (Vector) DataArray without crash.
     EXPECT_EQ(v.as_data_array().data().size(), 2u);
 }
 
@@ -89,9 +85,11 @@ TEST(MatrixExprTest, ThreeScalarsPromotedToVector)
 
 TEST(MatrixExprTest, SingleScalarStaysScalar)
 {
+    // OperationMatrix with single scalar stays Scalar.
     rel::Value v = Eval("{5.0}");
     EXPECT_TRUE(v.is_measurement());
     EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kScalar);
+    EXPECT_DOUBLE_EQ(v.as_measurement().as_scalar<double>(), 5.0);
 }
 
 TEST(MatrixExprTest, TwoScalarsPromotedToVector)
@@ -112,13 +110,13 @@ TEST(MatrixExprTest, IntegerScalarsPromotedToVector)
     EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kVector);
 }
 
-TEST(MatrixExprTest, EmptyMatrixReturnsNull)
+TEST(MatrixExprTest, EmptyMatrixReturnsDefaultMeasurement)
 {
     rel::MatrixExpr expr(1, 1, std::vector<rel::ExprPtr>{});
     rel::Environment env;
     rel::Evaluator e(env);
     rel::Value v = e.Evaluate(expr);
-    EXPECT_TRUE(v.is_null());
+    EXPECT_TRUE(v.is_measurement());
 }
 
 TEST(MatrixExprTest, MixedUnitAndNoUnit)
@@ -140,6 +138,7 @@ TEST(MatrixExprTest, WithStringThrows)
 
 TEST(SweepMatrixTest, SingleSweepInMatrix)
 {
+    // Matrix wrapping a single sweep stays as-is.
     rel::Value v = Eval("{[1.0, 2.0, 3.0]}");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 3u);
@@ -184,7 +183,7 @@ TEST(SweepMatrixTest, MultipleMatricesInsideSweep)
 }
 
 // =========================================================================
-//  Regression: Format() must not crash
+//  Regression: Format must not crash
 // =========================================================================
 
 TEST(RegressionTest, SweepFormat)
@@ -211,7 +210,6 @@ TEST(RegressionTest, NestedSweepMatrixFormat)
 
 TEST(RegressionTest, SweepWithUnitsFormat)
 {
-    // Mixed units crash regression
     rel::Value v = Eval("[{1,2MHz}, {3,4}]");
     std::string s = v.Format();
     EXPECT_FALSE(s.empty());
@@ -219,15 +217,10 @@ TEST(RegressionTest, SweepWithUnitsFormat)
 
 TEST(RegressionTest, MatrixWithSweepAndScalarConcat)
 {
-    // {[1,2GHz], 3}: Sweep(2 rows Scalar) + M(1 row broadcast).
-    // Currently Concat produces 2 rows of Scalar; desired is 2 rows of Vector(2).
-    // See: xdataset Concat shape-promotion & unit-propagation bug.
     rel::Value v = Eval("{[1,2GHz], 3}");
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data().size(), 2u);
-    // TODO: should be Vector, not Scalar:
     EXPECT_EQ(v.as_data_array().data().data_kind(), xdataset::DataKind::kVector);
     std::string s = v.Format();
     EXPECT_FALSE(s.empty());
-    // TODO: 1 and 3 should NOT inherit GHz unit
 }

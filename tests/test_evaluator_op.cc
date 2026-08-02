@@ -100,61 +100,61 @@ TEST(OperatorTest, RightShift)
 TEST(OperatorTest, LessThan)
 {
     rel::Value v = Eval("1 < 2");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 1);
+    EXPECT_TRUE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, LessThanFalse)
 {
     rel::Value v = Eval("3 < 2");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 0);
+    EXPECT_FALSE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, GreaterThan)
 {
     rel::Value v = Eval("3 > 2");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 1);
+    EXPECT_TRUE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, LessEqual)
 {
     rel::Value v = Eval("2 <= 2");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 1);
+    EXPECT_TRUE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, GreaterEqual)
 {
     rel::Value v = Eval("2 >= 2");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 1);
+    EXPECT_TRUE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, Equal)
 {
     rel::Value v = Eval("1 == 1");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 1);
+    EXPECT_TRUE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, EqualFalse)
 {
     rel::Value v = Eval("1 == 2");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 0);
+    EXPECT_FALSE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, NotEqual)
 {
     rel::Value v = Eval("1 != 2");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 1);
+    EXPECT_TRUE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, KeywordEquals)
 {
     rel::Value v = Eval("1 EQUALS 1");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 1);
+    EXPECT_TRUE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, KeywordNotEquals)
 {
     rel::Value v = Eval("1 NOTEQUALS 2");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 1);
+    EXPECT_TRUE(v.as_measurement().as_scalar<bool>());
 }
 
 // =========================================================================
@@ -192,19 +192,19 @@ TEST(OperatorTest, UnaryNegate)
 TEST(OperatorTest, UnaryLogicalNotTrue)
 {
     rel::Value v = Eval("!1");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 0);
+    EXPECT_FALSE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, UnaryLogicalNotFalse)
 {
     rel::Value v = Eval("!0");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 1);
+    EXPECT_TRUE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, KeywordNot)
 {
     rel::Value v = Eval("NOT 1");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 0);
+    EXPECT_FALSE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, UnaryBitwiseNot)
@@ -220,48 +220,44 @@ TEST(OperatorTest, UnaryBitwiseNot)
 TEST(OperatorTest, AndTrue)
 {
     rel::Value v = Eval("1 && 1");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 1);
+    EXPECT_TRUE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, AndFalse)
 {
     rel::Value v = Eval("1 && 0");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 0);
+    EXPECT_FALSE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, OrTrue)
 {
     rel::Value v = Eval("0 || 1");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 1);
+    EXPECT_TRUE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, OrFalse)
 {
     rel::Value v = Eval("0 || 0");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 0);
+    EXPECT_FALSE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, KeywordAnd)
 {
     rel::Value v = Eval("1 AND 1");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 1);
+    EXPECT_TRUE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, KeywordOr)
 {
     rel::Value v = Eval("0 OR 1");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 1);
+    EXPECT_TRUE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, ShortCircuitAnd)
 {
-    //      0 && (1/0) -> should NOT evaluate 1/0 (division by zero is fine in Measurement)
-    //      The fact that it doesn't crash proves short-circuit works.
-    //      But eval doesn't have divide-by-zero to test with.
-    //      Instead: 0 && <syntax-error> -> parser would reject, so skip.
-    //      Smoke test: 0 && any-value doesn't crash.
+    // Smoke test: 0 && any-value doesn't crash (short-circuit).
     rel::Value v = Eval("0 && 1");
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 0);
+    EXPECT_FALSE(v.as_measurement().as_scalar<bool>());
 }
 
 TEST(OperatorTest, ComplexExpression)
@@ -291,4 +287,137 @@ TEST(OperatorTest, MulWithUnit)
 {
     rel::Value v = Eval("2 * 3MHz");
     EXPECT_TRUE(v.is_measurement());
+}
+
+// =========================================================================
+//  Conditional (?:) and If
+// =========================================================================
+
+TEST(OperatorTest, ConditionalTrue)
+{
+    rel::Value v = Eval("TRUE ? 10 : 20");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 10);
+}
+
+TEST(OperatorTest, ConditionalFalse)
+{
+    rel::Value v = Eval("FALSE ? 10 : 20");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 20);
+}
+
+TEST(OperatorTest, ConditionalWithComparison)
+{
+    rel::Value v = Eval("(1 < 2) ? 100 : 200");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 100);
+}
+
+TEST(OperatorTest, ConditionalVectorBroadcast)
+{
+    rel::Value v = Eval("{1, 2, 3} ? 10 : 20");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kVector);
+}
+
+TEST(OperatorTest, IfSimple)
+{
+    rel::Value v = Eval("if(TRUE) then 42 else 0");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 42);
+}
+
+TEST(OperatorTest, IfElseifTrue)
+{
+    rel::Value v = Eval("if(FALSE) then 1 elseif(TRUE) then 2 else 3");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 2);
+}
+
+TEST(OperatorTest, IfElseDefault)
+{
+    rel::Value v = Eval("if(FALSE) then 1 elseif(FALSE) then 2 else 3");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 3);
+}
+
+// --- broadcast: condition vector + scalar branches ---
+
+TEST(OperatorTest, ConditionalCondVectorThenScalarElseScalar)
+{
+    // {TRUE, FALSE, TRUE} ? 10 : 20  →  [10, 20, 10]
+    rel::Value v = Eval("{TRUE, FALSE, TRUE} ? 10 : 20");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kVector);
+    auto vec = v.as_measurement().as_vector<int>();
+    ASSERT_EQ(vec.size(), 3);
+    EXPECT_EQ(vec[0], 10);
+    EXPECT_EQ(vec[1], 20);
+    EXPECT_EQ(vec[2], 10);
+}
+
+TEST(OperatorTest, ConditionalCondScalarThenVectorElseScalar)
+{
+    // TRUE ? {10, 20, 30} : 0  →  [10, 20, 30]
+    rel::Value v = Eval("TRUE ? {10, 20, 30} : 0");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kVector);
+    auto vec = v.as_measurement().as_vector<int>();
+    ASSERT_EQ(vec.size(), 3);
+    EXPECT_EQ(vec[0], 10);
+    EXPECT_EQ(vec[1], 20);
+    EXPECT_EQ(vec[2], 30);
+}
+
+TEST(OperatorTest, ConditionalCondVectorThenVectorElseVector)
+{
+    // {TRUE, FALSE, TRUE} ? {1, 2, 3} : {10, 20, 30}  →  [1, 20, 3]
+    rel::Value v = Eval("{TRUE, FALSE, TRUE} ? {1, 2, 3} : {10, 20, 30}");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kVector);
+    auto vec = v.as_measurement().as_vector<int>();
+    ASSERT_EQ(vec.size(), 3);
+    EXPECT_EQ(vec[0], 1);
+    EXPECT_EQ(vec[1], 20);
+    EXPECT_EQ(vec[2], 3);
+}
+
+// --- if with broadcast ---
+
+TEST(OperatorTest, IfCondVector)
+{
+    // if({TRUE, FALSE}) then {10, 20} else {100, 200}  →  [10, 200]
+    rel::Value v = Eval("if({TRUE, FALSE}) then {10, 20} else {100, 200}");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kVector);
+    auto vec = v.as_measurement().as_vector<int>();
+    ASSERT_EQ(vec.size(), 2);
+    EXPECT_EQ(vec[0], 10);
+    EXPECT_EQ(vec[1], 200);
+}
+
+TEST(OperatorTest, IfCondVectorWithElseif)
+{
+    // if({FALSE,TRUE,FALSE}) then {1,2,3} elseif({TRUE,FALSE,TRUE}) then {10,20,30} else {100,200,300}
+    rel::Value v = Eval("if({FALSE,TRUE,FALSE}) then {1,2,3} elseif({TRUE,FALSE,TRUE}) then {10,20,30} else {100,200,300}");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kVector);
+    auto vec = v.as_measurement().as_vector<int>();
+    ASSERT_EQ(vec.size(), 3);
+    EXPECT_EQ(vec[0], 10);   // cond0=F→skip, cond1=T→val1
+    EXPECT_EQ(vec[1], 2);    // cond0=T→val0
+    EXPECT_EQ(vec[2], 30);   // cond0=F→skip, cond1=T→val1
+}
+
+TEST(OperatorTest, IfScalarCondVectorBranchElseScalar)
+{
+    // if(TRUE) then {10, 20} else 0  →  [10, 20]
+    rel::Value v = Eval("if(TRUE) then {10, 20} else 0");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().data_kind(), xdataset::DataKind::kVector);
+    auto vec = v.as_measurement().as_vector<int>();
+    ASSERT_EQ(vec.size(), 2);
+    EXPECT_EQ(vec[0], 10);
+    EXPECT_EQ(vec[1], 20);
 }

@@ -1,9 +1,8 @@
-﻿// Evaluator step-1 tests: literals only.  All other node types return null.
+﻿// Evaluator step-1 tests: literals and boolean expressions.
 
 #include "eval/evaluator.h"
 #include "eval/environment.h"
 #include "rel.h"
-#include "eval/value.h"
 
 #include "ast/expr.h"
 
@@ -35,15 +34,25 @@ namespace
 } // namespace
 
 // =========================================================================
-//  Null literal
+//  Boolean literal
 // =========================================================================
 
-TEST(EvaluatorLitTest, Null)
+TEST(EvaluatorLitTest, BooleanTrue)
 {
-    rel::NullExpr expr(1, 1);
+    rel::BooleanExpr expr(1, 1, true);
     rel::Value v = eval_expr(expr);
-    EXPECT_TRUE(v.is_null());
-    EXPECT_EQ(v.Format(), "NULL");
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().data_type(), xdataset::DataType::kBoolean);
+    EXPECT_EQ(v.as_measurement().as_scalar<bool>(), true);
+}
+
+TEST(EvaluatorLitTest, BooleanFalse)
+{
+    rel::BooleanExpr expr(1, 1, false);
+    rel::Value v = eval_expr(expr);
+    EXPECT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.as_measurement().data_type(), xdataset::DataType::kBoolean);
+    EXPECT_EQ(v.as_measurement().as_scalar<bool>(), false);
 }
 
 // =========================================================================
@@ -205,41 +214,11 @@ TEST(EvaluatorLitTest, RawString)
     EXPECT_EQ(v.as_measurement().as_scalar<std::string>(), "no\\escape");
 }
 
-// =========================================================================
-//  Stubs: all other node types return null
-// =========================================================================
-
-TEST(EvaluatorLitTest, UnaryNowWorks)
+TEST(EvaluatorLitTest, ReferenceNeedsEnv)
 {
-    // Unary operators are now implemented.
-    rel::Value v = rel::Eval("-42");
-    EXPECT_TRUE(v.is_measurement());
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), -42);
-}
-
-TEST(EvaluatorLitTest, BinaryNowWorks)
-{
-    // Binary operators are now implemented.
-    rel::Value v = rel::Eval("1 + 2");
-    EXPECT_TRUE(v.is_measurement());
-    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 3);
-}
-
-TEST(EvaluatorLitTest, ReferenceIsNullSoFar)
-{
+    // Reference to an undefined name throws.
     std::vector<rel::RefSegment> segs;
     segs.push_back(rel::RefSegment("x", rel::RefSeparator::None));
     rel::ReferenceExpr expr(1, 1, segs);
-    rel::Value v = eval_expr(expr);
-    EXPECT_TRUE(v.is_null());
-}
-
-TEST(EvaluatorLitTest, ConditionalIsNullSoFar)
-{
-    rel::ConditionalExpr expr(1, 1,
-        std::unique_ptr<rel::Expr>(new rel::NullExpr(1, 1)),
-        std::unique_ptr<rel::Expr>(new rel::NullExpr(1, 1)),
-        std::unique_ptr<rel::Expr>(new rel::NullExpr(1, 1)));
-    rel::Value v = eval_expr(expr);
-    EXPECT_TRUE(v.is_null());
+    EXPECT_THROW(eval_expr(expr), std::runtime_error);
 }

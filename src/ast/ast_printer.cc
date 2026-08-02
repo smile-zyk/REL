@@ -121,7 +121,10 @@ namespace rel
         }
     }
 
-    void AstPrinter::visit_null(const NullExpr&) { out_ = "NULL"; }
+    void AstPrinter::visit_boolean(const BooleanExpr& expr)
+    {
+        out_ = expr.value ? "TRUE" : "FALSE";
+    }
 
     void AstPrinter::visit_number(const NumberExpr& expr)
     {

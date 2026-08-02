@@ -1,6 +1,11 @@
 #include "environment.h"
 
 #include "dataset.h"
+#include "dataset_io.h"
+#include "eval/evaluator.h"
+#include "parser/parser.h"
+#include "scanner/scanner.h"
+#include "touchstone_io.h"
 
 #include <sstream>
 #include <stdexcept>
@@ -11,17 +16,17 @@ namespace rel {
 //  Variables
 // =========================================================================
 
-void Environment::Define(const std::string& name, Value value)
+void Environment::Define(const std::string& name, xdataset::Value value)
 {
     variables_[name] = std::move(value);
 }
 
-Value Environment::Get(const std::string& name) const
+xdataset::Value Environment::Get(const std::string& name) const
 {
     auto it = variables_.find(name);
     if (it != variables_.end())
         return it->second;
-    return Value::Null();
+    return xdataset::Value();
 }
 
 // =========================================================================
@@ -67,11 +72,11 @@ xdataset::Dataset* Environment::DefaultDataset() const
 //  Reference resolution
 // =========================================================================
 
-Value Environment::ResolveReference(
+xdataset::Value Environment::ResolveReference(
     const std::vector<RefSegment>& segments) const
 {
     if (segments.empty())
-        return Value::Null();
+        return xdataset::Value();
 
     // ---- 1 segment: variable lookup ---------------------------------
     if (segments.size() == 1)
@@ -79,16 +84,15 @@ Value Environment::ResolveReference(
         const std::string& name = segments[0].name;
 
         // 1a) User-defined / built-in
-        Value v = Get(name);
-        if (!v.is_null())
-            return v;
+        auto it = variables_.find(name);
+        if (it != variables_.end())
+            return it->second;
 
         // 1b) Unique lookup in default dataset
         xdataset::Dataset* ds = DefaultDataset();
         if (ds && ds->HasUniqueDataArray(name))
         {
-            return Value(std::make_shared<xdataset::DataArray>(
-                ds->GetDataArray(name)));
+            return xdataset::Value(ds->GetDataArray(name));
         }
 
         throw std::runtime_error(
@@ -106,8 +110,7 @@ Value Environment::ResolveReference(
         }
 
         xdataset::Dataset* ds = it->second.get();
-        return Value(std::make_shared<xdataset::DataArray>(
-            ds->GetDataArray(segments[1].name)));
+        return xdataset::Value(ds->GetDataArray(segments[1].name));
     }
 
     // ---- ≥2 segments Dot: path navigation ---------------------------
@@ -148,8 +151,79 @@ Value Environment::ResolveReference(
         if (path.tellp() > 0) path << "/";
         path << segments[segments.size() - 2].name;
 
-        return Value(std::make_shared<xdataset::DataArray>(
-            ds->GetDataArray(path.str(), segments.back().name)));
+        return xdataset::Value(ds->GetDataArray(path.str(), segments.back().name));
+    }
+}
+
+// =========================================================================
+//  Persistent context: load datasets + pre-defined expressions
+// =========================================================================
+
+void Environment::LoadFromConfig(const std::string& config_path)
+{
+    EnvironmentConfig cfg = EnvironmentConfig::Load(config_path);
+
+    // Resolve relative dataset paths against the config file's directory.
+    std::string base_dir;
+    {
+        std::size_t slash = config_path.find_last_of("/\\");
+        if (slash != std::string::npos)
+            base_dir = config_path.substr(0, slash + 1);
+    }
+
+    // ---- load datasets ----
+    for (auto& ds : cfg.datasets)
+    {
+        // Resolve relative paths
+        std::string full_path = ds.path;
+        if (!full_path.empty() && full_path[0] != '/' && !base_dir.empty())
+            full_path = base_dir + ds.path;
+
+        xdataset::Dataset loaded(ds.name);
+
+        if (ds.format == "hdf5")
+        {
+            loaded = xdataset::DatasetIO::Load(ds.format, full_path);
+            loaded.set_name(ds.name);
+        }
+        else if (ds.format == "touchstone")
+        {
+            xdataset::TouchstoneReader reader(full_path);
+            loaded = reader.Read();
+            loaded.set_name(ds.name);
+        }
+        else
+        {
+            throw std::runtime_error(
+                "unsupported dataset format '" + ds.format + "'");
+        }
+
+        datasets_[ds.name] = std::unique_ptr<xdataset::Dataset>(
+            new xdataset::Dataset(std::move(loaded)));
+    }
+
+    // First dataset entry → default
+    if (!cfg.datasets.empty())
+        SetDefaultDataset(cfg.datasets[0].name);
+
+    // ---- evaluate define entries ----
+    for (const auto& def : cfg.defines)
+    {
+        Scanner scanner(def.expression);
+        ScanResult sr = scanner.Scan();
+        if (!sr.Ok())
+            throw std::runtime_error(
+                "config 'define " + def.name + "': " + sr.errors[0].to_string());
+
+        Parser parser(std::move(sr.tokens));
+        ParseResult pr = parser.Parse();
+        if (!pr.Ok())
+            throw std::runtime_error(
+                "config 'define " + def.name + "': " + pr.errors[0].message);
+
+        Evaluator evaluator(*this);
+        xdataset::Value result = evaluator.Evaluate(*pr.expr);
+        Define(def.name, std::move(result));
     }
 }
 

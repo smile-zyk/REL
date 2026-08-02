@@ -2,23 +2,21 @@
 
 #include "ast/expr.h"
 #include "eval/environment.h"
-#include "eval/value.h"
+#include "value.h"
 
 #include <string>
 
 namespace rel {
 
 // =========================================================================
-//  Evaluator — ExprVisitor that walks the AST and produces a Value
+//  Evaluator — ExprVisitor that walks the AST and produces an xdataset::Value
 // =========================================================================
 //
 //  Usage:
 //    Evaluator eval(env);
-//    Value result = eval.evaluate(expr);
+//    xdataset::Value result = eval.evaluate(expr);
 //
-//  The Evaluator holds a reference to the Environment for variable lookup.
-//  It is stateless beyond that — each call to evaluate() resets internal
-//  state.
+//  Arithmetic, comparison, etc. delegate to xdataset::Value operators.
 
 class Evaluator : public ExprVisitor
 {
@@ -26,11 +24,11 @@ public:
     explicit Evaluator(Environment& env);
 
     /// Top-level entry point.
-    Value Evaluate(const Expr& expr);
+    xdataset::Value Evaluate(const Expr& expr);
 
     // ---- ExprVisitor interface ----
-    void visit_null(const NullExpr& expr) override;
     void visit_number(const NumberExpr& expr) override;
+    void visit_boolean(const BooleanExpr& expr) override;
     void visit_string(const StringExpr& expr) override;
     void visit_reference(const ReferenceExpr& expr) override;
     void visit_unary(const UnaryExpr& expr) override;
@@ -50,18 +48,17 @@ private:
     /// Parse base_lexeme according to radix into a double.
     static double parse_base(const std::string& lexeme, int radix);
 
-    /// Apply a unary operator to a Value.
-    Value apply_unary(TokenType op, const Value& operand);
+    /// Apply a unary operator.
+    xdataset::Value apply_unary(TokenType op, const xdataset::Value& operand);
 
-    /// Apply a binary operator to two Values.
-    Value apply_binary(TokenType op, const Value& lhs, const Value& rhs);
+    /// Apply a binary operator (delegates to xdataset::Value operators).
+    xdataset::Value apply_binary(TokenType op, const xdataset::Value& lhs, const xdataset::Value& rhs);
 
     /// Apply a short-circuit logical operator.
-    Value apply_logical(TokenType op, const LogicalExpr& expr);
+    xdataset::Value apply_logical(TokenType op, const LogicalExpr& expr);
 
     Environment& env_;
-    Value result_;
+    xdataset::Value result_;
 };
 
-// =========================================================================
 } // namespace rel

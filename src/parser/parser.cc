@@ -265,7 +265,8 @@ namespace rel
     {
         if (check(TokenType::KW_IF)) return if_expression();
 
-        if (check(TokenType::KW_NULL) || check(TokenType::NUMERIC_BASE) ||
+        if (check(TokenType::KW_TRUE) || check(TokenType::KW_FALSE) ||
+            check(TokenType::NUMERIC_BASE) ||
             check(TokenType::STRING_LITERAL) || check(TokenType::RAW_STRING_LITERAL))
         {
             return literal();
@@ -323,10 +324,16 @@ namespace rel
 
     ExprPtr Parser::literal()
     {
-        if (match(TokenType::KW_NULL))
+        if (match(TokenType::KW_TRUE))
         {
             Token t = previous();
-            return ExprPtr(new NullExpr(t.line, t.column));
+            return ExprPtr(new BooleanExpr(t.line, t.column, true));
+        }
+
+        if (match(TokenType::KW_FALSE))
+        {
+            Token t = previous();
+            return ExprPtr(new BooleanExpr(t.line, t.column, false));
         }
 
         if (match(TokenType::NUMERIC_BASE))

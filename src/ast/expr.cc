@@ -18,9 +18,12 @@ namespace rel
 
     Expr::Expr(int line_value, int column_value) : line(line_value), column(column_value) {}
 
-    NullExpr::NullExpr(int line_value, int column_value) : Expr(line_value, column_value) {}
+    BooleanExpr::BooleanExpr(int line_value, int column_value, bool value_value)
+        : Expr(line_value, column_value), value(value_value)
+    {
+    }
 
-    void NullExpr::accept(ExprVisitor& visitor) const { visitor.visit_null(*this); }
+    void BooleanExpr::accept(ExprVisitor& visitor) const { visitor.visit_boolean(*this); }
 
     NumberExpr::NumberExpr(int line_value,
                            int column_value,

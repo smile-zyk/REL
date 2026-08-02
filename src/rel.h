@@ -1,12 +1,15 @@
 #pragma once
 
-#include "eval/value.h"
+#include "value.h"  // xdataset::Value
 
 #include <string>
 
 namespace rel {
 
 class Environment;
+
+/// Convenience alias — REL uses xdataset::Value directly.
+using Value = xdataset::Value;
 
 /// Parse and evaluate a single REL expression from a source string.
 /// When `env` is nullptr (the default), a temporary Environment is used.

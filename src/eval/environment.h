@@ -6,8 +6,9 @@
 #include <vector>
 
 #include "ast/expr.h"
-#include "eval/value.h"
+#include "value.h"  // xdataset::Value
 #include "dataset.h"
+#include "environment_config.h"
 
 namespace rel {
 
@@ -30,11 +31,11 @@ public:
     // ---- variables ----
 
     /// Bind or rebind a name.  Overwrites existing bindings silently.
-    void Define(const std::string& name, Value value);
+    void Define(const std::string& name, xdataset::Value value);
 
     /// Look up a variable in the flat table.
-    /// Returns Value::null_value() when not found.
-    Value Get(const std::string& name) const;
+    /// Returns default Value when not found.
+    xdataset::Value Get(const std::string& name) const;
 
     // ---- datasets ----
 
@@ -51,6 +52,14 @@ public:
     /// The current default Dataset, or nullptr.
     xdataset::Dataset* DefaultDataset() const;
 
+    // ---- persistent context ----------------------------------------------
+
+    /// Load datasets and pre-defined expressions from a config file.
+    /// The first dataset entry becomes the default dataset.
+    /// define entries are evaluated after all datasets are loaded.
+    /// Existing datasets and variables are preserved.
+    void LoadFromConfig(const std::string& config_path);
+
     // ---- reference resolution ----
 
     /// Convert parsed reference segments into a Value.
@@ -62,10 +71,10 @@ public:
     ///                    the second-to-last is the block name,
     ///                    all preceding segments form the group path.
     ///                    First segment may optionally be a dataset name.
-    Value ResolveReference(const std::vector<RefSegment>& segments) const;
+    xdataset::Value ResolveReference(const std::vector<RefSegment>& segments) const;
 
 private:
-    std::unordered_map<std::string, Value> variables_;
+    std::unordered_map<std::string, xdataset::Value> variables_;
     std::unordered_map<std::string, std::unique_ptr<xdataset::Dataset>> datasets_;
     std::string default_dataset_name_;
 };

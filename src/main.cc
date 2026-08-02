@@ -46,7 +46,7 @@ namespace
                 return false;
         if (name == "if" || name == "then" || name == "elseif" || name == "else" ||
             name == "AND" || name == "OR" || name == "NOT" ||
-            name == "EQUALS" || name == "NOTEQUALS" || name == "NULL")
+            name == "EQUALS" || name == "NOTEQUALS")
             return false;
         return true;
     }
@@ -175,6 +175,12 @@ namespace
     {
         rel::Environment env;
         rel::InitBuiltinConstants(env);
+#ifdef REL_LOAD_TEST_ENV
+        try { env.LoadFromConfig("../../case/test_env.json"); }
+        catch (const std::exception& e) {
+            std::cerr << "warning: test env load failed: " << e.what() << '\n';
+        }
+#endif
 
         std::ifstream file(path);
         if (!file)
@@ -201,6 +207,12 @@ namespace
     {
         rel::Environment env;
         rel::InitBuiltinConstants(env);
+#ifdef REL_LOAD_TEST_ENV
+        try { env.LoadFromConfig("../../case/test_env.json"); }
+        catch (const std::exception& e) {
+            std::cerr << "warning: test env load failed: " << e.what() << '\n';
+        }
+#endif
 
         std::cout << "REL interpreter.\n"
                   << "  expr        - evaluate and print\n"

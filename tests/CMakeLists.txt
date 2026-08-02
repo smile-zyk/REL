@@ -5,9 +5,6 @@ target_link_libraries(test_scanner PRIVATE rel_core GTest::gtest_main)
 add_executable(test_parser test_parser.cc)
 target_link_libraries(test_parser PRIVATE rel_core GTest::gtest_main)
 
-add_executable(test_value test_value.cc)
-target_link_libraries(test_value PRIVATE rel_core GTest::gtest_main)
-
 add_executable(test_environment test_environment.cc)
 target_link_libraries(test_environment PRIVATE rel_core GTest::gtest_main)
 
@@ -36,7 +33,6 @@ endif()
 include(GoogleTest)
 gtest_discover_tests(test_scanner)
 gtest_discover_tests(test_parser)
-gtest_discover_tests(test_value)
 gtest_discover_tests(test_environment)
 gtest_discover_tests(test_evaluator_lit)
 gtest_discover_tests(test_evaluator_gen)
