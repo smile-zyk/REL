@@ -471,8 +471,7 @@ void Evaluator::visit_index(const IndexExpr& expr)
     // Unwrap single-row, single-cell Independent DataArray → Measurement.
     if (da.data_kind() == xdataset::DataArrayKind::kIndependent &&
         da.datas().size() == 1 &&
-        da.data().size() == 1 &&
-        da.data().element_count() == 1)
+        da.data().size() == 1)
     {
         result_ = xdataset::Value(da.data().measurement_at(0));
     }
