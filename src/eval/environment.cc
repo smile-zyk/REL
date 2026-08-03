@@ -77,6 +77,17 @@ void Environment::RegisterFunction(Function fn)
     functions_[fn.name()] = std::move(fn);
 }
 
+void Environment::RegisterLibrary(const FunctionLibrary& lib)
+{
+    for (const auto& fn : lib.functions())
+        RegisterFunction(fn);
+}
+
+bool Environment::UnregisterFunction(const std::string& name)
+{
+    return functions_.erase(name) > 0;
+}
+
 const Function* Environment::FindFunction(const std::string& name) const
 {
     auto it = functions_.find(name);
@@ -103,6 +114,15 @@ std::vector<std::string> Environment::VariableNames() const
     std::vector<std::string> names;
     names.reserve(variables_.size());
     for (const auto& kv : variables_)
+        names.push_back(kv.first);
+    return names;
+}
+
+std::vector<std::string> Environment::FunctionNames() const
+{
+    std::vector<std::string> names;
+    names.reserve(functions_.size());
+    for (const auto& kv : functions_)
         names.push_back(kv.first);
     return names;
 }

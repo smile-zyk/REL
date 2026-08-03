@@ -18,6 +18,9 @@ endif()
 # CTest suite (it is pulled in with EXCLUDE_FROM_ALL, so xdataset_test is not
 # built and gtest_discover_tests would register a NOT_BUILT stub).
 set(BUILD_XDATASET_TEST OFF CACHE BOOL "Build xdataset unit tests" FORCE)
+# REL does not need the pybind11 Python bindings (avoids requiring Python /
+# pybind11 during configure).
+set(BUILD_XDATASET_PYTHON OFF CACHE BOOL "Build the xdataset Python bindings" FORCE)
 add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
 
 # Core library: scanner, parser, AST, evaluator (linked by both the CLI and
@@ -32,12 +35,17 @@ add_library(rel_core STATIC
     src/eval/environment_config.cc
     src/eval/error.cc
     src/eval/evaluator.cc
-    src/eval/function.cc
     src/eval/builtin_functions.cc
+    src/eval/rel_plugin.cc
     src/rel.cc
 )
 target_include_directories(rel_core PUBLIC src)
 target_link_libraries(rel_core PUBLIC xdataset)
+
+# Plugin loader needs dlopen on Linux.
+if(UNIX AND NOT APPLE)
+    target_link_libraries(rel_core PUBLIC ${CMAKE_DL_LIBS})
+endif()
 
 # CLI driver: REPL + file mode.
 add_executable(rel src/main.cc)
@@ -70,6 +78,13 @@ if(WIN32)
         )
     endif()
 endif()
+
+# ---- Function plugin (sample) ------------------------------------------
+# A plugin only needs the header-only function.h (include dir `src`) and the
+# xdataset library; it does not link against rel_core.
+add_library(rel_plugin_sample SHARED plugins/sample/rel_plugin_sample.cc)
+target_include_directories(rel_plugin_sample PRIVATE src)
+target_link_libraries(rel_plugin_sample PRIVATE xdataset)
 
 # Tests.
 enable_testing()

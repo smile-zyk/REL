@@ -16,14 +16,13 @@ namespace
     // f(x, y = 10, z = 100) -> x + y + z
     rel::Function make_sum_with_defaults()
     {
-        std::vector<rel::FunctionParam> params;
-        params.push_back(rel::FunctionParam("x"));
-        params.push_back(rel::FunctionParam("y", rel::Value::Integer(10)));
-        params.push_back(rel::FunctionParam("z", rel::Value::Integer(100)));
-
         return rel::Function(
             "f",
-            std::move(params),
+            std::vector<rel::FunctionParam>{
+                rel::Param("x"),
+                rel::Param("y", rel::Value::Integer(10)),
+                rel::Param("z", rel::Value::Integer(100)),
+            },
             [](const std::vector<rel::Value>& args) -> rel::Value {
                 int sum = 0;
                 for (std::size_t i = 0; i < args.size(); ++i)

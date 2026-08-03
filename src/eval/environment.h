@@ -59,6 +59,13 @@ public:
     /// with the same name silently.
     void RegisterFunction(Function fn);
 
+    /// Register every function in a library.
+    void RegisterLibrary(const FunctionLibrary& lib);
+
+    /// Remove a registered function by name.
+    /// Returns true when the function existed and was removed.
+    bool UnregisterFunction(const std::string& name);
+
     /// Look up a registered function by name, or nullptr when not found.
     const Function* FindFunction(const std::string& name) const;
 
@@ -69,6 +76,9 @@ public:
 
     /// Names of all registered variables (unordered).
     std::vector<std::string> VariableNames() const;
+
+    /// Names of all registered functions (unordered).
+    std::vector<std::string> FunctionNames() const;
 
     // ---- persistent context ----------------------------------------------
 
