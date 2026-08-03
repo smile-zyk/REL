@@ -1,7 +1,7 @@
 {
   "datasets": [
-    { "name": "LNA",           "format": "hdf5",       "path": "LNA_Design.h5" },
-    { "name": "LQP01HV0N3B02", "format": "touchstone", "path": "LQP01HV0N3B02.s2p" }
+    { "name": "LNA",           "format": "hdf5",       "path": "LNA.h5" },
+    { "name": "LQ", "format": "touchstone", "path": "LQ.s2p" }
   ],
   "defines": [
     { "name": "k", "expression": "3 * PI" }

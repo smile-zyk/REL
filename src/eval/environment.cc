@@ -69,6 +69,45 @@ xdataset::Dataset* Environment::DefaultDataset() const
 }
 
 // =========================================================================
+//  Functions
+// =========================================================================
+
+void Environment::RegisterFunction(Function fn)
+{
+    functions_[fn.name()] = std::move(fn);
+}
+
+const Function* Environment::FindFunction(const std::string& name) const
+{
+    auto it = functions_.find(name);
+    if (it != functions_.end())
+        return &it->second;
+    return nullptr;
+}
+
+// =========================================================================
+//  Introspection
+// =========================================================================
+
+std::vector<std::string> Environment::DatasetNames() const
+{
+    std::vector<std::string> names;
+    names.reserve(datasets_.size());
+    for (const auto& kv : datasets_)
+        names.push_back(kv.first);
+    return names;
+}
+
+std::vector<std::string> Environment::VariableNames() const
+{
+    std::vector<std::string> names;
+    names.reserve(variables_.size());
+    for (const auto& kv : variables_)
+        names.push_back(kv.first);
+    return names;
+}
+
+// =========================================================================
 //  Reference resolution
 // =========================================================================
 

@@ -9,6 +9,7 @@
 #include "value.h"  // xdataset::Value
 #include "dataset.h"
 #include "environment_config.h"
+#include "function.h"
 
 namespace rel {
 
@@ -52,6 +53,23 @@ public:
     /// The current default Dataset, or nullptr.
     xdataset::Dataset* DefaultDataset() const;
 
+    // ---- functions -------------------------------------------------------
+
+    /// Register a function.  Overwrites an existing registration
+    /// with the same name silently.
+    void RegisterFunction(Function fn);
+
+    /// Look up a registered function by name, or nullptr when not found.
+    const Function* FindFunction(const std::string& name) const;
+
+    // ---- introspection ---------------------------------------------------
+
+    /// Names of all registered datasets (unordered).
+    std::vector<std::string> DatasetNames() const;
+
+    /// Names of all registered variables (unordered).
+    std::vector<std::string> VariableNames() const;
+
     // ---- persistent context ----------------------------------------------
 
     /// Load datasets and pre-defined expressions from a config file.
@@ -76,6 +94,7 @@ public:
 private:
     std::unordered_map<std::string, xdataset::Value> variables_;
     std::unordered_map<std::string, std::unique_ptr<xdataset::Dataset>> datasets_;
+    std::unordered_map<std::string, Function> functions_;
     std::string default_dataset_name_;
 };
 

@@ -6,10 +6,10 @@
 
 #include <complex>
 #include <cstdlib>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
 namespace rel {
 
 // =========================================================================
@@ -57,7 +57,7 @@ double Evaluator::parse_base(const std::string& lexeme, int radix)
 
 void Evaluator::visit_boolean(const BooleanExpr& expr)
 {
-    result_ = xdataset::Value(xdataset::Measurement::Boolean(expr.value));
+    result_ = xdataset::Value::Boolean(expr.value);
 }
 
 // =========================================================================
@@ -73,21 +73,20 @@ void Evaluator::visit_number(const NumberExpr& expr)
     {
         xdataset::Unit u = xdataset::Unit::parse(sfx);
         if (expr.kind == NumberKind::Integer)
-            result_ = xdataset::Value(xdataset::Measurement(static_cast<int>(base_val), std::move(u)));
+            result_ = xdataset::Value::Integer(static_cast<int>(base_val), std::move(u));
         else if (expr.kind == NumberKind::Imaginary)
-            result_ = xdataset::Value(xdataset::Measurement(
-                std::complex<double>(0.0, base_val), std::move(u)));
+            result_ = xdataset::Value::Complex(std::complex<double>(0.0, base_val), std::move(u));
         else
-            result_ = xdataset::Value(xdataset::Measurement(base_val, std::move(u)));
+            result_ = xdataset::Value::Real(base_val, std::move(u));
         return;
     }
 
     if (expr.kind == NumberKind::Integer)
-        result_ = xdataset::Value(xdataset::Measurement::Integer(static_cast<int>(base_val)));
+        result_ = xdataset::Value::Integer(static_cast<int>(base_val));
     else if (expr.kind == NumberKind::Imaginary)
-        result_ = xdataset::Value(xdataset::Measurement(std::complex<double>(0.0, base_val)));
+        result_ = xdataset::Value::Complex(std::complex<double>(0.0, base_val));
     else
-        result_ = xdataset::Value(xdataset::Measurement::Real(base_val));
+        result_ = xdataset::Value::Real(base_val);
 }
 
 // =========================================================================
@@ -96,7 +95,7 @@ void Evaluator::visit_number(const NumberExpr& expr)
 
 void Evaluator::visit_string(const StringExpr& expr)
 {
-    result_ = xdataset::Value(xdataset::Measurement::String(expr.value));
+    result_ = xdataset::Value::String(expr.value);
 }
 
 // =========================================================================
@@ -348,8 +347,8 @@ static void expand_range(rel::Evaluator& eval,
 
     auto make_val = [all_int](double x) {
         return all_int
-            ? xdataset::Value(xdataset::Measurement::Integer(static_cast<int>(x)))
-            : xdataset::Value(xdataset::Measurement::Real(x));
+            ? xdataset::Value::Integer(static_cast<int>(x))
+            : xdataset::Value::Real(x);
     };
 
     if (step > 0)
@@ -421,33 +420,138 @@ void Evaluator::visit_matrix(const MatrixExpr& expr)
 //  visit_call — function call or matrix index a(i, j, ...)
 // =========================================================================
 
+namespace
+{
+    /// Render a callee for error messages: identifier references print as
+    /// their dotted name, everything else as a generic description.
+    std::string callee_name(const rel::ExprPtr& callee)
+    {
+        if (const rel::ReferenceExpr* ref =
+                dynamic_cast<const rel::ReferenceExpr*>(callee.get()))
+        {
+            std::string name;
+            for (std::size_t i = 0; i < ref->segments.size(); ++i)
+            {
+                if (i > 0) name += (ref->segments[i].sep == rel::RefSeparator::DDot) ? ".." : ".";
+                name += ref->segments[i].name;
+            }
+            return name;
+        }
+        return "expression";
+    }
+} // namespace
+
 void Evaluator::visit_call(const CallExpr& expr)
+{
+    // Function call and matrix index share the `a(...)` syntax; try the
+    // function-call interpretation first, then fall back to indexing.
+    if (try_function_call(expr))
+        return;
+
+    result_ = eval_matrix_index(expr);
+}
+
+// =========================================================================
+//  try_function_call — dispatch to a registered custom function
+// =========================================================================
+//
+//  A call is a function call when the callee is a single-segment identifier
+//  that exists in the environment's function registry.  Everything else
+//  (multi-segment paths, other expressions) is left to eval_matrix_index.
+
+bool Evaluator::try_function_call(const CallExpr& expr)
+{
+    const ReferenceExpr* ref =
+        dynamic_cast<const ReferenceExpr*>(expr.callee.get());
+    if (!ref || ref->segments.size() != 1)
+        return false;
+
+    const Function* fn = env_.FindFunction(ref->segments[0].name);
+    if (!fn)
+        return false;
+
+    // Work on a stack copy: the implementation may register more functions
+    // while running, and rehashing the registry would invalidate the
+    // pointer we hold.
+    Function fn_copy = *fn;
+    result_ = invoke_function(fn_copy, expr);
+    return true;
+}
+
+// =========================================================================
+//  eval_matrix_index — matrix / DataArray indexing a(i, j)
+// =========================================================================
+
+xdataset::Value Evaluator::eval_matrix_index(const CallExpr& expr)
 {
     xdataset::Value obj = Evaluate(*expr.callee);
 
-    // Matrix index: non-scalar Measurement or DataArray → at()
     bool is_matrix_index =
         obj.is_data_array() ||
         (obj.is_measurement() &&
          obj.as_measurement().data_kind() != xdataset::DataKind::kScalar);
 
-    if (is_matrix_index)
+    if (!is_matrix_index)
     {
-        std::vector<xdataset::MultiIndexSelector> selectors;
-        selectors.reserve(expr.args.size());
-        for (const auto& arg : expr.args)
-            selectors.push_back(make_selector(*this, arg, /*one_based=*/true));
-
-        if (obj.is_measurement())
-            result_ = xdataset::Value(obj.as_measurement().at(selectors));
-        else
-            result_ = xdataset::Value(obj.as_data_array().at(selectors));
-
-        return;
+        throw std::runtime_error(
+            std::string("'") + callee_name(expr.callee) +
+            "' is not a registered function or matrix");
     }
 
-    // TODO: function call
-    throw std::runtime_error("function calls are not yet implemented");
+    std::vector<xdataset::MultiIndexSelector> selectors;
+    selectors.reserve(expr.args.size());
+    for (const auto& arg : expr.args)
+        selectors.push_back(make_selector(*this, arg, /*one_based=*/true));
+
+    if (obj.is_measurement())
+        return xdataset::Value(obj.as_measurement().at(selectors));
+    return xdataset::Value(obj.as_data_array().at(selectors));
+}
+
+// =========================================================================
+//  invoke_function — resolve call-site slots, then call the implementation
+// =========================================================================
+//
+//  Slot resolution lives here (not in Function): explicit arguments
+//  are evaluated, omitted slots are filled with the declared defaults via
+//  Function::HasDefault / DefaultValue, and the fully-resolved list
+//  is handed to Function::Invoke.
+
+xdataset::Value Evaluator::invoke_function(const Function& fn,
+                                           const CallExpr& expr)
+{
+    const std::size_t provided = expr.args.size();
+    if (provided > fn.arity())
+    {
+        std::ostringstream oss;
+        oss << "function '" << fn.name() << "' expects at most " << fn.arity()
+            << " argument(s), got " << provided;
+        throw std::runtime_error(oss.str());
+    }
+
+    std::vector<xdataset::Value> resolved;
+    resolved.reserve(fn.arity());
+
+    for (std::size_t i = 0; i < fn.arity(); ++i)
+    {
+        if (i < provided && expr.args[i])
+        {
+            resolved.push_back(Evaluate(*expr.args[i]));
+        }
+        else if (fn.HasDefault(i))
+        {
+            resolved.push_back(fn.DefaultValue(i));
+        }
+        else
+        {
+            std::ostringstream oss;
+            oss << "missing argument '" << fn.params()[i].name << "' for function '"
+                << fn.name() << "'";
+            throw std::runtime_error(oss.str());
+        }
+    }
+
+    return fn.Invoke(resolved);
 }
 
 // =========================================================================

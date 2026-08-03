@@ -14,6 +14,10 @@ add_compile_definitions(REL_LOAD_TEST_ENV)
 if(DEFINED ENV{HDF5_ROOT} OR EXISTS "C:/msys64/mingw64/bin/libhdf5-320.dll")
     set(XDATASET_ENABLE_HDF5 ON CACHE BOOL "" FORCE)
 endif()
+# xdataset is a dependency here; its own unit tests should not pollute REL's
+# CTest suite (it is pulled in with EXCLUDE_FROM_ALL, so xdataset_test is not
+# built and gtest_discover_tests would register a NOT_BUILT stub).
+set(BUILD_XDATASET_TEST OFF CACHE BOOL "Build xdataset unit tests" FORCE)
 add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
 
 # Core library: scanner, parser, AST, evaluator (linked by both the CLI and
@@ -28,6 +32,8 @@ add_library(rel_core STATIC
     src/eval/environment_config.cc
     src/eval/error.cc
     src/eval/evaluator.cc
+    src/eval/function.cc
+    src/eval/builtin_functions.cc
     src/rel.cc
 )
 target_include_directories(rel_core PUBLIC src)

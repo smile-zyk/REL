@@ -175,6 +175,7 @@ namespace
     {
         rel::Environment env;
         rel::InitBuiltinConstants(env);
+        rel::InitBuiltinFunctions(env);
 #ifdef REL_LOAD_TEST_ENV
         try { env.LoadFromConfig("../../case/test_env.json"); }
         catch (const std::exception& e) {
@@ -207,6 +208,7 @@ namespace
     {
         rel::Environment env;
         rel::InitBuiltinConstants(env);
+        rel::InitBuiltinFunctions(env);
 #ifdef REL_LOAD_TEST_ENV
         try { env.LoadFromConfig("../../case/test_env.json"); }
         catch (const std::exception& e) {

@@ -57,6 +57,23 @@ private:
     /// Apply a short-circuit logical operator.
     xdataset::Value apply_logical(TokenType op, const LogicalExpr& expr);
 
+    /// Resolve a registered-function call site: evaluate the explicit
+    /// arguments, fill omitted parameter slots with the declared defaults
+    /// (via Function::HasDefault/DefaultValue), then invoke the
+    /// implementation with the fully-resolved argument list.
+    xdataset::Value invoke_function(const Function& fn, const CallExpr& expr);
+
+    /// Try to handle `expr` as a call to a registered function.
+    /// Returns true when the callee is a single-segment identifier that is
+    /// registered in the environment (and the call has been evaluated into
+    /// result_); returns false otherwise.
+    bool try_function_call(const CallExpr& expr);
+
+    /// Handle `expr` as matrix / DataArray indexing `a(i, j)` via at().
+    /// Throws std::runtime_error when the callee is neither a matrix-like
+    /// value nor a registered function.
+    xdataset::Value eval_matrix_index(const CallExpr& expr);
+
     Environment& env_;
     xdataset::Value result_;
 };

@@ -17,10 +17,16 @@ target_link_libraries(test_evaluator_gen PRIVATE rel_core GTest::gtest_main)
 add_executable(test_evaluator_op test_evaluator_op.cc)
 target_link_libraries(test_evaluator_op PRIVATE rel_core GTest::gtest_main)
 
+add_executable(test_evaluator_func test_evaluator_func.cc)
+target_link_libraries(test_evaluator_func PRIVATE rel_core GTest::gtest_main)
+
+add_executable(test_builtin_functions test_builtin_functions.cc)
+target_link_libraries(test_builtin_functions PRIVATE rel_core GTest::gtest_main)
+
 # Copy runtime DLLs next to test binaries on Windows so gtest_discover_tests
 # can find them during the build-time discovery step.
 if(WIN32)
-    foreach(_test_target test_value test_environment test_evaluator_lit test_evaluator_gen test_evaluator_op)
+    foreach(_test_target test_environment test_evaluator_lit test_evaluator_gen test_evaluator_op test_evaluator_func test_builtin_functions)
         add_custom_command(TARGET ${_test_target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "$<TARGET_RUNTIME_DLLS:${_test_target}>"
@@ -37,3 +43,5 @@ gtest_discover_tests(test_environment)
 gtest_discover_tests(test_evaluator_lit)
 gtest_discover_tests(test_evaluator_gen)
 gtest_discover_tests(test_evaluator_op)
+gtest_discover_tests(test_evaluator_func)
+gtest_discover_tests(test_builtin_functions)
