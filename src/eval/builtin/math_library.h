@@ -5,17 +5,21 @@
 namespace rel
 {
     /// Build the "math" library — element-wise unary math functions applied
-    /// via the xdataset transform interface:
+    /// via the xdataset transform interface.
     ///
-    ///   - sin(x), cos(x), tan(x)
-    ///   - log(x) / ln(x)   (natural logarithm)
-    ///   - log10(x)
+    ///   Trigonometric:      sin, cos, tan
+    ///   Inverse trig:       asin, acos, atan
+    ///   Hyperbolic:         sinh, cosh, tanh
+    ///   Inverse hyperbolic: asinh, acosh, atanh
+    ///   Logarithms:         log / ln  (natural),  log10
+    ///   Exponential:        exp
+    ///   Power:              sqrt, sqr (square)
+    ///   Other:              abs, sgn
+    ///   Complex:            real / re, imag / im, conj / conjg, mag, phase
     ///
     /// Each function accepts a DataArray (mapped row-by-row through
     /// DataArray::transform) or a Measurement.  Scalar, vector, and matrix
     /// cells are mapped element-wise through Measurement::transform, which
-    /// preserves shape and unit.  The output dtype follows the input: Real /
-    /// Integer cells map to Real, Complex cells map to Complex.  String and
-    /// Boolean cells are rejected.
+    /// preserves shape.  Integer -> Real promotion; String/Boolean rejected.
     FunctionLibrary MakeMathLibrary();
 }

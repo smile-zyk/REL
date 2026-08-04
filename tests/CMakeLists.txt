@@ -23,6 +23,9 @@ target_link_libraries(test_evaluator_func PRIVATE rel_core GTest::gtest_main)
 add_executable(test_builtin_functions test_builtin_functions.cc)
 target_link_libraries(test_builtin_functions PRIVATE rel_core GTest::gtest_main)
 
+add_executable(test_math_functions test_math_functions.cc)
+target_link_libraries(test_math_functions PRIVATE rel_core GTest::gtest_main)
+
 add_executable(test_plugin test_plugin.cc)
 target_link_libraries(test_plugin PRIVATE rel_core GTest::gtest_main)
 target_compile_definitions(test_plugin PRIVATE
@@ -51,4 +54,5 @@ gtest_discover_tests(test_evaluator_gen DISCOVERY_TIMEOUT ${_gtest_discovery_tim
 gtest_discover_tests(test_evaluator_op DISCOVERY_TIMEOUT ${_gtest_discovery_timeout})
 gtest_discover_tests(test_evaluator_func DISCOVERY_TIMEOUT ${_gtest_discovery_timeout})
 gtest_discover_tests(test_builtin_functions DISCOVERY_TIMEOUT ${_gtest_discovery_timeout})
+gtest_discover_tests(test_math_functions DISCOVERY_TIMEOUT ${_gtest_discovery_timeout})
 gtest_discover_tests(test_plugin DISCOVERY_TIMEOUT ${_gtest_discovery_timeout})

@@ -151,7 +151,7 @@ TEST(BuiltinFunctionTest, WhatScalarInteger)
     ASSERT_EQ(rows.size(), 5u);
     EXPECT_EQ(rows[0], "Dependency: []");
     EXPECT_EQ(rows[1], "Kind: Independent");
-    EXPECT_EQ(rows[2], "Dimension: []");
+    EXPECT_EQ(rows[2], "Dimension: [1]");
     EXPECT_EQ(rows[3], "Data Shape: Scalar");
     EXPECT_EQ(rows[4], "Data Type: Integer");
 }
