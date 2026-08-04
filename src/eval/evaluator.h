@@ -76,6 +76,11 @@ private:
 
     Environment& env_;
     xdataset::Value result_;
+
+    /// When inside a visit_matrix call, prevent inner single-element
+    /// braces from unwrapping, so that nested matrices (e.g.
+    /// {{1},{2}}) stack correctly instead of collapsing to {1,2}.
+    bool inside_matrix_ = false;
 };
 
 } // namespace rel

@@ -142,15 +142,19 @@ namespace rel
                         rows.push_back("Data Shape: " + FormatDataShape(da.data().data_kind(),
                                                                         da.data().data_shape()));
                         rows.push_back("Data Type: " + FormatDataType(da.data().data_type()));
+                        if (da.data().unit().has_dimension())
+                            rows.push_back("Unit: " + FormatUnit(da.data().unit()));
                     }
                     else
                     {
                         const xdataset::Measurement& m = v.as_measurement();
                         rows.push_back("Dependency: []");
                         rows.push_back("Kind: Independent");
-                        rows.push_back("Dimension: []");
+                        rows.push_back("Dimension: [1]");
                         rows.push_back("Data Shape: " + FormatDataShape(m.data_kind(), m.shape()));
                         rows.push_back("Data Type: " + FormatDataType(m.data_type()));
+                        if (m.unit().has_dimension())
+                            rows.push_back("Unit: " + FormatUnit(m.unit()));
                     }
 
                     return xdataset::Value::ArrayString(rows);

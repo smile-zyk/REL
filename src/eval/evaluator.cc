@@ -404,12 +404,27 @@ void Evaluator::visit_matrix(const MatrixExpr& expr)
 {
     std::vector<xdataset::Value> items;
     items.reserve(expr.items.size());
+
+    // Nested matrices (e.g. {{1},{2}}) must not unwrap inner single-element
+    // braces, otherwise the outer matrix receives scalars instead of vectors
+    // and collapses {{1},{2}} into {1,2}.
+    bool was_inside = inside_matrix_;
+    inside_matrix_ = true;
     for (const auto& item : expr.items)
         expand_item(*this, item, items);
+    inside_matrix_ = was_inside;
 
     if (items.empty())
     {
         result_ = xdataset::Value();
+        return;
+    }
+
+    // Only unwrap a single-element brace at the outermost level.
+    // {1} → 1, but inside {{1},{2}} each inner {1} stays as a 1-vector.
+    if (items.size() == 1 && !was_inside)
+    {
+        result_ = items[0];
         return;
     }
 

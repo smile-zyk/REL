@@ -129,4 +129,11 @@ inline std::string FormatDataType(xdataset::DataType type)
     return "Unknown";
 }
 
+/// Render a unit to its human-readable string (e.g. "V", "GHz", "m/s").
+/// Returns empty string when the unit has no physical dimension.
+inline std::string FormatUnit(const xdataset::Unit& unit)
+{
+    return unit.to_string();
+}
+
 } // namespace rel
