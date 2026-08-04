@@ -27,8 +27,11 @@ Value Eval(const std::string& source, Environment* env = nullptr);
 /// Populate `env` with REL's built-in numeric constants (PI, e, etc.).
 void InitBuiltinConstants(Environment& env);
 
-/// Register REL's builtin functions on `env` (runtime introspection, e.g.
-/// print_datasets / print_dataset / print_variables).
+/// Register REL's builtin function libraries on `env`:
+///   - "builtin" library: datasets, default_dataset, variables, what, indep,
+///     min, max, output (implemented in src/eval/builtin/builtin_library.cc).
+///   - "math" library: sin, cos, tan, log, ln, log10
+///     (implemented in src/eval/builtin/math_library.cc).
 /// The registered functions hold a reference to `env`, so `env` must stay in
 /// place (not be moved) for as long as the functions remain registered.
 void InitBuiltinFunctions(Environment& env);

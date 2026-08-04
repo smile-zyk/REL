@@ -1,5 +1,5 @@
-// Builtin function tests: runtime introspection (print_datasets,
-// print_dataset, print_variables).
+// Builtin function tests: runtime introspection (datasets, default_dataset,
+// variables) and the math library (sin, cos, tan, log, ln, log10).
 
 #include "rel.h"
 #include "eval/environment.h"
@@ -10,6 +10,8 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
+#include <complex>
 #include <cstdio>
 #include <fstream>
 #include <memory>
@@ -51,15 +53,15 @@ namespace
 } // namespace
 
 // =========================================================================
-//  print_datasets
+//  datasets
 // =========================================================================
 
-TEST(BuiltinFunctionTest, PrintDatasetsEmpty)
+TEST(BuiltinFunctionTest, DatasetsEmpty)
 {
     rel::Environment env;
     rel::InitBuiltinFunctions(env);
 
-    rel::Value v = rel::Eval("print_datasets()", &env);
+    rel::Value v = rel::Eval("datasets()", &env);
     EXPECT_TRUE(v.is_data_array());
     EXPECT_EQ(v.as_data_array().data_kind(), xdataset::DataArrayKind::kIndependent);
     EXPECT_EQ(v.as_data_array().data().data_type(), xdataset::DataType::kString);
@@ -68,7 +70,7 @@ TEST(BuiltinFunctionTest, PrintDatasetsEmpty)
     EXPECT_TRUE(rows.empty());  // no datasets -> no rows
 }
 
-TEST(BuiltinFunctionTest, PrintDatasetsWithEntries)
+TEST(BuiltinFunctionTest, DatasetsWithEntries)
 {
     rel::Environment env;
     rel::InitBuiltinFunctions(env);
@@ -77,26 +79,26 @@ TEST(BuiltinFunctionTest, PrintDatasetsWithEntries)
     ds->AddBlock("SP1/SP", make_block_info());
     env.AddDataset(std::move(ds));
 
-    std::vector<std::string> rows = payload(rel::Eval("print_datasets()", &env));
+    std::vector<std::string> rows = payload(rel::Eval("datasets()", &env));
     ASSERT_EQ(rows.size(), 1u);
     EXPECT_EQ(rows[0], "noise");
 }
 
 // =========================================================================
-//  print_dataset
+//  default_dataset
 // =========================================================================
 
-TEST(BuiltinFunctionTest, PrintDatasetNone)
+TEST(BuiltinFunctionTest, DefaultDatasetNone)
 {
     rel::Environment env;
     rel::InitBuiltinFunctions(env);
 
-    std::vector<std::string> rows = payload(rel::Eval("print_dataset()", &env));
+    std::vector<std::string> rows = payload(rel::Eval("default_dataset()", &env));
     ASSERT_EQ(rows.size(), 1u);
     EXPECT_EQ(rows[0], "NO DEFAULT DATASET");
 }
 
-TEST(BuiltinFunctionTest, PrintDatasetDefault)
+TEST(BuiltinFunctionTest, DefaultDatasetDefault)
 {
     rel::Environment env;
     rel::InitBuiltinFunctions(env);
@@ -106,23 +108,23 @@ TEST(BuiltinFunctionTest, PrintDatasetDefault)
     env.AddDataset(std::move(ds));
     env.SetDefaultDataset("noise");
 
-    std::vector<std::string> rows = payload(rel::Eval("print_dataset()", &env));
+    std::vector<std::string> rows = payload(rel::Eval("default_dataset()", &env));
     ASSERT_EQ(rows.size(), 1u);
     EXPECT_EQ(rows[0], "noise");
 }
 
 // =========================================================================
-//  print_variables
+//  variables
 // =========================================================================
 
-TEST(BuiltinFunctionTest, PrintVariables)
+TEST(BuiltinFunctionTest, Variables)
 {
     rel::Environment env;
     rel::InitBuiltinFunctions(env);
     env.Define("a", rel::Value::Integer(1));
     env.Define("b", rel::Value::Real(2.0));
 
-    std::vector<std::string> rows = payload(rel::Eval("print_variables()", &env));
+    std::vector<std::string> rows = payload(rel::Eval("variables()", &env));
     ASSERT_EQ(rows.size(), 2u);
 
     // variables_ is an unordered map: "a"/"b" order is unspecified.
@@ -492,6 +494,219 @@ TEST(BuiltinFunctionTest, OutputRequiresStringName)
 }
 
 // =========================================================================
+//  math library: sin / cos / tan / log / ln / log10
+// =========================================================================
+
+TEST(BuiltinFunctionTest, MathSinOfSweep)
+{
+    rel::Environment env;
+    rel::InitBuiltinFunctions(env);
+    rel::InitBuiltinConstants(env);
+
+    // sin([0, PI/2]) -> [0, 1] as a Real DataArray.
+    rel::Value v = rel::Eval("sin([0, PI/2])", &env);
+    ASSERT_TRUE(v.is_data_array());
+    const xdataset::DataArray& da = v.as_data_array();
+    EXPECT_EQ(da.data().data_type(), xdataset::DataType::kReal);
+    EXPECT_EQ(da.data().size(), 2u);
+    EXPECT_NEAR(da.data().scalar_at<double>(0), 0.0, 1e-12);
+    EXPECT_NEAR(da.data().scalar_at<double>(1), 1.0, 1e-12);
+}
+
+TEST(BuiltinFunctionTest, MathCosOfSweep)
+{
+    rel::Environment env;
+    rel::InitBuiltinFunctions(env);
+    rel::InitBuiltinConstants(env);
+
+    // cos([0, PI]) -> [1, -1].
+    rel::Value v = rel::Eval("cos([0, PI])", &env);
+    ASSERT_TRUE(v.is_data_array());
+    const xdataset::DataArray& da = v.as_data_array();
+    EXPECT_NEAR(da.data().scalar_at<double>(0), 1.0, 1e-12);
+    EXPECT_NEAR(da.data().scalar_at<double>(1), -1.0, 1e-12);
+}
+
+TEST(BuiltinFunctionTest, MathTanOfSweep)
+{
+    rel::Environment env;
+    rel::InitBuiltinFunctions(env);
+    rel::InitBuiltinConstants(env);
+
+    // tan([0, PI/4]) -> [0, 1].
+    rel::Value v = rel::Eval("tan([0, PI/4])", &env);
+    ASSERT_TRUE(v.is_data_array());
+    const xdataset::DataArray& da = v.as_data_array();
+    EXPECT_NEAR(da.data().scalar_at<double>(0), 0.0, 1e-12);
+    EXPECT_NEAR(da.data().scalar_at<double>(1), 1.0, 1e-12);
+}
+
+TEST(BuiltinFunctionTest, MathLogAndLn)
+{
+    rel::Environment env;
+    rel::InitBuiltinFunctions(env);
+    rel::InitBuiltinConstants(env);
+
+    // log(e) == ln(e) == 1 (natural log), log10(1000) == 3.
+    // (e is an approximation of the true constant, so use a loose tolerance.)
+    rel::Value l = rel::Eval("log(e)", &env);
+    ASSERT_TRUE(l.is_measurement());
+    EXPECT_NEAR(l.as_measurement().as_scalar<double>(), 1.0, 1e-6);
+
+    rel::Value ln = rel::Eval("ln(e)", &env);
+    ASSERT_TRUE(ln.is_measurement());
+    EXPECT_NEAR(ln.as_measurement().as_scalar<double>(), 1.0, 1e-6);
+
+    rel::Value lg = rel::Eval("log10(1000)", &env);
+    ASSERT_TRUE(lg.is_measurement());
+    EXPECT_NEAR(lg.as_measurement().as_scalar<double>(), 3.0, 1e-12);
+}
+
+TEST(BuiltinFunctionTest, MathComplexInput)
+{
+    rel::Environment env;
+    rel::InitBuiltinFunctions(env);
+
+    // sin(1i) = i * sinh(1) — a Complex result from a Complex input.
+    rel::Value v = rel::Eval("sin(1i)", &env);
+    ASSERT_TRUE(v.is_measurement());
+    const xdataset::Measurement& m = v.as_measurement();
+    EXPECT_EQ(m.data_type(), xdataset::DataType::kComplex);
+    EXPECT_NEAR(m.as_scalar<std::complex<double>>().real(), 0.0, 1e-12);
+    EXPECT_NEAR(m.as_scalar<std::complex<double>>().imag(), std::sinh(1.0), 1e-12);
+}
+
+TEST(BuiltinFunctionTest, MathComplexVectorCell)
+{
+    rel::Environment env;
+    rel::InitBuiltinFunctions(env);
+
+    // sin({0i, 1i}) -> {0, i*sinh(1)} as a Complex vector.
+    rel::Value v = rel::Eval("sin({0i, 1i})", &env);
+    ASSERT_TRUE(v.is_measurement());
+    const xdataset::Measurement& m = v.as_measurement();
+    EXPECT_EQ(m.data_kind(), xdataset::DataKind::kVector);
+    EXPECT_EQ(m.data_type(), xdataset::DataType::kComplex);
+    EXPECT_NEAR(m.as_vector<std::complex<double>>()[0].imag(), 0.0, 1e-12);
+    EXPECT_NEAR(m.as_vector<std::complex<double>>()[1].real(), 0.0, 1e-12);
+    EXPECT_NEAR(m.as_vector<std::complex<double>>()[1].imag(), std::sinh(1.0), 1e-12);
+}
+
+TEST(BuiltinFunctionTest, MathLogOfSweep)
+{
+    rel::Environment env;
+    rel::InitBuiltinFunctions(env);
+
+    // log10([1, 100]) -> [0, 2].
+    rel::Value v = rel::Eval("log10([1, 100])", &env);
+    ASSERT_TRUE(v.is_data_array());
+    const xdataset::DataArray& da = v.as_data_array();
+    EXPECT_EQ(da.data().data_type(), xdataset::DataType::kReal);
+    EXPECT_NEAR(da.data().scalar_at<double>(0), 0.0, 1e-12);
+    EXPECT_NEAR(da.data().scalar_at<double>(1), 2.0, 1e-12);
+}
+
+TEST(BuiltinFunctionTest, MathIntegerInputPromotesToReal)
+{
+    rel::Environment env;
+    rel::InitBuiltinFunctions(env);
+
+    // Integer array [0, 1, 2] -> sin -> Real.
+    rel::Value v = rel::Eval("sin([0, 1, 2])", &env);
+    ASSERT_TRUE(v.is_data_array());
+    EXPECT_EQ(v.as_data_array().data().data_type(), xdataset::DataType::kReal);
+}
+
+TEST(BuiltinFunctionTest, MathScalarInput)
+{
+    rel::Environment env;
+    rel::InitBuiltinFunctions(env);
+
+    rel::Value v = rel::Eval("sin(0)", &env);
+    ASSERT_TRUE(v.is_measurement());
+    EXPECT_NEAR(v.as_measurement().as_scalar<double>(), 0.0, 1e-12);
+}
+
+TEST(BuiltinFunctionTest, MathRejectsString)
+{
+    rel::Environment env;
+    rel::InitBuiltinFunctions(env);
+
+    EXPECT_THROW(rel::Eval("sin(\"abc\")", &env), std::runtime_error);
+}
+
+TEST(BuiltinFunctionTest, MathVectorCell)
+{
+    rel::Environment env;
+    rel::InitBuiltinFunctions(env);
+    rel::InitBuiltinConstants(env);
+
+    // sin({0, PI/2}) -> {0, 1} as a Real vector Measurement.
+    rel::Value v = rel::Eval("sin({0, PI/2})", &env);
+    ASSERT_TRUE(v.is_measurement());
+    const xdataset::Measurement& m = v.as_measurement();
+    EXPECT_EQ(m.data_kind(), xdataset::DataKind::kVector);
+    EXPECT_EQ(m.data_type(), xdataset::DataType::kReal);
+    EXPECT_EQ(m.shape()[0], 2u);
+    EXPECT_NEAR(m.as_vector<double>()[0], 0.0, 1e-12);
+    EXPECT_NEAR(m.as_vector<double>()[1], 1.0, 1e-12);
+}
+
+TEST(BuiltinFunctionTest, MathIntegerVectorPromotesToReal)
+{
+    rel::Environment env;
+    rel::InitBuiltinFunctions(env);
+
+    // Integer vector {0, 1, 2} -> sin -> Real vector.
+    rel::Value v = rel::Eval("sin({0, 1, 2})", &env);
+    ASSERT_TRUE(v.is_measurement());
+    const xdataset::Measurement& m = v.as_measurement();
+    EXPECT_EQ(m.data_kind(), xdataset::DataKind::kVector);
+    EXPECT_EQ(m.data_type(), xdataset::DataType::kReal);
+}
+
+TEST(BuiltinFunctionTest, MathMatrixCell)
+{
+    rel::Environment env;
+    rel::InitBuiltinFunctions(env);
+    rel::InitBuiltinConstants(env);
+
+    // sin({{0, PI/2}, {PI, 3*PI/2}}) -> {{0, 1}, {0, -1}} as a Real matrix.
+    rel::Value v = rel::Eval("sin({{0, PI/2}, {PI, 3*PI/2}})", &env);
+    ASSERT_TRUE(v.is_measurement());
+    const xdataset::Measurement& m = v.as_measurement();
+    EXPECT_EQ(m.data_kind(), xdataset::DataKind::kMatrix);
+    EXPECT_EQ(m.data_type(), xdataset::DataType::kReal);
+    EXPECT_EQ(m.shape()[0], 2u);
+    EXPECT_EQ(m.shape()[1], 2u);
+    EXPECT_NEAR(m.as_matrix<double>()(0, 0), 0.0, 1e-12);
+    EXPECT_NEAR(m.as_matrix<double>()(0, 1), 1.0, 1e-12);
+    EXPECT_NEAR(m.as_matrix<double>()(1, 0), 0.0, 1e-12);
+    EXPECT_NEAR(m.as_matrix<double>()(1, 1), -1.0, 1e-12);
+}
+
+TEST(BuiltinFunctionTest, MathOnDatasetVariable)
+{
+    rel::Environment env;
+    rel::InitBuiltinFunctions(env);
+
+    std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
+    ds->AddBlock("SP1/SP", make_block_info());  // Vout: 2 rows of Real
+    env.AddDataset(std::move(ds));
+    env.SetDefaultDataset("noise");
+
+    // sin(Vout) preserves the dependency structure (Dependent on freq).
+    rel::Value v = rel::Eval("sin(Vout)", &env);
+    ASSERT_TRUE(v.is_data_array());
+    const xdataset::DataArray& da = v.as_data_array();
+    EXPECT_EQ(da.data_kind(), xdataset::DataArrayKind::kDependent);
+    EXPECT_EQ(da.data().data_type(), xdataset::DataType::kReal);
+    EXPECT_EQ(da.data().size(), 2u);
+    EXPECT_EQ(da.indep_names().size(), 1u);
+    EXPECT_EQ(da.indep_names()[0], "freq");
+}
+
+// =========================================================================
 //  Coexistence with user-registered functions and expressions
 // =========================================================================
 
@@ -501,8 +716,8 @@ TEST(BuiltinFunctionTest, BuiltinsComposeInExpressions)
     rel::InitBuiltinFunctions(env);
     rel::InitBuiltinConstants(env);
 
-    // print_datasets() returns a DataArray; just confirm it can be stored.
-    rel::Value v = rel::Eval("print_datasets()", &env);
+    // datasets() returns a DataArray; just confirm it can be stored.
+    rel::Value v = rel::Eval("datasets()", &env);
     env.Define("info", v);
     EXPECT_TRUE(env.Get("info").is_data_array());
 

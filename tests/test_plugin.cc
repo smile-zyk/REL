@@ -84,11 +84,11 @@ TEST(PluginTest, UnregisterFunction)
     rel::Environment env;
     rel::InitBuiltinFunctions(env);
 
-    ASSERT_NE(env.FindFunction("print_datasets"), nullptr);
-    EXPECT_TRUE(env.UnregisterFunction("print_datasets"));
-    EXPECT_EQ(env.FindFunction("print_datasets"), nullptr);
+    ASSERT_NE(env.FindFunction("datasets"), nullptr);
+    EXPECT_TRUE(env.UnregisterFunction("datasets"));
+    EXPECT_EQ(env.FindFunction("datasets"), nullptr);
 
     // Unregistering a nonexistent function returns false.
-    EXPECT_FALSE(env.UnregisterFunction("print_datasets"));
+    EXPECT_FALSE(env.UnregisterFunction("datasets"));
     EXPECT_FALSE(env.UnregisterFunction("no_such_function"));
 }

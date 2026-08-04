@@ -35,6 +35,8 @@ add_library(rel_core STATIC
     src/eval/environment_config.cc
     src/eval/error.cc
     src/eval/evaluator.cc
+    src/eval/builtin/builtin_library.cc
+    src/eval/builtin/math_library.cc
     src/eval/builtin_functions.cc
     src/eval/rel_plugin.cc
     src/rel.cc
