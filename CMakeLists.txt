@@ -23,6 +23,17 @@ set(BUILD_XDATASET_TEST OFF CACHE BOOL "Build xdataset unit tests" FORCE)
 set(BUILD_XDATASET_PYTHON OFF CACHE BOOL "Build the xdataset Python bindings" FORCE)
 add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
 
+# Value layer: Measurement/DataArray operators on top of xdataset storage.
+# Kept as a SHARED library so the value-level symbols can be consumed across
+# DLL boundaries (e.g. function plugins) with a single Value definition.
+add_library(rel_value SHARED
+    src/value/value.cc
+    src/value/operation.cc
+)
+target_compile_definitions(rel_value PRIVATE REL_VALUE_BUILD_DLL)
+target_include_directories(rel_value PUBLIC src src/value)
+target_link_libraries(rel_value PUBLIC xdataset)
+
 # Core library: scanner, parser, AST, evaluator (linked by both the CLI and
 # the test executable).
 add_library(rel_core STATIC
@@ -42,7 +53,7 @@ add_library(rel_core STATIC
     src/rel.cc
 )
 target_include_directories(rel_core PUBLIC src)
-target_link_libraries(rel_core PUBLIC xdataset)
+target_link_libraries(rel_core PUBLIC xdataset rel_value)
 
 # Plugin loader needs dlopen on Linux.
 if(UNIX AND NOT APPLE)
@@ -69,6 +80,9 @@ if(WIN32)
             "$<TARGET_FILE:xdataset>"
             "$<TARGET_FILE_DIR:rel>"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:rel_value>"
+            "$<TARGET_FILE_DIR:rel>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-mingw-dynamic/debug/bin/libunits.dll"
             "$<TARGET_FILE_DIR:rel>"
     )
@@ -83,10 +97,10 @@ endif()
 
 # ---- Function plugin (sample) ------------------------------------------
 # A plugin only needs the header-only function.h (include dir `src`) and the
-# xdataset library; it does not link against rel_core.
+# rel_value library (for xdataset::Value); it does not link against rel_core.
 add_library(rel_plugin_sample SHARED plugins/sample/rel_plugin_sample.cc)
-target_include_directories(rel_plugin_sample PRIVATE src)
-target_link_libraries(rel_plugin_sample PRIVATE xdataset)
+target_include_directories(rel_plugin_sample PRIVATE src src/value)
+target_link_libraries(rel_plugin_sample PRIVATE rel_value)
 
 # ---- Tests ---------------------------------------------------------------
 # Single test executable (same pattern as xdataset_test): all test sources are
@@ -106,6 +120,8 @@ add_executable(rel_test
     tests/test_builtin_functions.cc
     tests/test_math_functions.cc
     tests/test_plugin.cc
+    tests/value_test.cc
+    tests/operation_test.cc
 )
 target_link_libraries(rel_test PRIVATE rel_core GTest::gtest_main)
 target_compile_definitions(rel_test PRIVATE
