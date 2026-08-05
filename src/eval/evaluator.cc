@@ -18,14 +18,14 @@ namespace rel {
 
 Evaluator::Evaluator(Environment& env)
     : env_(env)
-    , result_(xdataset::Value())
+    , result_(rel::Value())
 {}
 
 // =========================================================================
 //  Entry point
 // =========================================================================
 
-xdataset::Value Evaluator::Evaluate(const Expr& expr)
+rel::Value Evaluator::Evaluate(const Expr& expr)
 {
     expr.accept(*this);
     return std::move(result_);
@@ -57,7 +57,7 @@ double Evaluator::parse_base(const std::string& lexeme, int radix)
 
 void Evaluator::visit_boolean(const BooleanExpr& expr)
 {
-    result_ = xdataset::Value::Boolean(expr.value);
+    result_ = rel::Value::Boolean(expr.value);
 }
 
 // =========================================================================
@@ -73,20 +73,20 @@ void Evaluator::visit_number(const NumberExpr& expr)
     {
         xdataset::Unit u = xdataset::Unit::parse(sfx);
         if (expr.kind == NumberKind::Integer)
-            result_ = xdataset::Value::Integer(static_cast<int>(base_val), std::move(u));
+            result_ = rel::Value::Integer(static_cast<int>(base_val), std::move(u));
         else if (expr.kind == NumberKind::Imaginary)
-            result_ = xdataset::Value::Complex(std::complex<double>(0.0, base_val), std::move(u));
+            result_ = rel::Value::Complex(std::complex<double>(0.0, base_val), std::move(u));
         else
-            result_ = xdataset::Value::Real(base_val, std::move(u));
+            result_ = rel::Value::Real(base_val, std::move(u));
         return;
     }
 
     if (expr.kind == NumberKind::Integer)
-        result_ = xdataset::Value::Integer(static_cast<int>(base_val));
+        result_ = rel::Value::Integer(static_cast<int>(base_val));
     else if (expr.kind == NumberKind::Imaginary)
-        result_ = xdataset::Value::Complex(std::complex<double>(0.0, base_val));
+        result_ = rel::Value::Complex(std::complex<double>(0.0, base_val));
     else
-        result_ = xdataset::Value::Real(base_val);
+        result_ = rel::Value::Real(base_val);
 }
 
 // =========================================================================
@@ -95,14 +95,14 @@ void Evaluator::visit_number(const NumberExpr& expr)
 
 void Evaluator::visit_string(const StringExpr& expr)
 {
-    result_ = xdataset::Value::String(expr.value);
+    result_ = rel::Value::String(expr.value);
 }
 
 // =========================================================================
-//  apply_unary — delegate to xdataset::Value operators
+//  apply_unary — delegate to rel::Value operators
 // =========================================================================
 
-xdataset::Value Evaluator::apply_unary(TokenType op, const xdataset::Value& operand)
+rel::Value Evaluator::apply_unary(TokenType op, const rel::Value& operand)
 {
     switch (op)
     {
@@ -110,15 +110,15 @@ xdataset::Value Evaluator::apply_unary(TokenType op, const xdataset::Value& oper
         case TokenType::OP_LNOT:
         case TokenType::KW_NOT:  return !operand;
         case TokenType::OP_BNOT: return ~operand;
-        default: return xdataset::Value();
+        default: return rel::Value();
     }
 }
 
 // =========================================================================
-//  apply_binary — delegate to xdataset::Value operators
+//  apply_binary — delegate to rel::Value operators
 // =========================================================================
 
-xdataset::Value Evaluator::apply_binary(TokenType op, const xdataset::Value& lhs, const xdataset::Value& rhs)
+rel::Value Evaluator::apply_binary(TokenType op, const rel::Value& lhs, const rel::Value& rhs)
 {
     switch (op)
     {
@@ -140,19 +140,19 @@ xdataset::Value Evaluator::apply_binary(TokenType op, const xdataset::Value& lhs
         case TokenType::OP_BAND: return lhs & rhs;
         case TokenType::OP_BXOR: return lhs ^ rhs;
         case TokenType::OP_BOR:  return lhs | rhs;
-        case TokenType::OP_POW:  return xdataset::pow(lhs, rhs);
-        default: return xdataset::Value();
+        case TokenType::OP_POW:  return pow(lhs, rhs);
+        default: return rel::Value();
     }
 }
 
 // =========================================================================
-//  apply_logical — delegate to xdataset::Value operators
+//  apply_logical — delegate to rel::Value operators
 // =========================================================================
 
-xdataset::Value Evaluator::apply_logical(TokenType op, const LogicalExpr& expr)
+rel::Value Evaluator::apply_logical(TokenType op, const LogicalExpr& expr)
 {
-    xdataset::Value lhs = Evaluate(*expr.left);
-    xdataset::Value rhs = Evaluate(*expr.right);
+    rel::Value lhs = Evaluate(*expr.left);
+    rel::Value rhs = Evaluate(*expr.right);
 
     if (op == TokenType::OP_LAND || op == TokenType::KW_AND)
         return lhs && rhs;
@@ -166,7 +166,7 @@ xdataset::Value Evaluator::apply_logical(TokenType op, const LogicalExpr& expr)
 
 void Evaluator::visit_unary(const UnaryExpr& expr)
 {
-    xdataset::Value operand = Evaluate(*expr.operand);
+    rel::Value operand = Evaluate(*expr.operand);
     result_ = apply_unary(expr.op, operand);
 }
 
@@ -176,8 +176,8 @@ void Evaluator::visit_unary(const UnaryExpr& expr)
 
 void Evaluator::visit_binary(const BinaryExpr& expr)
 {
-    xdataset::Value lhs = Evaluate(*expr.left);
-    xdataset::Value rhs = Evaluate(*expr.right);
+    rel::Value lhs = Evaluate(*expr.left);
+    rel::Value rhs = Evaluate(*expr.right);
     result_ = apply_binary(expr.op, lhs, rhs);
 }
 
@@ -223,10 +223,10 @@ void Evaluator::visit_reference(const ReferenceExpr& expr)
 
 void Evaluator::visit_conditional(const ConditionalExpr& expr)
 {
-    xdataset::Value cond   = Evaluate(*expr.condition);
-    xdataset::Value then_v = Evaluate(*expr.then_branch);
-    xdataset::Value else_v = Evaluate(*expr.else_branch);
-    result_ = xdataset::OperationConditional(cond, then_v, else_v);
+    rel::Value cond   = Evaluate(*expr.condition);
+    rel::Value then_v = Evaluate(*expr.then_branch);
+    rel::Value else_v = Evaluate(*expr.else_branch);
+    result_ = rel::OperationConditional(cond, then_v, else_v);
 }
 
 // =========================================================================
@@ -235,7 +235,7 @@ void Evaluator::visit_conditional(const ConditionalExpr& expr)
 
 void Evaluator::visit_if(const IfExpr& expr)
 {
-    std::vector<xdataset::Value> operands;
+    std::vector<rel::Value> operands;
     operands.reserve(expr.branches.size() * 2 + 1);
 
     for (const auto& br : expr.branches)
@@ -245,7 +245,7 @@ void Evaluator::visit_if(const IfExpr& expr)
     }
     operands.push_back(Evaluate(*expr.else_value));
 
-    result_ = xdataset::OperationIf(operands);
+    result_ = rel::OperationIf(operands);
 }
 
 // =========================================================================
@@ -263,7 +263,7 @@ void Evaluator::visit_if(const IfExpr& expr)
 
 static double eval_scalar_num(rel::Evaluator& eval, const rel::Expr& arg)
 {
-    xdataset::Value v = eval.Evaluate(arg);
+    rel::Value v = eval.Evaluate(arg);
     if (!v.is_measurement() || !v.is_scalar())
         throw std::runtime_error("range/index operand must be a scalar number");
     const auto& m = v.as_measurement();
@@ -324,12 +324,12 @@ make_selector(rel::Evaluator& eval, const rel::ExprPtr& arg, bool one_based)
 
 static void expand_range(rel::Evaluator& eval,
                          const rel::RangeExpr& r,
-                         std::vector<xdataset::Value>& out)
+                         std::vector<rel::Value>& out)
 {
     // Check if all three sub-expressions are Integer-valued.
     auto is_int = [&](const rel::ExprPtr& e) {
         if (!e) return true;
-        xdataset::Value v = eval.Evaluate(*e);
+        rel::Value v = eval.Evaluate(*e);
         return v.is_measurement() && v.is_scalar() &&
                v.as_measurement().data_type() == xdataset::DataType::kInteger;
     };
@@ -347,8 +347,8 @@ static void expand_range(rel::Evaluator& eval,
 
     auto make_val = [all_int](double x) {
         return all_int
-            ? xdataset::Value::Integer(static_cast<int>(x))
-            : xdataset::Value::Real(x);
+            ? rel::Value::Integer(static_cast<int>(x))
+            : rel::Value::Real(x);
     };
 
     if (step > 0)
@@ -362,7 +362,7 @@ static void expand_range(rel::Evaluator& eval,
 /// Expand one item: RangeExpr → multiple Values; everything else → single Value.
 static void expand_item(rel::Evaluator& eval,
                         const rel::ExprPtr& item,
-                        std::vector<xdataset::Value>& out)
+                        std::vector<rel::Value>& out)
 {
     if (auto* r = dynamic_cast<const rel::RangeExpr*>(item.get()))
     {
@@ -382,18 +382,18 @@ static void expand_item(rel::Evaluator& eval,
 
 void Evaluator::visit_sweep(const SweepExpr& expr)
 {
-    std::vector<xdataset::Value> items;
+    std::vector<rel::Value> items;
     items.reserve(expr.items.size());
     for (const auto& item : expr.items)
         expand_item(*this, item, items);
 
     if (items.empty())
     {
-        result_ = xdataset::Value();
+        result_ = rel::Value();
         return;
     }
 
-    result_ = xdataset::OperationSweep(items);
+    result_ = rel::OperationSweep(items);
 }
 
 // =========================================================================
@@ -402,7 +402,7 @@ void Evaluator::visit_sweep(const SweepExpr& expr)
 
 void Evaluator::visit_matrix(const MatrixExpr& expr)
 {
-    std::vector<xdataset::Value> items;
+    std::vector<rel::Value> items;
     items.reserve(expr.items.size());
 
     // Nested matrices (e.g. {{1},{2}}) must not unwrap inner single-element
@@ -416,7 +416,7 @@ void Evaluator::visit_matrix(const MatrixExpr& expr)
 
     if (items.empty())
     {
-        result_ = xdataset::Value();
+        result_ = rel::Value();
         return;
     }
 
@@ -428,7 +428,7 @@ void Evaluator::visit_matrix(const MatrixExpr& expr)
         return;
     }
 
-    result_ = xdataset::OperationMatrix(items);
+    result_ = rel::OperationMatrix(items);
 }
 
 // =========================================================================
@@ -481,7 +481,7 @@ bool Evaluator::try_function_call(const CallExpr& expr)
     if (!ref || ref->segments.size() != 1)
         return false;
 
-    const Function* fn = env_.FindFunction(ref->segments[0].name);
+    const Function* fn = Environment::FindFunction(ref->segments[0].name);
     if (!fn)
         return false;
 
@@ -497,9 +497,9 @@ bool Evaluator::try_function_call(const CallExpr& expr)
 //  eval_matrix_index — matrix / DataArray indexing a(i, j)
 // =========================================================================
 
-xdataset::Value Evaluator::eval_matrix_index(const CallExpr& expr)
+rel::Value Evaluator::eval_matrix_index(const CallExpr& expr)
 {
-    xdataset::Value obj = Evaluate(*expr.callee);
+    rel::Value obj = Evaluate(*expr.callee);
 
     bool is_matrix_index =
         obj.is_data_array() ||
@@ -519,8 +519,8 @@ xdataset::Value Evaluator::eval_matrix_index(const CallExpr& expr)
         selectors.push_back(make_selector(*this, arg, /*one_based=*/true));
 
     if (obj.is_measurement())
-        return xdataset::Value(obj.as_measurement().at(selectors));
-    return xdataset::Value(obj.as_data_array().at(selectors));
+        return rel::Value(obj.as_measurement().at(selectors));
+    return rel::Value(obj.as_data_array().at(selectors));
 }
 
 // =========================================================================
@@ -532,7 +532,7 @@ xdataset::Value Evaluator::eval_matrix_index(const CallExpr& expr)
 //  Function::HasDefault / DefaultValue, and the fully-resolved list
 //  is handed to Function::Invoke.
 
-xdataset::Value Evaluator::invoke_function(const Function& fn,
+rel::Value Evaluator::invoke_function(const Function& fn,
                                            const CallExpr& expr)
 {
     const std::size_t provided = expr.args.size();
@@ -544,7 +544,7 @@ xdataset::Value Evaluator::invoke_function(const Function& fn,
         throw std::runtime_error(oss.str());
     }
 
-    std::vector<xdataset::Value> resolved;
+    std::vector<rel::Value> resolved;
     resolved.reserve(fn.arity());
 
     for (std::size_t i = 0; i < fn.arity(); ++i)
@@ -575,7 +575,7 @@ xdataset::Value Evaluator::invoke_function(const Function& fn,
 
 void Evaluator::visit_index(const IndexExpr& expr)
 {
-    xdataset::Value obj = Evaluate(*expr.object);
+    rel::Value obj = Evaluate(*expr.object);
 
     if (!obj.is_data_array())
         throw std::runtime_error("[] indexing requires a DataArray");
@@ -592,11 +592,11 @@ void Evaluator::visit_index(const IndexExpr& expr)
         da.datas().size() == 1 &&
         da.data().size() == 1)
     {
-        result_ = xdataset::Value(da.data().measurement_at(0));
+        result_ = rel::Value(da.data().measurement_at(0));
     }
     else
     {
-        result_ = xdataset::Value(std::move(da));
+        result_ = rel::Value(std::move(da));
     }
 }
 

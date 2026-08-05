@@ -39,7 +39,7 @@ namespace
 TEST(FunctionTest, CallWithAllArgs)
 {
     rel::Environment env;
-    env.RegisterFunction(make_sum_with_defaults());
+    rel::Environment::RegisterFunction(make_sum_with_defaults());
     rel::Value v = rel::Eval("f(1, 2, 3)", &env);
     EXPECT_TRUE(v.is_measurement());
     EXPECT_EQ(v.as_measurement().as_scalar<int>(), 6);
@@ -48,7 +48,7 @@ TEST(FunctionTest, CallWithAllArgs)
 TEST(FunctionTest, CallWithDefaultParams)
 {
     rel::Environment env;
-    env.RegisterFunction(make_sum_with_defaults());
+    rel::Environment::RegisterFunction(make_sum_with_defaults());
     rel::Value v = rel::Eval("f(1)", &env);
     EXPECT_EQ(v.as_measurement().as_scalar<int>(), 111);  // 1 + 10 + 100
 }
@@ -60,8 +60,7 @@ TEST(FunctionTest, EmptyCallFillsAllDefaults)
     std::vector<rel::FunctionParam> params;
     params.push_back(rel::FunctionParam("a", rel::Value::Integer(1)));
     params.push_back(rel::FunctionParam("b", rel::Value::Integer(2)));
-    rel::RegisterFunction(
-        env,
+    rel::Environment::RegisterFunction(rel::Function(
         "g",
         std::move(params),
         [](const std::vector<rel::Value>& args) -> rel::Value {
@@ -69,7 +68,7 @@ TEST(FunctionTest, EmptyCallFillsAllDefaults)
             for (std::size_t i = 0; i < args.size(); ++i)
                 sum += args[i].as_measurement().as_scalar<int>();
             return rel::Value::Integer(sum);
-        });
+        }));
 
     rel::Value v = rel::Eval("g()", &env);
     EXPECT_EQ(v.as_measurement().as_scalar<int>(), 3);  // 1 + 2
@@ -79,7 +78,7 @@ TEST(FunctionTest, RequiredParamEmptyCallThrows)
 {
     // f() with a required first parameter must throw.
     rel::Environment env;
-    env.RegisterFunction(make_sum_with_defaults());
+    rel::Environment::RegisterFunction(make_sum_with_defaults());
     EXPECT_THROW(rel::Eval("f()", &env), std::runtime_error);
 }
 
@@ -91,7 +90,7 @@ TEST(FunctionTest, SkippedMiddleSlot)
 {
     // f(1, , 3): y slot omitted -> default 10
     rel::Environment env;
-    env.RegisterFunction(make_sum_with_defaults());
+    rel::Environment::RegisterFunction(make_sum_with_defaults());
     rel::Value v = rel::Eval("f(1, , 3)", &env);
     EXPECT_EQ(v.as_measurement().as_scalar<int>(), 14);  // 1 + 10 + 3
 }
@@ -100,7 +99,7 @@ TEST(FunctionTest, SkippedLeadingSlots)
 {
     // f(, , 3): x has no default -> must throw at evaluation.
     rel::Environment env;
-    env.RegisterFunction(make_sum_with_defaults());
+    rel::Environment::RegisterFunction(make_sum_with_defaults());
     EXPECT_THROW(rel::Eval("f(, , 3)", &env), std::runtime_error);
 }
 
@@ -108,14 +107,14 @@ TEST(FunctionTest, TrailingDefaultSlotsRejectedAtParse)
 {
     // f(1, , ) is a parse error (trailing default slots not allowed).
     rel::Environment env;
-    env.RegisterFunction(make_sum_with_defaults());
+    rel::Environment::RegisterFunction(make_sum_with_defaults());
     EXPECT_THROW(rel::Eval("f(1, , )", &env), std::runtime_error);
 }
 
 TEST(FunctionTest, ExpressionArgsWithSkip)
 {
     rel::Environment env;
-    env.RegisterFunction(make_sum_with_defaults());
+    rel::Environment::RegisterFunction(make_sum_with_defaults());
     rel::Value v = rel::Eval("f(1 + 2, , 3 * 4)", &env);
     EXPECT_EQ(v.as_measurement().as_scalar<int>(), 25);  // 3 + 10 + 12
 }
@@ -123,7 +122,7 @@ TEST(FunctionTest, ExpressionArgsWithSkip)
 TEST(FunctionTest, FunctionInsideExpression)
 {
     rel::Environment env;
-    env.RegisterFunction(make_sum_with_defaults());
+    rel::Environment::RegisterFunction(make_sum_with_defaults());
     rel::Value v = rel::Eval("f(1, 2) * 2 + 1", &env);
     EXPECT_EQ(v.as_measurement().as_scalar<int>(), 207);  // (1+2+100)*2+1 = 207
 }
@@ -135,14 +134,14 @@ TEST(FunctionTest, FunctionInsideExpression)
 TEST(FunctionTest, MissingRequiredArgThrows)
 {
     rel::Environment env;
-    env.RegisterFunction(make_sum_with_defaults());
+    rel::Environment::RegisterFunction(make_sum_with_defaults());
     EXPECT_THROW(rel::Eval("f(, 2, 3)", &env), std::runtime_error);
 }
 
 TEST(FunctionTest, TooManyArgsThrows)
 {
     rel::Environment env;
-    env.RegisterFunction(make_sum_with_defaults());
+    rel::Environment::RegisterFunction(make_sum_with_defaults());
     EXPECT_THROW(rel::Eval("f(1, 2, 3, 4)", &env), std::runtime_error);
 }
 
@@ -175,15 +174,14 @@ TEST(FunctionTest, ConvenienceRegisterApi)
     params.push_back(rel::FunctionParam("a"));
     params.push_back(rel::FunctionParam("b", rel::Value::Integer(5)));
 
-    rel::RegisterFunction(
-        env,
+    rel::Environment::RegisterFunction(rel::Function(
         "muladd",
         std::move(params),
         [](const std::vector<rel::Value>& args) -> rel::Value {
             int a = args[0].as_measurement().as_scalar<int>();
             int b = args[1].as_measurement().as_scalar<int>();
             return rel::Value::Integer(a * b);
-        });
+        }));
 
     rel::Value v = rel::Eval("muladd(3)", &env);
     EXPECT_EQ(v.as_measurement().as_scalar<int>(), 15);  // 3 * 5
@@ -200,16 +198,16 @@ TEST(FunctionTest, ReregisterOverwrites)
 {
     rel::Environment env;
 
-    rel::RegisterFunction(
-        env, "g", std::vector<rel::FunctionParam>{}, 
+    rel::Environment::RegisterFunction(rel::Function(
+        "g", std::vector<rel::FunctionParam>{}, 
         [](const std::vector<rel::Value>&) -> rel::Value {
             return rel::Value::Integer(1);
-        });
-    rel::RegisterFunction(
-        env, "g", std::vector<rel::FunctionParam>{},
+        }));
+    rel::Environment::RegisterFunction(rel::Function(
+        "g", std::vector<rel::FunctionParam>{},
         [](const std::vector<rel::Value>&) -> rel::Value {
             return rel::Value::Integer(2);
-        });
+        }));
 
     rel::Value v = rel::Eval("g()", &env);
     EXPECT_EQ(v.as_measurement().as_scalar<int>(), 2);

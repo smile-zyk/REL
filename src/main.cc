@@ -174,10 +174,10 @@ namespace
     int run_file(const char* path)
     {
         rel::Environment env;
-        rel::InitBuiltinConstants(env);
-        rel::InitBuiltinFunctions(env);
+        rel::Environment::InitBuiltinConstants();
+        rel::Environment::InitBuiltinFunctions();
 #ifdef REL_LOAD_TEST_ENV
-        try { env.LoadFromConfig("../../case/test_env.json"); }
+        try { rel::Environment::LoadFromConfig("../../case/test_env.json"); }
         catch (const std::exception& e) {
             std::cerr << "warning: test env load failed: " << e.what() << '\n';
         }
@@ -207,10 +207,10 @@ namespace
     int run_repl()
     {
         rel::Environment env;
-        rel::InitBuiltinConstants(env);
-        rel::InitBuiltinFunctions(env);
+        rel::Environment::InitBuiltinConstants();
+        rel::Environment::InitBuiltinFunctions();
 #ifdef REL_LOAD_TEST_ENV
-        try { env.LoadFromConfig("../../case/test_env.json"); }
+        try { rel::Environment::LoadFromConfig("../../case/test_env.json"); }
         catch (const std::exception& e) {
             std::cerr << "warning: test env load failed: " << e.what() << '\n';
         }

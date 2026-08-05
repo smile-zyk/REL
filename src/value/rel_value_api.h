@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------------------
 //  rel_value is a SHARED library that hosts the value-level operators for
 //  REL (arithmetic, comparison, logical, bitwise, shift, pow) on top of the
-//  xdataset storage types.  The symbols are defined inside namespace xdataset
+//  xdataset storage types.  The symbols are defined inside namespace rel
 //  so that argument-dependent lookup keeps working for expressions like
 //  `m1 + m2` where m1/m2 are xdataset::Measurement.
 #ifdef _WIN32

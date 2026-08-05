@@ -107,44 +107,44 @@ TEST(EnvironmentTest, RedefineOverwrites)
 
 TEST(EnvironmentTest, BuiltinPi)
 {
-    rel::Environment env;
-    rel::InitBuiltinConstants(env);
-    rel::Value v = env.Get("PI");
-    EXPECT_TRUE(v.is_measurement());
-    EXPECT_DOUBLE_EQ(v.as_measurement().as_scalar<double>(), 3.1415926535898);
+    rel::Environment::InitBuiltinConstants();
+    const rel::Value* v = rel::Environment::FindConstant("PI");
+    ASSERT_NE(v, nullptr);
+    EXPECT_TRUE(v->is_measurement());
+    EXPECT_DOUBLE_EQ(v->as_measurement().as_scalar<double>(), 3.1415926535898);
 }
 
 TEST(EnvironmentTest, BuiltinLowercasePi)
 {
-    rel::Environment env;
-    rel::InitBuiltinConstants(env);
-    rel::Value v = env.Get("pi");
-    EXPECT_DOUBLE_EQ(v.as_measurement().as_scalar<double>(), 3.1415926535898);
+    rel::Environment::InitBuiltinConstants();
+    const rel::Value* v = rel::Environment::FindConstant("pi");
+    ASSERT_NE(v, nullptr);
+    EXPECT_DOUBLE_EQ(v->as_measurement().as_scalar<double>(), 3.1415926535898);
 }
 
 TEST(EnvironmentTest, BuiltinE)
 {
-    rel::Environment env;
-    rel::InitBuiltinConstants(env);
-    rel::Value v = env.Get("e");
-    EXPECT_DOUBLE_EQ(v.as_measurement().as_scalar<double>(), 2.718281822);
+    rel::Environment::InitBuiltinConstants();
+    const rel::Value* v = rel::Environment::FindConstant("e");
+    ASSERT_NE(v, nullptr);
+    EXPECT_DOUBLE_EQ(v->as_measurement().as_scalar<double>(), 2.718281822);
 }
 
 TEST(EnvironmentTest, BuiltinBoltzmann)
 {
-    rel::Environment env;
-    rel::InitBuiltinConstants(env);
-    rel::Value v = env.Get("boltzmann");
-    EXPECT_TRUE(v.is_measurement());
-    EXPECT_DOUBLE_EQ(v.as_measurement().as_scalar<double>(), 1.380658e-23);
+    rel::Environment::InitBuiltinConstants();
+    const rel::Value* v = rel::Environment::FindConstant("boltzmann");
+    ASSERT_NE(v, nullptr);
+    EXPECT_TRUE(v->is_measurement());
+    EXPECT_DOUBLE_EQ(v->as_measurement().as_scalar<double>(), 1.380658e-23);
 }
 
 TEST(EnvironmentTest, BuiltinTinyReal)
 {
-    rel::Environment env;
-    rel::InitBuiltinConstants(env);
-    EXPECT_DOUBLE_EQ(env.Get("tinyReal").as_measurement().as_scalar<double>(),
-                     2.2e-308);
+    rel::Environment::InitBuiltinConstants();
+    const rel::Value* v = rel::Environment::FindConstant("tinyReal");
+    ASSERT_NE(v, nullptr);
+    EXPECT_DOUBLE_EQ(v->as_measurement().as_scalar<double>(), 2.2e-308);
 }
 
 // =========================================================================
@@ -153,21 +153,19 @@ TEST(EnvironmentTest, BuiltinTinyReal)
 
 TEST(EnvironmentTest, AddDatasetAndSetDefault)
 {
-    rel::Environment env;
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
     ds->AddBlock("SP1/SP", make_block_info());
 
-    env.AddDataset(std::move(ds));
-    env.SetDefaultDataset("noise");
+    rel::Environment::AddDataset(std::move(ds));
+    rel::Environment::SetDefaultDataset("noise");
 
-    ASSERT_NE(env.DefaultDataset(), nullptr);
-    EXPECT_EQ(env.DefaultDataset()->name(), "noise");
+    ASSERT_NE(rel::Environment::DefaultDataset(), nullptr);
+    EXPECT_EQ(rel::Environment::DefaultDataset()->name(), "noise");
 }
 
 TEST(EnvironmentTest, DefaultDatasetNullWhenNotSet)
 {
-    rel::Environment env;
-    EXPECT_EQ(env.DefaultDataset(), nullptr);
+    EXPECT_EQ(rel::Environment::DefaultDataset(), nullptr);
 }
 
 // =========================================================================
@@ -187,7 +185,7 @@ TEST(EnvironmentTest, ResolveSingleSegmentVariable)
 TEST(EnvironmentTest, ResolveSingleSegmentBuiltin)
 {
     rel::Environment env;
-    rel::InitBuiltinConstants(env);
+    rel::Environment::InitBuiltinConstants();
     rel::Value v = env.ResolveReference({S("PI")});
     EXPECT_TRUE(v.is_measurement());
 }
@@ -197,8 +195,8 @@ TEST(EnvironmentTest, ResolveSingleSegmentUnique)
     rel::Environment env;
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
     ds->AddBlock("SP1/SP", make_block_info());
-    env.AddDataset(std::move(ds));
-    env.SetDefaultDataset("noise");
+    rel::Environment::AddDataset(std::move(ds));
+    rel::Environment::SetDefaultDataset("noise");
 
     // Both "freq" and "Vout" are unique in this dataset.
     rel::Value v = env.ResolveReference({S("Vout")});
@@ -221,7 +219,7 @@ TEST(EnvironmentTest, ResolveDDot)
     rel::Environment env;
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
     ds->AddBlock("SP1/SP", make_block_info());
-    env.AddDataset(std::move(ds));
+    rel::Environment::AddDataset(std::move(ds));
 
     std::vector<rel::RefSegment> segs;
     segs.push_back(S("noise"));
@@ -250,8 +248,8 @@ TEST(EnvironmentTest, ResolveDotPathDefaultDataset)
     rel::Environment env;
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
     ds->AddBlock("simulation/SP1/SP", make_block_info());
-    env.AddDataset(std::move(ds));
-    env.SetDefaultDataset("noise");
+    rel::Environment::AddDataset(std::move(ds));
+    rel::Environment::SetDefaultDataset("noise");
 
     // simulation.SP1.SP.Vout
     std::vector<rel::RefSegment> segs;
@@ -269,7 +267,7 @@ TEST(EnvironmentTest, ResolveDotPathExplicitDataset)
     rel::Environment env;
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
     ds->AddBlock("simulation/SP1/SP", make_block_info());
-    env.AddDataset(std::move(ds));
+    rel::Environment::AddDataset(std::move(ds));
 
     // noise.simulation.SP1.SP.Vout
     std::vector<rel::RefSegment> segs;
@@ -288,8 +286,8 @@ TEST(EnvironmentTest, ResolveDotPathMinimalBlockVar)
     rel::Environment env;
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
     ds->AddBlock("SP", make_block_info());
-    env.AddDataset(std::move(ds));
-    env.SetDefaultDataset("noise");
+    rel::Environment::AddDataset(std::move(ds));
+    rel::Environment::SetDefaultDataset("noise");
 
     // SP.Vout  (block + variable, no group)
     std::vector<rel::RefSegment> segs;

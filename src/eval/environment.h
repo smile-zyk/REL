@@ -6,106 +6,148 @@
 #include <vector>
 
 #include "ast/expr.h"
-#include "value.h"  // xdataset::Value
+#include "value.h"  // rel::Value
 #include "dataset.h"
 #include "environment_config.h"
 #include "function.h"
 
 namespace rel {
 
+// Opaque handle to a loaded function plugin.
+struct LoadedPlugin;
+
+// Builtin function libraries (defined in src/eval/builtin/).
+extern FunctionLibrary kBuiltinLibrary;
+extern FunctionLibrary kMathLibrary;
+
 // =========================================================================
-//  Environment — flat variable table + Dataset context
+//  Environment — flat variable table + global shared context
 // =========================================================================
 //
-//  A pure storage container.  It does NOT know about language semantics
-//  such as built-in constants (PI, e, ...) — those are injected from the
-//  outside via init_builtin_constants().
+//  A pure storage container for user-defined variables only.
 //
-//  resolve_reference() converts a parsed ReferenceExpr's segments into
-//  a Value by walking the Dataset tree or looking up variables.
+//  Builtin constants, functions, and datasets are stored in global (static)
+//  registries shared across all Environment instances.  This means:
+//    - InitBuiltinConstants() / InitBuiltinFunctions() are called once.
+//    - LoadFromConfig() loads datasets/plugins globally, not per-env.
+//    - Define() rejects names that collide with builtin constants.
+//
+//  ResolveReference() converts a parsed ReferenceExpr's segments into
+//  a Value by walking the Dataset tree or looking up variables/constants.
 
 class Environment
 {
 public:
     Environment() = default;
 
-    // ---- variables ----
+    // ---- variables (instance — user-defined only) ----
 
     /// Bind or rebind a name.  Overwrites existing bindings silently.
-    void Define(const std::string& name, xdataset::Value value);
+    /// Throws std::runtime_error when `name` collides with a builtin constant.
+    void Define(const std::string& name, rel::Value value);
 
-    /// Look up a variable in the flat table.
+    /// Look up a user-defined variable in the flat table.
     /// Returns default Value when not found.
-    xdataset::Value Get(const std::string& name) const;
+    rel::Value Get(const std::string& name) const;
 
-    // ---- datasets ----
+    /// Names of all user-defined variables (unordered).
+    std::vector<std::string> VariableNames() const;
 
-    /// Register a Dataset, transferring ownership to the Environment.
-    void AddDataset(std::unique_ptr<xdataset::Dataset> ds);
+    // ---- static: builtin constants ----------------------------------------
 
-    /// Remove a Dataset by name.  If it is the current default,
-    /// the default is cleared.  Returns the removed Dataset, or nullptr.
-    std::unique_ptr<xdataset::Dataset> RemoveDataset(const std::string& name);
+    /// Populate the global builtin-constant registry (PI, e, c0, ...).
+    /// Call once during process startup.
+    static void InitBuiltinConstants();
 
-    /// Set the default Dataset for unqualified references.
-    void SetDefaultDataset(const std::string& name);
+    /// Look up a builtin constant by name, or nullptr when not found.
+    static const rel::Value* FindConstant(const std::string& name);
 
-    /// The current default Dataset, or nullptr.
-    xdataset::Dataset* DefaultDataset() const;
+    /// Names of all registered builtin constants (unordered).
+    static std::vector<std::string> ConstantNames();
 
-    // ---- functions -------------------------------------------------------
+    // ---- static: function registry ----------------------------------------
 
-    /// Register a function.  Overwrites an existing registration
-    /// with the same name silently.
-    void RegisterFunction(Function fn);
+    /// Register REL's builtin function libraries ("builtin" + "math").
+    /// Call once during process startup.
+    static void InitBuiltinFunctions();
+
+    /// Register a function in the global registry.
+    /// Overwrites an existing registration with the same name silently.
+    static void RegisterFunction(Function fn);
 
     /// Register every function in a library.
-    void RegisterLibrary(const FunctionLibrary& lib);
+    static void RegisterLibrary(const FunctionLibrary& lib);
 
     /// Remove a registered function by name.
     /// Returns true when the function existed and was removed.
-    bool UnregisterFunction(const std::string& name);
+    static bool UnregisterFunction(const std::string& name);
 
     /// Look up a registered function by name, or nullptr when not found.
-    const Function* FindFunction(const std::string& name) const;
-
-    // ---- introspection ---------------------------------------------------
-
-    /// Names of all registered datasets (unordered).
-    std::vector<std::string> DatasetNames() const;
-
-    /// Names of all registered variables (unordered).
-    std::vector<std::string> VariableNames() const;
+    static const Function* FindFunction(const std::string& name);
 
     /// Names of all registered functions (unordered).
-    std::vector<std::string> FunctionNames() const;
+    static std::vector<std::string> FunctionNames();
 
-    // ---- persistent context ----------------------------------------------
+    // ---- static: dataset registry -----------------------------------------
 
-    /// Load datasets and pre-defined expressions from a config file.
-    /// The first dataset entry becomes the default dataset.
-    /// define entries are evaluated after all datasets are loaded.
-    /// Existing datasets and variables are preserved.
-    void LoadFromConfig(const std::string& config_path);
+    /// Register a Dataset, transferring ownership to the global registry.
+    static void AddDataset(std::unique_ptr<xdataset::Dataset> ds);
 
-    // ---- reference resolution ----
+    /// Remove a Dataset by name.  If it is the current default,
+    /// the default is cleared.  Returns the removed Dataset, or nullptr.
+    static std::unique_ptr<xdataset::Dataset> RemoveDataset(const std::string& name);
+
+    /// Set the default Dataset for unqualified references.
+    static void SetDefaultDataset(const std::string& name);
+
+    /// The current default Dataset, or nullptr.
+    static xdataset::Dataset* DefaultDataset();
+
+    /// Names of all registered datasets (unordered).
+    static std::vector<std::string> DatasetNames();
+
+    // ---- static: persistent context ---------------------------------------
+
+    /// Load datasets and plugins from a JSON config file.
+    ///   - "datasets":         array of {name, format, path}
+    ///   - "default_dataset":  optional, defaults to first dataset
+    ///   - "plugin":           optional array of plugin shared-library paths
+    /// Existing global registries (datasets, functions) are preserved.
+    /// Call once during process startup.
+    static void LoadFromConfig(const std::string& config_path);
+
+    /// Load a function plugin (DLL / .so / .dylib) and register its functions
+    /// in the global registry.  Returns an opaque handle, or nullptr on failure.
+    static LoadedPlugin* LoadFunctionPlugin(const std::string& path);
+
+    /// Unload a plugin previously returned by LoadFunctionPlugin.
+    /// Unregisters the functions the plugin registered, then releases the library.
+    static void UnloadFunctionPlugin(LoadedPlugin* plugin);
+
+    // ---- reference resolution ---------------------------------------------
 
     /// Convert parsed reference segments into a Value.
     ///
-    /// Single-segment: variables_ -> built-in constants -> default dataset
+    /// Single-segment: user variables → builtin constants → default dataset
     ///                 unique-name shortcut.
     /// Two-segment DDot: dataset..variable (unique across that dataset).
     /// Two-or-more Dot:  the last segment is the variable name,
     ///                    the second-to-last is the block name,
     ///                    all preceding segments form the group path.
     ///                    First segment may optionally be a dataset name.
-    xdataset::Value ResolveReference(const std::vector<RefSegment>& segments) const;
+    rel::Value ResolveReference(const std::vector<RefSegment>& segments) const;
 
 private:
-    std::unordered_map<std::string, xdataset::Value> variables_;
-    std::unordered_map<std::string, std::unique_ptr<xdataset::Dataset>> datasets_;
-    std::unordered_map<std::string, Function> functions_;
-    std::string default_dataset_name_;
+    std::unordered_map<std::string, rel::Value> variables_;
+
+    // ---- global (static) state --------------------------------------------
+    static std::unordered_map<std::string, rel::Value>
+        builtin_constants_;
+    static std::unordered_map<std::string, Function>
+        functions_;
+    static std::unordered_map<std::string, std::unique_ptr<xdataset::Dataset>>
+        datasets_;
+    static std::string default_dataset_name_;
 };
 
 } // namespace rel

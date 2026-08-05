@@ -33,7 +33,7 @@
 #include <string>
 #include <vector>
 
-namespace xdataset {
+namespace rel {
 
 // =========================================================================
 //  Value operators (delegate to OperationXxx)
@@ -3087,4 +3087,4 @@ Value OperationIf(const std::vector<Value>& ops) { return Operate(ops, kOpIf); }
 Value OperationMatrix(const std::vector<Value>& ops)     { return Operate(ops, kOpMatrix); }
 Value OperationSweep(const std::vector<Value>& ops)      { return Operate(ops, kOpSweep); }
 
-}  // namespace xdataset
+}  // namespace rel

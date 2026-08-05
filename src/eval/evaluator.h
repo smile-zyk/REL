@@ -9,14 +9,14 @@
 namespace rel {
 
 // =========================================================================
-//  Evaluator — ExprVisitor that walks the AST and produces an xdataset::Value
+//  Evaluator — ExprVisitor that walks the AST and produces an rel::Value
 // =========================================================================
 //
 //  Usage:
 //    Evaluator eval(env);
-//    xdataset::Value result = eval.evaluate(expr);
+//    rel::Value result = eval.evaluate(expr);
 //
-//  Arithmetic, comparison, etc. delegate to xdataset::Value operators.
+//  Arithmetic, comparison, etc. delegate to rel::Value operators.
 
 class Evaluator : public ExprVisitor
 {
@@ -24,7 +24,7 @@ public:
     explicit Evaluator(Environment& env);
 
     /// Top-level entry point.
-    xdataset::Value Evaluate(const Expr& expr);
+    rel::Value Evaluate(const Expr& expr);
 
     // ---- ExprVisitor interface ----
     void visit_number(const NumberExpr& expr) override;
@@ -49,19 +49,19 @@ private:
     static double parse_base(const std::string& lexeme, int radix);
 
     /// Apply a unary operator.
-    xdataset::Value apply_unary(TokenType op, const xdataset::Value& operand);
+    rel::Value apply_unary(TokenType op, const rel::Value& operand);
 
-    /// Apply a binary operator (delegates to xdataset::Value operators).
-    xdataset::Value apply_binary(TokenType op, const xdataset::Value& lhs, const xdataset::Value& rhs);
+    /// Apply a binary operator (delegates to rel::Value operators).
+    rel::Value apply_binary(TokenType op, const rel::Value& lhs, const rel::Value& rhs);
 
     /// Apply a short-circuit logical operator.
-    xdataset::Value apply_logical(TokenType op, const LogicalExpr& expr);
+    rel::Value apply_logical(TokenType op, const LogicalExpr& expr);
 
     /// Resolve a registered-function call site: evaluate the explicit
     /// arguments, fill omitted parameter slots with the declared defaults
     /// (via Function::HasDefault/DefaultValue), then invoke the
     /// implementation with the fully-resolved argument list.
-    xdataset::Value invoke_function(const Function& fn, const CallExpr& expr);
+    rel::Value invoke_function(const Function& fn, const CallExpr& expr);
 
     /// Try to handle `expr` as a call to a registered function.
     /// Returns true when the callee is a single-segment identifier that is
@@ -72,10 +72,10 @@ private:
     /// Handle `expr` as matrix / DataArray indexing `a(i, j)` via at().
     /// Throws std::runtime_error when the callee is neither a matrix-like
     /// value nor a registered function.
-    xdataset::Value eval_matrix_index(const CallExpr& expr);
+    rel::Value eval_matrix_index(const CallExpr& expr);
 
     Environment& env_;
-    xdataset::Value result_;
+    rel::Value result_;
 
     /// When inside a visit_matrix call, prevent inner single-element
     /// braces from unwrapping, so that nested matrices (e.g.

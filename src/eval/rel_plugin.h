@@ -12,7 +12,7 @@
 //  A plugin should:
 //    - include this header and "eval/function.h" (Function / FunctionParam /
 //      FunctionLibrary are header-only, so no rel_core link is needed),
-//    - link against the xdataset library (for xdataset::Value),
+//    - link against the xdataset library (for rel::Value),
 //    - export:  REL_PLUGIN_API int rel_plugin_main(const RelPluginApi*, void*)
 //
 //  Registered functions live inside the plugin library: the library must

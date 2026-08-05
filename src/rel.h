@@ -1,7 +1,7 @@
 #pragma once
 
 #include "eval/function.h"  // FunctionParam / NativeFunction
-#include "value.h"          // xdataset::Value
+#include "value.h"          // rel::Value
 
 #include <sstream>
 #include <string>
@@ -11,50 +11,12 @@ namespace rel {
 
 class Environment;
 
-/// Convenience alias — REL uses xdataset::Value directly.
-using Value = xdataset::Value;
-
-/// Opaque handle to a loaded function plugin (see LoadFunctionPlugin).
-struct LoadedPlugin;
-
 /// Parse and evaluate a single REL expression from a source string.
 /// When `env` is nullptr (the default), a temporary Environment is used.
 /// Otherwise the given Environment is used (with its variables, datasets,
 /// and built-in constants).
 /// Throws std::runtime_error on parse or evaluation failure.
 Value Eval(const std::string& source, Environment* env = nullptr);
-
-/// Populate `env` with REL's built-in numeric constants (PI, e, etc.).
-void InitBuiltinConstants(Environment& env);
-
-/// Register REL's builtin function libraries on `env`:
-///   - "builtin" library: datasets, default_dataset, variables, what, indep,
-///     min, max, output (implemented in src/eval/builtin/builtin_library.cc).
-///   - "math" library: sin, cos, tan, log, ln, log10
-///     (implemented in src/eval/builtin/math_library.cc).
-/// The registered functions hold a reference to `env`, so `env` must stay in
-/// place (not be moved) for as long as the functions remain registered.
-void InitBuiltinFunctions(Environment& env);
-
-/// Register a custom function on `env`.
-///
-/// Parameters may carry default values (see FunctionParam); call sites may
-/// omit any parameter slot, and omitted slots are filled with the declared
-/// default.  Defaults do not have to be trailing.
-void RegisterFunction(Environment& env,
-                      std::string name,
-                      std::vector<FunctionParam> params,
-                      NativeFunction impl);
-
-/// Load a function plugin (DLL / .so / .dylib) and register its functions
-/// on `env`.  Returns an opaque handle, or nullptr on failure.
-LoadedPlugin* LoadFunctionPlugin(Environment& env, const std::string& path);
-
-/// Unload a plugin previously returned by LoadFunctionPlugin.
-/// Unregisters the functions the plugin registered (so `env` no longer
-/// references code inside the plugin), then releases the library.
-/// The handle must be unloaded before its Environment is destroyed.
-void UnloadFunctionPlugin(LoadedPlugin* plugin);
 
 // =========================================================================
 //  Value formatting helpers

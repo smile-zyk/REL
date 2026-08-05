@@ -11,7 +11,11 @@
 #include "xdataset_predefine.h"
 #include "unit.h"
 
-namespace xdataset {
+namespace rel {
+
+// Bring all xdataset types into rel namespace for convenient unqualified use,
+// since Value and its operators historically lived in namespace xdataset.
+using namespace xdataset;
 
 // =========================================================================
 //  Value �?unified value type for Measurement and DataArray
@@ -167,4 +171,4 @@ private:
     Storage storage_;
 };
 
-}  // namespace xdataset
+}  // namespace rel

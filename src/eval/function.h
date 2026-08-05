@@ -1,6 +1,6 @@
 #pragma once
 
-#include "value.h"  // xdataset::Value
+#include "value.h"  // rel::Value
 
 #include <functional>
 #include <sstream>
@@ -30,14 +30,14 @@ namespace rel
     //  can construct Function objects without linking against rel_core.
 
     /// Native implementation of a registered REL function.
-    typedef std::function<xdataset::Value(const std::vector<xdataset::Value>&)> NativeFunction;
+    typedef std::function<rel::Value(const std::vector<rel::Value>&)> NativeFunction;
 
     /// One parameter of a function; may carry a default value.
     struct FunctionParam
     {
         std::string name;
         bool has_default = false;
-        xdataset::Value default_value;
+        rel::Value default_value;
 
         FunctionParam() = default;
 
@@ -47,7 +47,7 @@ namespace rel
         {}
 
         /// Parameter with a fixed default value.
-        FunctionParam(std::string name_value, xdataset::Value default_value_value)
+        FunctionParam(std::string name_value, rel::Value default_value_value)
             : name(std::move(name_value))
             , has_default(true)
             , default_value(std::move(default_value_value))
@@ -61,7 +61,7 @@ namespace rel
     }
 
     /// Convenience: a parameter with a default value.
-    inline FunctionParam Param(std::string name, xdataset::Value default_value)
+    inline FunctionParam Param(std::string name, rel::Value default_value)
     {
         return FunctionParam(std::move(name), std::move(default_value));
     }
@@ -96,7 +96,7 @@ namespace rel
         /// Default value of the parameter at `index`.
         /// Throws std::out_of_range when `index` is out of range, and
         /// std::logic_error when the parameter has no default.
-        const xdataset::Value& DefaultValue(std::size_t index) const
+        const rel::Value& DefaultValue(std::size_t index) const
         {
             if (index >= params_.size())
                 throw std::out_of_range("Function::DefaultValue: parameter index out of range");
@@ -111,7 +111,7 @@ namespace rel
         /// Throws std::runtime_error when:
         ///   - the argument count exceeds the declared arity,
         ///   - the function has no implementation.
-        xdataset::Value Invoke(const std::vector<xdataset::Value>& args) const
+        rel::Value Invoke(const std::vector<rel::Value>& args) const
         {
             if (!impl_)
                 throw std::runtime_error("function '" + name_ + "' has no implementation");

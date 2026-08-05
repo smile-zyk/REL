@@ -28,7 +28,7 @@ namespace
     rel::Environment make_env_with_builtins()
     {
         rel::Environment env;
-        rel::InitBuiltinConstants(env);
+        rel::Environment::InitBuiltinConstants();
         return env;
     }
 } // namespace

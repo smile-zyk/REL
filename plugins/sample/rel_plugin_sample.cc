@@ -3,7 +3,7 @@
 // Demonstrates the plugin ABI: it exports `rel_plugin_main`, builds a
 // FunctionLibrary of two functions, and registers them through the host
 // callback.  Plugins only need the header-only function.h (no rel_core
-// link) plus the xdataset library for xdataset::Value.
+// link) plus the xdataset library for rel::Value.
 
 #include "eval/rel_plugin.h"
 #include "eval/function.h"
@@ -13,7 +13,7 @@
 namespace
 {
     /// Read a scalar as double regardless of Integer/Real storage.
-    double as_double(const xdataset::Value& v)
+    double as_double(const rel::Value& v)
     {
         const xdataset::Measurement& m = v.as_measurement();
         if (m.data_type() == xdataset::DataType::kInteger)
@@ -27,9 +27,9 @@ namespace
         return rel::Function(
             "sqr",
             std::vector<rel::FunctionParam>{ rel::Param("x") },
-            [](const std::vector<xdataset::Value>& a) -> xdataset::Value {
+            [](const std::vector<rel::Value>& a) -> rel::Value {
                 double x = as_double(a[0]);
-                return xdataset::Value::Real(x * x);
+                return rel::Value::Real(x * x);
             });
     }
 
@@ -41,13 +41,13 @@ namespace
             std::vector<rel::FunctionParam>{
                 rel::Param("a"),
                 rel::Param("b"),
-                rel::Param("c", xdataset::Value::Integer(10)),
+                rel::Param("c", rel::Value::Integer(10)),
             },
-            [](const std::vector<xdataset::Value>& a) -> xdataset::Value {
+            [](const std::vector<rel::Value>& a) -> rel::Value {
                 int sum = 0;
                 for (std::size_t i = 0; i < a.size(); ++i)
                     sum += a[i].as_measurement().as_scalar<int>();
-                return xdataset::Value::Integer(sum);
+                return rel::Value::Integer(sum);
             });
     }
 } // namespace

@@ -1,11 +1,9 @@
 // Builtin library: runtime introspection and DataArray utilities.
 //
-// datasets() / default_dataset() / variables() inspect the host Environment
-// (registered datasets, default dataset, registered variables) and return
-// the information as an Independent DataArray holding one String Scalar row
-// per entry.  what()/indep()/min()/max()/output() work on Values.
-
-#include "eval/builtin/builtin_library.h"
+// datasets() / default_dataset() / variables() inspect the global Environment
+// registries (datasets, variables via active env) and return the information
+// as an Independent DataArray holding one String Scalar row per entry.
+// what()/indep()/min()/max()/output() work on Values.
 
 #include "rel.h"
 #include "eval/environment.h"
@@ -55,52 +53,48 @@ namespace rel
         //  Each make_xxx() builds the full Function object — name, parameter
         //  list (including defaults), and implementation — in one place.
 
-        /// Build datasets() — list every registered Dataset.
-        static Function make_datasets(Environment& env)
+        /// Build datasets() — list every registered Dataset (global).
+        static Function make_datasets()
         {
             return Function(
                 "datasets",
                 std::vector<FunctionParam>(),
-                [&env](const std::vector<xdataset::Value>&) -> xdataset::Value {
-                    const std::vector<std::string> names = env.DatasetNames();
+                [](const std::vector<rel::Value>&) -> rel::Value {
+                    const std::vector<std::string> names = Environment::DatasetNames();
                     std::vector<std::string> rows;
                     rows.reserve(names.size());
                     for (std::size_t i = 0; i < names.size(); ++i)
                         rows.push_back(names[i]);
-                    return xdataset::Value::ArrayString(rows);
+                    return rel::Value::ArrayString(rows);
                 });
         }
 
-        /// Build default_dataset() — the current default Dataset.
-        static Function make_default_dataset(Environment& env)
+        /// Build default_dataset() — the current default Dataset (global).
+        static Function make_default_dataset()
         {
             return Function(
                 "default_dataset",
                 std::vector<FunctionParam>(),
-                [&env](const std::vector<xdataset::Value>&) -> xdataset::Value {
+                [](const std::vector<rel::Value>&) -> rel::Value {
                     std::vector<std::string> rows;
-                    xdataset::Dataset* ds = env.DefaultDataset();
+                    xdataset::Dataset* ds = Environment::DefaultDataset();
                     if (ds)
                         rows.push_back(ds->name());
                     else
                         rows.push_back("NO DEFAULT DATASET");
-                    return xdataset::Value::ArrayString(rows);
+                    return rel::Value::ArrayString(rows);
                 });
         }
 
-        /// Build variables() — every variable registered in the Environment.
-        static Function make_variables(Environment& env)
+        /// Build variables() — return an empty list (user variables are per-Environment
+        /// and not accessible from global builtins).
+        static Function make_variables()
         {
             return Function(
                 "variables",
                 std::vector<FunctionParam>(),
-                [&env](const std::vector<xdataset::Value>&) -> xdataset::Value {
-                    const std::vector<std::string> names = env.VariableNames();
-                    std::vector<std::string> rows;
-                    rows.reserve(names.size());
-                    for (std::size_t i = 0; i < names.size(); ++i)
-                        rows.push_back(names[i]);
-                    return xdataset::Value::ArrayString(rows);
+                [](const std::vector<rel::Value>&) -> rel::Value {
+                    return rel::Value::ArrayString({});
                 });
         }
 
@@ -114,8 +108,8 @@ namespace rel
             return Function(
                 "what",
                 std::vector<FunctionParam>{ Param("x") },
-                [](const std::vector<xdataset::Value>& args) -> xdataset::Value {
-                    const xdataset::Value& v = args[0];
+                [](const std::vector<rel::Value>& args) -> rel::Value {
+                    const rel::Value& v = args[0];
                     std::vector<std::string> rows;
                     rows.reserve(5);
 
@@ -157,7 +151,7 @@ namespace rel
                             rows.push_back("Unit: " + FormatUnit(m.unit()));
                     }
 
-                    return xdataset::Value::ArrayString(rows);
+                    return rel::Value::ArrayString(rows);
                 });
         }
 
@@ -173,11 +167,11 @@ namespace rel
                 "indep",
                 std::vector<FunctionParam>{
                     Param("da"),
-                    Param("selector", xdataset::Value::Integer(1)),
+                    Param("selector", rel::Value::Integer(1)),
                 },
-                [](const std::vector<xdataset::Value>& args) -> xdataset::Value {
-                    const xdataset::Value& da_val = args[0];
-                    const xdataset::Value& sel_val = args[1];
+                [](const std::vector<rel::Value>& args) -> rel::Value {
+                    const rel::Value& da_val = args[0];
+                    const rel::Value& sel_val = args[1];
 
                     if (!da_val.is_data_array())
                         throw std::runtime_error("indep: first argument must be a DataArray");
@@ -189,14 +183,14 @@ namespace rel
                     {
                         // 1-based index, matching DataArray::indep's convention.
                         int index = sel_val.as_measurement().as_scalar<int>();
-                        return xdataset::Value(da.indep(index));
+                        return rel::Value(da.indep(index));
                     }
 
                     if (sel_val.is_measurement() &&
                         sel_val.as_measurement().data_type() == xdataset::DataType::kString)
                     {
                         const std::string& name = sel_val.as_measurement().as_scalar<std::string>();
-                        return xdataset::Value(da.indep(name));
+                        return rel::Value(da.indep(name));
                     }
 
                     throw std::runtime_error(
@@ -214,12 +208,12 @@ namespace rel
             return Function(
                 name,
                 std::vector<FunctionParam>{ Param("da") },
-                [name, want_max](const std::vector<xdataset::Value>& args) -> xdataset::Value {
-                    const xdataset::Value& v = args[0];
+                [name, want_max](const std::vector<rel::Value>& args) -> rel::Value {
+                    const rel::Value& v = args[0];
                     if (!v.is_data_array())
                         throw std::runtime_error(std::string(name) +
                                                  ": argument must be a DataArray");
-                    return xdataset::Value(want_max
+                    return rel::Value(want_max
                                                ? v.as_data_array().max()
                                                : v.as_data_array().min());
                 });
@@ -248,10 +242,10 @@ namespace rel
                 "output",
                 std::vector<FunctionParam>{
                     Param("da"),
-                    Param("variable_name", xdataset::Value::String("data")),
+                    Param("variable_name", rel::Value::String("data")),
                 },
-                [](const std::vector<xdataset::Value>& args) -> xdataset::Value {
-                    const xdataset::Value& v = args[0];
+                [](const std::vector<rel::Value>& args) -> rel::Value {
+                    const rel::Value& v = args[0];
                     if (!v.is_data_array())
                         throw std::runtime_error("output: first argument must be a DataArray");
 
@@ -265,23 +259,22 @@ namespace rel
                     const std::string file_path = absolute_path(var_name + ".csv");
                     da.GetOrCreateDataFrame(var_name).WriteToCsv(file_path);
 
-                    return xdataset::Value::String(file_path);
+                    return rel::Value::String(file_path);
                 });
         }
     } // namespace
 
-    FunctionLibrary MakeBuiltinLibrary(Environment& env)
-    {
+    FunctionLibrary kBuiltinLibrary = [] {
         FunctionLibrary lib("builtin");
-        lib.Add(make_datasets(env));
-        lib.Add(make_default_dataset(env));
-        lib.Add(make_variables(env));
+        lib.Add(make_datasets());
+        lib.Add(make_default_dataset());
+        lib.Add(make_variables());
         lib.Add(make_what());
         lib.Add(make_indep());
         lib.Add(make_min());
         lib.Add(make_max());
         lib.Add(make_output());
         return lib;
-    }
+    }();
 
 } // namespace rel

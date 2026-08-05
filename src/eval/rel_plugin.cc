@@ -2,12 +2,11 @@
 //
 // LoadFunctionPlugin opens a plugin shared library (DLL / .so / .dylib),
 // resolves its `rel_plugin_main` entry point, and calls it so the plugin can
-// register its functions on the given Environment.
+// register its functions in the global function registry.
 //
 // UnloadFunctionPlugin first unregisters every function the plugin registered
-// (so the Environment no longer references code inside the plugin library),
-// then releases the library.  A plugin handle must be unloaded before its
-// Environment is destroyed.
+// (so the global registry no longer references code inside the plugin library),
+// then releases the library.
 
 #include "rel_plugin.h"
 
@@ -31,24 +30,22 @@ namespace rel
     namespace
     {
         /// Host-side state passed to a plugin's rel_plugin_main as
-        /// host_context: the Environment to register into plus the names of
-        /// the functions the plugin registers (for later unregistration).
+        /// host_context: tracks the names of the functions the plugin
+        /// registers (for later unregistration).
         struct PluginContext
         {
-            Environment* env;
             std::vector<std::string> function_names;
         };
 
         /// Host-side implementation of RelRegisterLibraryFn.
+        /// Registers the entire library into the global static function registry.
         void host_register_library(void* host_context, const void* library)
         {
             PluginContext* ctx = static_cast<PluginContext*>(host_context);
             const FunctionLibrary* lib = static_cast<const FunctionLibrary*>(library);
+            Environment::RegisterLibrary(*lib);
             for (const auto& fn : lib->functions())
-            {
-                ctx->env->RegisterFunction(fn);
                 ctx->function_names.push_back(fn.name());
-            }
         }
 
         const RelPluginApi kPluginApi = {
@@ -59,7 +56,6 @@ namespace rel
 
     struct LoadedPlugin
     {
-        Environment* env;
         std::vector<std::string> function_names;
 #ifdef _WIN32
         HMODULE handle;
@@ -68,7 +64,7 @@ namespace rel
 #endif
     };
 
-    LoadedPlugin* LoadFunctionPlugin(Environment& env, const std::string& path)
+    LoadedPlugin* Environment::LoadFunctionPlugin(const std::string& path)
     {
 #ifdef _WIN32
         HMODULE handle = LoadLibraryA(path.c_str());
@@ -83,7 +79,7 @@ namespace rel
             return nullptr;
         }
 
-        PluginContext ctx = { &env, std::vector<std::string>() };
+        PluginContext ctx;
         if (main_fn(&kPluginApi, &ctx) != 0)
         {
             FreeLibrary(handle);
@@ -91,7 +87,6 @@ namespace rel
         }
 
         LoadedPlugin* plugin = new LoadedPlugin;
-        plugin->env = &env;
         plugin->function_names = std::move(ctx.function_names);
         plugin->handle = handle;
         return plugin;
@@ -108,7 +103,7 @@ namespace rel
             return nullptr;
         }
 
-        PluginContext ctx = { &env, std::vector<std::string>() };
+        PluginContext ctx;
         if (main_fn(&kPluginApi, &ctx) != 0)
         {
             dlclose(handle);
@@ -116,26 +111,22 @@ namespace rel
         }
 
         LoadedPlugin* plugin = new LoadedPlugin;
-        plugin->env = &env;
         plugin->function_names = std::move(ctx.function_names);
         plugin->handle = handle;
         return plugin;
 #endif
     }
 
-    void UnloadFunctionPlugin(LoadedPlugin* plugin)
+    void Environment::UnloadFunctionPlugin(LoadedPlugin* plugin)
     {
         if (!plugin)
             return;
 
-        // Unregister the functions this plugin registered so the Environment
-        // no longer references code inside the plugin library (their
-        // std::function closures live in the plugin DLL).
-        if (plugin->env)
-        {
-            for (const auto& name : plugin->function_names)
-                plugin->env->UnregisterFunction(name);
-        }
+        // Unregister the functions this plugin registered so the global
+        // registry no longer references code inside the plugin library
+        // (their std::function closures live in the plugin DLL).
+        for (const auto& name : plugin->function_names)
+            Environment::UnregisterFunction(name);
 
 #ifdef _WIN32
         FreeLibrary(plugin->handle);

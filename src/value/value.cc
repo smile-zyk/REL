@@ -4,7 +4,7 @@
 
 #include "value.h"
 
-namespace xdataset {
+namespace rel {
 
 // =========================================================================
 //  Value
@@ -269,4 +269,4 @@ Value Value::ArrayMatrix(const std::vector<MatXs>& rows) {
     return Value(DataArray::CreateIndependent(std::move(s)));
 }
 
-}  // namespace xdataset
+}  // namespace rel

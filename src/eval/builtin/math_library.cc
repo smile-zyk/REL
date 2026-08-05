@@ -12,7 +12,7 @@
 //   - Complex -> the result is Complex
 // String cells have no meaningful math mapping and are rejected.
 
-#include "eval/builtin/math_library.h"
+#include "eval/function.h"
 
 #include <cmath>
 #include <complex>
@@ -469,17 +469,17 @@ namespace rel
             return Function(
                 name,
                 std::vector<FunctionParam>{ Param("x") },
-                [name, coerce](const std::vector<xdataset::Value>& args) -> xdataset::Value {
-                    const xdataset::Value& v = args[0];
+                [name, coerce](const std::vector<rel::Value>& args) -> rel::Value {
+                    const rel::Value& v = args[0];
 
                     if (v.is_data_array())
                     {
                         xdataset::DataArray out = v.as_data_array().transform(coerce);
-                        return xdataset::Value(out);
+                        return rel::Value(out);
                     }
 
                     if (v.is_measurement())
-                        return xdataset::Value(coerce(v.as_measurement()));
+                        return rel::Value(coerce(v.as_measurement()));
 
                     throw std::runtime_error(std::string(name) +
                                              ": argument must be a DataArray or Measurement");
@@ -488,12 +488,7 @@ namespace rel
 
     } // namespace
 
-    // =====================================================================
-    //  Library assembly
-    // =====================================================================
-
-    FunctionLibrary MakeMathLibrary()
-    {
+    FunctionLibrary kMathLibrary = [] {
         FunctionLibrary lib("math");
 
         // Trigonometric
@@ -541,6 +536,6 @@ namespace rel
         lib.Add(make_unary_math("phase", phase_measurement));
 
         return lib;
-    }
+    }();
 
 } // namespace rel

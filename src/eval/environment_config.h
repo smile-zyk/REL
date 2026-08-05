@@ -7,7 +7,7 @@
 namespace rel {
 
 // =========================================================================
-//  EnvironmentConfig — persistent dataset + variable context (JSON)
+//  EnvironmentConfig — persistent dataset + plugin context (JSON)
 // =========================================================================
 //
 //  JSON schema:
@@ -16,13 +16,14 @@ namespace rel {
 //      { "name": "noise",    "format": "hdf5", "path": "/data/noise.xdataset" },
 //      { "name": "amplifier","format": "hdf5", "path": "/data/amp.xdataset" }
 //    ],
-//    "defines": [
-//      { "name": "k",  "expression": "3 * PI" },
-//      { "name": "r",  "expression": "Vout / ifreq" }
+//    "default_dataset": "noise",
+//    "plugin": [
+//      "/path/to/my_plugin.dylib"
 //    ]
 //  }
 //
-//  The first dataset becomes the default.
+//  "default_dataset" is optional; if omitted, the first dataset in "datasets"
+//  becomes the default.  "plugin" is an optional array of shared-library paths.
 
 struct DatasetConfig {
     std::string name;
@@ -30,14 +31,10 @@ struct DatasetConfig {
     std::string path;
 };
 
-struct DefineEntry {
-    std::string name;
-    std::string expression;
-};
-
 struct EnvironmentConfig {
     std::vector<DatasetConfig> datasets;
-    std::vector<DefineEntry>   defines;
+    std::string               default_dataset;
+    std::vector<std::string>  plugins;
 
     /// Load from a JSON file.
     static EnvironmentConfig Load(const std::string& config_path);
@@ -49,15 +46,13 @@ inline void from_json(const nlohmann::json& j, DatasetConfig& ds) {
     j.at("format").get_to(ds.format);
     j.at("path").get_to(ds.path);
 }
-inline void from_json(const nlohmann::json& j, DefineEntry& de) {
-    j.at("name").get_to(de.name);
-    j.at("expression").get_to(de.expression);
-}
 inline void from_json(const nlohmann::json& j, EnvironmentConfig& cfg) {
     if (j.contains("datasets"))
         j.at("datasets").get_to(cfg.datasets);
-    if (j.contains("defines"))
-        j.at("defines").get_to(cfg.defines);
+    if (j.contains("default_dataset"))
+        j.at("default_dataset").get_to(cfg.default_dataset);
+    if (j.contains("plugin"))
+        j.at("plugin").get_to(cfg.plugins);
 }
 
 }  // namespace rel

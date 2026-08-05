@@ -6,7 +6,10 @@
 
 #include <vector>
 
-namespace xdataset {
+namespace rel {
+
+// Bring all xdataset types into rel namespace for convenient unqualified use.
+using namespace xdataset;
 
 // =========================================================================
 //  Value / Measurement / DataArray operators
@@ -14,7 +17,7 @@ namespace xdataset {
 //
 //  These operators used to live inside xdataset (measurement.cc /
 //  data_array.cc) and were removed from there so that xdataset stays a pure
-//  storage library.  They are re-implemented here, in namespace xdataset, so
+//  storage library.  They are re-implemented here, in namespace rel, so
 //  that argument-dependent lookup keeps working for expressions like
 //  `m1 + m2` (m1/m2 are xdataset::Measurement) or `da1 * da2`.  Every
 //  operator delegates to the corresponding OperationXxx kernel below.
@@ -241,6 +244,6 @@ REL_VALUE_API Value OperationMatrix(const std::vector<Value>& operands);
 /// Sweep [] �?collect operands into a DataArray (one row per operand).
 REL_VALUE_API Value OperationSweep(const std::vector<Value>& operands);
 
-}  // namespace xdataset
+}  // namespace rel
 
 #endif  // REL_VALUE_OPERATION_H

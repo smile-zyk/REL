@@ -23,7 +23,7 @@ using xdataset::MatXd;
 using xdataset::MatXi;
 using xdataset::MatXcd;
 using xdataset::MatXs;
-using xdataset::Value;
+using rel::Value;
 
 // =========================================================================
 //  Construction

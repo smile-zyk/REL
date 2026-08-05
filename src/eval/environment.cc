@@ -2,9 +2,6 @@
 
 #include "dataset.h"
 #include "dataset_io.h"
-#include "eval/evaluator.h"
-#include "parser/parser.h"
-#include "scanner/scanner.h"
 #include "touchstone_io.h"
 
 #include <sstream>
@@ -13,24 +10,128 @@
 namespace rel {
 
 // =========================================================================
-//  Variables
+//  Static member definitions
 // =========================================================================
 
-void Environment::Define(const std::string& name, xdataset::Value value)
+std::unordered_map<std::string, rel::Value>
+    Environment::builtin_constants_;
+std::unordered_map<std::string, Function>
+    Environment::functions_;
+std::unordered_map<std::string, std::unique_ptr<xdataset::Dataset>>
+    Environment::datasets_;
+std::string Environment::default_dataset_name_;
+
+// =========================================================================
+//  Variables (instance)
+// =========================================================================
+
+void Environment::Define(const std::string& name, rel::Value value)
 {
+    if (builtin_constants_.find(name) != builtin_constants_.end())
+        throw std::runtime_error(
+            "cannot redefine builtin constant '" + name + "'");
     variables_[name] = std::move(value);
 }
 
-xdataset::Value Environment::Get(const std::string& name) const
+rel::Value Environment::Get(const std::string& name) const
 {
     auto it = variables_.find(name);
     if (it != variables_.end())
         return it->second;
-    return xdataset::Value();
+    return rel::Value();
+}
+
+std::vector<std::string> Environment::VariableNames() const
+{
+    std::vector<std::string> names;
+    names.reserve(variables_.size());
+    for (const auto& kv : variables_)
+        names.push_back(kv.first);
+    return names;
 }
 
 // =========================================================================
-//  Datasets
+//  Static: builtin constants
+// =========================================================================
+
+void Environment::InitBuiltinConstants()
+{
+    builtin_constants_["PI"]        = rel::Value::Real(3.1415926535898);
+    builtin_constants_["pi"]        = rel::Value::Real(3.1415926535898);
+    builtin_constants_["e"]         = rel::Value::Real(2.718281822);
+    builtin_constants_["ln10"]      = rel::Value::Real(2.302585093);
+    builtin_constants_["boltzmann"] = rel::Value::Real(1.380658e-23);
+    builtin_constants_["qelectron"] = rel::Value::Real(1.60217733e-19);
+    builtin_constants_["planck"]    = rel::Value::Real(6.6260755e-34);
+    builtin_constants_["c0"]        = rel::Value::Real(2.99792e+08);
+    builtin_constants_["e0"]        = rel::Value::Real(8.85419e-12);
+    builtin_constants_["u0"]        = rel::Value::Real(12.5664e-07);
+    builtin_constants_["tinyReal"]  = rel::Value::Real(2.2e-308);
+    builtin_constants_["hugeReal"]  = rel::Value::Real(3.4e+38);
+}
+
+const rel::Value* Environment::FindConstant(const std::string& name)
+{
+    auto it = builtin_constants_.find(name);
+    if (it != builtin_constants_.end())
+        return &it->second;
+    return nullptr;
+}
+
+std::vector<std::string> Environment::ConstantNames()
+{
+    std::vector<std::string> names;
+    names.reserve(builtin_constants_.size());
+    for (const auto& kv : builtin_constants_)
+        names.push_back(kv.first);
+    return names;
+}
+
+// =========================================================================
+//  Static: functions
+// =========================================================================
+
+void Environment::InitBuiltinFunctions()
+{
+    RegisterLibrary(kBuiltinLibrary);
+    RegisterLibrary(kMathLibrary);
+}
+
+void Environment::RegisterFunction(Function fn)
+{
+    functions_[fn.name()] = std::move(fn);
+}
+
+void Environment::RegisterLibrary(const FunctionLibrary& lib)
+{
+    for (const auto& fn : lib.functions())
+        RegisterFunction(fn);
+}
+
+bool Environment::UnregisterFunction(const std::string& name)
+{
+    return functions_.erase(name) > 0;
+}
+
+const Function* Environment::FindFunction(const std::string& name)
+{
+    auto it = functions_.find(name);
+    if (it != functions_.end())
+        return &it->second;
+    return nullptr;
+}
+
+std::vector<std::string> Environment::FunctionNames()
+{
+    std::vector<std::string> names;
+    names.reserve(functions_.size());
+    for (const auto& kv : functions_)
+        names.push_back(kv.first);
+    return names;
+}
+
+// =========================================================================
+//  Static: datasets
 // =========================================================================
 
 void Environment::AddDataset(std::unique_ptr<xdataset::Dataset> ds)
@@ -58,7 +159,7 @@ void Environment::SetDefaultDataset(const std::string& name)
     default_dataset_name_ = name;
 }
 
-xdataset::Dataset* Environment::DefaultDataset() const
+xdataset::Dataset* Environment::DefaultDataset()
 {
     if (default_dataset_name_.empty())
         return nullptr;
@@ -68,39 +169,7 @@ xdataset::Dataset* Environment::DefaultDataset() const
     return nullptr;
 }
 
-// =========================================================================
-//  Functions
-// =========================================================================
-
-void Environment::RegisterFunction(Function fn)
-{
-    functions_[fn.name()] = std::move(fn);
-}
-
-void Environment::RegisterLibrary(const FunctionLibrary& lib)
-{
-    for (const auto& fn : lib.functions())
-        RegisterFunction(fn);
-}
-
-bool Environment::UnregisterFunction(const std::string& name)
-{
-    return functions_.erase(name) > 0;
-}
-
-const Function* Environment::FindFunction(const std::string& name) const
-{
-    auto it = functions_.find(name);
-    if (it != functions_.end())
-        return &it->second;
-    return nullptr;
-}
-
-// =========================================================================
-//  Introspection
-// =========================================================================
-
-std::vector<std::string> Environment::DatasetNames() const
+std::vector<std::string> Environment::DatasetNames()
 {
     std::vector<std::string> names;
     names.reserve(datasets_.size());
@@ -109,49 +178,36 @@ std::vector<std::string> Environment::DatasetNames() const
     return names;
 }
 
-std::vector<std::string> Environment::VariableNames() const
-{
-    std::vector<std::string> names;
-    names.reserve(variables_.size());
-    for (const auto& kv : variables_)
-        names.push_back(kv.first);
-    return names;
-}
-
-std::vector<std::string> Environment::FunctionNames() const
-{
-    std::vector<std::string> names;
-    names.reserve(functions_.size());
-    for (const auto& kv : functions_)
-        names.push_back(kv.first);
-    return names;
-}
-
 // =========================================================================
 //  Reference resolution
 // =========================================================================
 
-xdataset::Value Environment::ResolveReference(
+rel::Value Environment::ResolveReference(
     const std::vector<RefSegment>& segments) const
 {
     if (segments.empty())
-        return xdataset::Value();
+        return rel::Value();
 
     // ---- 1 segment: variable lookup ---------------------------------
     if (segments.size() == 1)
     {
         const std::string& name = segments[0].name;
 
-        // 1a) User-defined / built-in
+        // 1a) User-defined variable
         auto it = variables_.find(name);
         if (it != variables_.end())
             return it->second;
 
-        // 1b) Unique lookup in default dataset
+        // 1b) Builtin constant
+        const rel::Value* c = FindConstant(name);
+        if (c)
+            return *c;
+
+        // 1c) Unique lookup in default dataset
         xdataset::Dataset* ds = DefaultDataset();
         if (ds && ds->HasUniqueDataArray(name))
         {
-            return xdataset::Value(ds->GetDataArray(name));
+            return rel::Value(ds->GetDataArray(name));
         }
 
         throw std::runtime_error(
@@ -169,7 +225,7 @@ xdataset::Value Environment::ResolveReference(
         }
 
         xdataset::Dataset* ds = it->second.get();
-        return xdataset::Value(ds->GetDataArray(segments[1].name));
+        return rel::Value(ds->GetDataArray(segments[1].name));
     }
 
     // ---- ≥2 segments Dot: path navigation ---------------------------
@@ -210,12 +266,12 @@ xdataset::Value Environment::ResolveReference(
         if (path.tellp() > 0) path << "/";
         path << segments[segments.size() - 2].name;
 
-        return xdataset::Value(ds->GetDataArray(path.str(), segments.back().name));
+        return rel::Value(ds->GetDataArray(path.str(), segments.back().name));
     }
 }
 
 // =========================================================================
-//  Persistent context: load datasets + pre-defined expressions
+//  Persistent context: load datasets + plugins from config
 // =========================================================================
 
 void Environment::LoadFromConfig(const std::string& config_path)
@@ -261,28 +317,32 @@ void Environment::LoadFromConfig(const std::string& config_path)
             new xdataset::Dataset(std::move(loaded)));
     }
 
-    // First dataset entry → default
-    if (!cfg.datasets.empty())
-        SetDefaultDataset(cfg.datasets[0].name);
-
-    // ---- evaluate define entries ----
-    for (const auto& def : cfg.defines)
+    // ---- set default dataset ----
+    if (!cfg.default_dataset.empty())
     {
-        Scanner scanner(def.expression);
-        ScanResult sr = scanner.Scan();
-        if (!sr.Ok())
-            throw std::runtime_error(
-                "config 'define " + def.name + "': " + sr.errors[0].to_string());
+        SetDefaultDataset(cfg.default_dataset);
+    }
+    else if (!cfg.datasets.empty())
+    {
+        SetDefaultDataset(cfg.datasets[0].name);
+    }
 
-        Parser parser(std::move(sr.tokens));
-        ParseResult pr = parser.Parse();
-        if (!pr.Ok())
-            throw std::runtime_error(
-                "config 'define " + def.name + "': " + pr.errors[0].message);
+    // ---- load plugins ----
+    for (const auto& plugin_path : cfg.plugins)
+    {
+        std::string full_plugin_path = plugin_path;
+        if (!full_plugin_path.empty() && full_plugin_path[0] != '/' && !base_dir.empty())
+            full_plugin_path = base_dir + plugin_path;
 
-        Evaluator evaluator(*this);
-        xdataset::Value result = evaluator.Evaluate(*pr.expr);
-        Define(def.name, std::move(result));
+        LoadedPlugin* plugin = LoadFunctionPlugin(full_plugin_path);
+        if (!plugin)
+        {
+            throw std::runtime_error(
+                "failed to load plugin: " + full_plugin_path);
+        }
+        // Store for later cleanup? For now plugins live until process exit.
+        // In a full implementation, you'd track handles for UnloadFunctionPlugin.
+        (void)plugin;
     }
 }
 
