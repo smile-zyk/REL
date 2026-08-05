@@ -20,6 +20,7 @@ namespace rel
     /// Each function accepts a DataArray (mapped row-by-row through
     /// DataArray::transform) or a Measurement.  Scalar, vector, and matrix
     /// cells are mapped element-wise through Measurement::transform, which
-    /// preserves shape.  Integer -> Real promotion; String/Boolean rejected.
+    /// preserves shape.  Integer -> Real promotion; Boolean treated as
+    /// Integer (0/1); String rejected.
     FunctionLibrary MakeMathLibrary();
 }

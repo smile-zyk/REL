@@ -6,10 +6,11 @@
 //
 // Every cell is mapped element-wise through Measurement::transform, which
 // preserves the cell shape.  The cell's data type is dispatched:
+//   - Boolean -> treated as Integer (true -> 1, false -> 0)
 //   - Integer -> converted to double; the result is Real
 //   - Real    -> the result is Real
 //   - Complex -> the result is Complex
-// String and Boolean cells have no meaningful math mapping and are rejected.
+// String cells have no meaningful math mapping and are rejected.
 
 #include "eval/builtin/math_library.h"
 
@@ -36,6 +37,13 @@ namespace rel
         //  the matching typed callback; Measurement::transform preserves the
         //  cell's shape and infers the output dtype from the callback's
         //  return type.
+
+        // Booleans are scalar-only in xdataset; normalize them to Integer
+        // (true -> 1, false -> 0), matching the arithmetic operators.
+        static xdataset::Measurement boolean_to_integer(const xdataset::Measurement& m)
+        {
+            return xdataset::Measurement::Integer(m.as_scalar<bool>() ? 1 : 0);
+        }
 
         // ---- sin ----------------------------------------------------------
 
@@ -447,24 +455,31 @@ namespace rel
 
         /// Build a unary function named `name` that maps its argument through
         /// `map`: DataArrays are mapped row-by-row via DataArray::transform;
-        /// bare Measurements are mapped directly.
+        /// bare Measurements are mapped directly.  Boolean measurements are
+        /// normalized to Integer (0/1) before mapping.
         static Function make_unary_math(const char* name,
                                         xdataset::Measurement (*map)(const xdataset::Measurement&))
         {
+            auto coerce = [map](const xdataset::Measurement& m) -> xdataset::Measurement {
+                if (m.data_type() == xdataset::DataType::kBoolean)
+                    return map(boolean_to_integer(m));
+                return map(m);
+            };
+
             return Function(
                 name,
                 std::vector<FunctionParam>{ Param("x") },
-                [name, map](const std::vector<xdataset::Value>& args) -> xdataset::Value {
+                [name, coerce](const std::vector<xdataset::Value>& args) -> xdataset::Value {
                     const xdataset::Value& v = args[0];
 
                     if (v.is_data_array())
                     {
-                        xdataset::DataArray out = v.as_data_array().transform(map);
+                        xdataset::DataArray out = v.as_data_array().transform(coerce);
                         return xdataset::Value(out);
                     }
 
                     if (v.is_measurement())
-                        return xdataset::Value(map(v.as_measurement()));
+                        return xdataset::Value(coerce(v.as_measurement()));
 
                     throw std::runtime_error(std::string(name) +
                                              ": argument must be a DataArray or Measurement");

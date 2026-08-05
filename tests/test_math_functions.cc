@@ -531,21 +531,27 @@ namespace
     }
 
     // =========================================================================
-    //  Boolean rejection
+    //  Boolean treated as Integer (true -> 1, false -> 0)
     // =========================================================================
 
-    TEST(MathFunctionTest, SinRejectsBoolean)
+    TEST(MathFunctionTest, SinBoolean)
     {
         rel::Environment env;
         rel::InitBuiltinFunctions(env);
-        EXPECT_THROW(rel::Eval("sin(true)", &env), std::runtime_error);
+
+        EXPECT_NEAR(rel::Eval("sin(TRUE)", &env).as_measurement().as_scalar<double>(),
+                    std::sin(1.0), 1e-12);
+        EXPECT_NEAR(rel::Eval("sin(FALSE)", &env).as_measurement().as_scalar<double>(),
+                    std::sin(0.0), 1e-12);
     }
 
-    TEST(MathFunctionTest, AbsRejectsBoolean)
+    TEST(MathFunctionTest, AbsBoolean)
     {
         rel::Environment env;
         rel::InitBuiltinFunctions(env);
-        EXPECT_THROW(rel::Eval("abs(true)", &env), std::runtime_error);
+
+        EXPECT_NEAR(rel::Eval("abs(TRUE)", &env).as_measurement().as_scalar<double>(), 1.0, 1e-12);
+        EXPECT_NEAR(rel::Eval("abs(FALSE)", &env).as_measurement().as_scalar<double>(), 0.0, 1e-12);
     }
 
     // =========================================================================
