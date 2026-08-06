@@ -4,6 +4,10 @@
 
 #include "value.h"
 
+#include "data_series.h"
+
+#include <stdexcept>
+
 namespace rel {
 
 // =========================================================================
@@ -77,6 +81,120 @@ Index Value::rows() const {
 Index Value::element_count() const {
     if (is_measurement()) return as_measurement().element_count();
     return as_data_array().element_count();
+}
+
+// ---- unified inspection ----------------------------------------------------
+
+std::vector<std::string> Value::indep_names() const {
+    if (is_measurement()) return {};
+    return as_data_array().indep_names();
+}
+
+bool Value::is_dependent() const {
+    if (is_measurement()) return false;
+    return as_data_array().data_kind() == DataArrayKind::kDependent;
+}
+
+MultiDimensionSpec Value::dimension_spec() const {
+    if (is_measurement()) {
+        MultiDimensionSpec spec;
+        spec.add_regular(1);
+        return spec;
+    }
+    return as_data_array().multi_dimension_spec();
+}
+
+// ---- data / indep_data access ----------------------------------------------
+
+DataSeries& Value::data() {
+    if (is_measurement()) {
+        Measurement m = boost::get<Measurement>(storage_);
+        DataType dtype = m.data_type();
+
+        std::unique_ptr<DataSeries> ds;
+        if (dtype == DataType::kBoolean) {
+            ds.reset(new DataSeries(DataType::kInteger, DataShape::Scalar()));
+            ds->resize(1);
+            ds->scalar_at<int>(0) = m.as_scalar<bool>() ? 1 : 0;
+        } else {
+            ds.reset(new DataSeries(m.data_type(), m.shape()));
+            ds->append(m);
+        }
+        storage_ = std::make_shared<DataArray>(
+            DataArray::CreateIndependent(std::move(*ds)));
+    }
+    return as_data_array().data();
+}
+
+const DataSeries& Value::data() const {
+    if (is_measurement())
+        throw std::runtime_error("Value::data(): Measurement-backed Value has no DataSeries");
+    return as_data_array().data();
+}
+
+DataSeries& Value::indep_data(Index index) {
+    if (is_measurement())
+        throw std::runtime_error("Value::indep_data: Measurement-backed Value has no independent data");
+    return as_data_array().indep_data(index);
+}
+
+const DataSeries& Value::indep_data(Index index) const {
+    if (is_measurement())
+        throw std::runtime_error("Value::indep_data: Measurement-backed Value has no independent data");
+    return as_data_array().indep_data(index);
+}
+
+DataSeries& Value::indep_data(const std::string& name) {
+    if (is_measurement())
+        throw std::runtime_error("Value::indep_data: Measurement-backed Value has no independent data");
+    return as_data_array().indep_data(name);
+}
+
+const DataSeries& Value::indep_data(const std::string& name) const {
+    if (is_measurement())
+        throw std::runtime_error("Value::indep_data: Measurement-backed Value has no independent data");
+    return as_data_array().indep_data(name);
+}
+
+void Value::replace_self_data(DataSeries new_self) {
+    if (is_measurement()) {
+        Measurement m = boost::get<Measurement>(storage_);
+        DataType dtype = m.data_type();
+
+        std::unique_ptr<DataSeries> ds;
+        if (dtype == DataType::kBoolean) {
+            ds.reset(new DataSeries(DataType::kInteger, DataShape::Scalar()));
+            ds->resize(1);
+            ds->scalar_at<int>(0) = m.as_scalar<bool>() ? 1 : 0;
+        } else {
+            ds.reset(new DataSeries(m.data_type(), m.shape()));
+            ds->append(m);
+        }
+        storage_ = std::make_shared<DataArray>(
+            DataArray::CreateIndependent(std::move(*ds)));
+    }
+    as_data_array().replace_self_data(std::move(new_self));
+}
+
+Value Value::with_self_data(DataSeries new_self) const {
+    if (is_measurement()) {
+        Measurement m = as_measurement();
+        DataType dtype = m.data_type();
+
+        std::unique_ptr<DataSeries> ds;
+        if (dtype == DataType::kBoolean) {
+            // Boolean is always scalar; convert to Integer 0/1.
+            ds.reset(new DataSeries(DataType::kInteger, DataShape::Scalar()));
+            ds->append(Measurement::Integer(m.as_scalar<bool>() ? 1 : 0));
+        } else {
+            ds.reset(new DataSeries(m.data_type(), m.shape()));
+            ds->append(m);
+        }
+        return Value(DataArray::CreateIndependent(std::move(*ds))
+                         .with_self_data(std::move(new_self)));
+    }
+    return Value(std::make_shared<DataArray>(
+        as_data_array().with_self_data(std::move(new_self))));
 }
 
 // ---- canonicalization ------------------------------------------------------

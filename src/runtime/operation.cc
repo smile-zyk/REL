@@ -1118,93 +1118,8 @@ static const DataArray* SelectOutputSource(bool l_meas, bool r_meas,
 }  // anonymous namespace
 
 // =========================================================================
-//  FlatInput<T> -- typed flat pointer + lifetime for one binary operand
+//  Flat data access: uses Value::flat_data<T>() (defined in value.h)
 // =========================================================================
-//
-//  Measurement: always creates a single-row DataSeries, promoted to T.
-//  DataArray  : borrows the underlying DataSeries (no copy) when dtype
-//               already matches T; copies + promotes otherwise.
-
-namespace {
-
-template <typename T>
-struct FlatInput {
-    std::unique_ptr<DataSeries> owner;
-    const T*                    ptr;
-    Index                       stride;   // T-elements per logical row
-
-    /// Construct a single-row DataSeries from a Boolean Measurement in the target dtype.
-    static std::unique_ptr<DataSeries> MakeBoolSeries(const Measurement& m) {
-        auto ds = std::unique_ptr<DataSeries>(
-            new DataSeries(DataTypeOf<T>::tag, m.shape()));
-        ds->resize(1);
-
-        T val = static_cast<T>(m.as_scalar<bool>() ? 1 : 0);
-
-        if (m.data_kind() == DataKind::kScalar) {
-            ds->scalar_at<T>(0) = val;
-        } else if (m.data_kind() == DataKind::kVector) {
-            for (Index j = 0; j < m.shape()[0]; ++j)
-                ds->vector_at<T>(0)(j) = val;
-        } else {
-            for (Index r = 0; r < m.shape()[0]; ++r)
-                for (Index c = 0; c < m.shape()[1]; ++c)
-                    ds->matrix_at<T>(0)(r, c) = val;
-        }
-        return ds;
-    }
-
-    static FlatInput Acquire(const Value& v);
-};
-
-template <typename T>
-FlatInput<T> FlatInput<T>::Acquire(const Value& v) {
-    if (v.is_measurement()) {
-        FlatInput fi;
-        const Measurement& m = v.as_measurement();
-
-        // Boolean is Measurement-only; DataSeries doesn't support it.
-        // Build a single-row DataSeries directly in the target dtype.
-        DataType src_dtype = m.data_type();
-        if (src_dtype == DataType::kBoolean) {
-            fi.owner = MakeBoolSeries(m);
-            fi.ptr    = fi.owner->template contiguous_data<T>();
-            fi.stride = static_cast<Index>(fi.owner->element_count());
-            return fi;
-        }
-
-        fi.owner = std::unique_ptr<DataSeries>(
-            new DataSeries(m.data_type(), m.shape()));
-        fi.owner->append(m);
-
-        DataType target = DataTypeOf<T>::tag;
-        if (m.data_type() != target) {
-            fi.owner = std::unique_ptr<DataSeries>(
-                new DataSeries(fi.owner->promoted_data_type(target)));
-        }
-        fi.ptr    = fi.owner->template contiguous_data<T>();
-        fi.stride = static_cast<Index>(fi.owner->element_count());
-        return fi;
-    }
-
-    // DataArray
-    FlatInput fi;
-    const DataSeries& src = v.as_data_array().data();
-    if (src.data_type() == DataTypeOf<T>::tag) {
-        // borrow directly -- no copy
-        fi.ptr    = src.contiguous_data<T>();
-        fi.stride = static_cast<Index>(src.element_count());
-    } else {
-        DataType target = DataTypeOf<T>::tag;
-        fi.owner = std::unique_ptr<DataSeries>(
-            new DataSeries(src.promoted_data_type(target)));
-        fi.ptr    = fi.owner->template contiguous_data<T>();
-        fi.stride = static_cast<Index>(fi.owner->element_count());
-    }
-    return fi;
-}
-
-}  // anonymous namespace
 
 // =========================================================================
 //  ExecBinaryArithT -- binary arithmetic entry point
@@ -1237,8 +1152,8 @@ Value ExecBinaryArithT(const ExecContextInfo& info,
     // ====================================
     //  Step 1: acquire typed flat pointers
     // ====================================
-    auto l_in    = FlatInput<T>::Acquire(ops[0]);
-    auto r_in    = FlatInput<T>::Acquire(ops[1]);
+    auto l_in    = ops[0].flat_data<T>();
+    auto r_in    = ops[1].flat_data<T>();
     const T* l_ptr    = l_in.ptr;
     const T* r_ptr    = r_in.ptr;
     Index    l_stride = l_in.stride;
@@ -1322,8 +1237,8 @@ Value ExecBinaryCmpT(const ExecContextInfo& info,
     ShapeBroadcastPlan shape_plan = ShapeBroadcastPlan::Make(op_shapes, info.shape);
     RowBroadcastPlan   row_plan   = RowBroadcastPlan::Compute(row_counts);
 
-    auto l_in    = FlatInput<T>::Acquire(ops[0]);
-    auto r_in    = FlatInput<T>::Acquire(ops[1]);
+    auto l_in    = ops[0].flat_data<T>();
+    auto r_in    = ops[1].flat_data<T>();
     const T* l_ptr    = l_in.ptr;
     const T* r_ptr    = r_in.ptr;
     Index    l_stride = l_in.stride;
@@ -1374,7 +1289,7 @@ static Value ExecBinaryCmpString(const ExecContextInfo& info,
     ShapeBroadcastPlan shape_plan = ShapeBroadcastPlan::Make(op_shapes, info.shape);
     RowBroadcastPlan   row_plan   = RowBroadcastPlan::Compute(row_counts);
 
-    // Build flat string arrays (no FlatInput — strings handled separately)
+    // Build flat string arrays (no flat_data — strings handled separately)
     Index l_stride = static_cast<Index>(l_shape.element_count());
     Index r_stride = static_cast<Index>(r_shape.element_count());
     Index result_rows = info.rows;
@@ -1559,9 +1474,9 @@ static Value ExecMatrixT(const ExecContextInfo& info,
         row_counts.push_back(ops[i].rows());
     RowBroadcastPlan row_plan = RowBroadcastPlan::Compute(row_counts);
 
-    std::vector<FlatInput<T>> inputs;
+    std::vector<Value::FlatData<T>> inputs;
     for (size_t i = 0; i < ops.size(); ++i)
-        inputs.push_back(FlatInput<T>::Acquire(ops[i]));
+        inputs.push_back(ops[i].flat_data<T>());
 
     Index cell_elems = static_cast<Index>(inputs[0].stride);
     Index result_rows = info.rows;
@@ -1750,9 +1665,9 @@ static Value ExecSweepT(const ExecContextInfo& info,
     ShapeBroadcastPlan shape_plan = ShapeBroadcastPlan::Make(op_shapes, info.shape);
     RowBroadcastPlan   row_plan   = RowBroadcastPlan::Compute(row_counts);
 
-    std::vector<FlatInput<T>> inputs;
+    std::vector<Value::FlatData<T>> inputs;
     for (size_t i = 0; i < ops.size(); ++i)
-        inputs.push_back(FlatInput<T>::Acquire(ops[i]));
+        inputs.push_back(ops[i].flat_data<T>());
 
     Index cell_elems = shape_plan.result_elements;
     Index result_rows = info.rows;
@@ -1919,7 +1834,7 @@ void ExecUnaryLoop(Index rows,
 }
 
 // =========================================================================
-//  ExecUnaryT -- unary entry point (reuses FlatInput, output helpers)
+//  ExecUnaryT -- unary entry point (reuses flat_data, output helpers)
 // =========================================================================
 
 template <typename T>
@@ -1932,7 +1847,7 @@ Value ExecUnaryT(const ExecContextInfo& info,
     DataShape op_shape = ops[0].data_shape();
     ShapeBroadcastPlan shape_plan = ShapeBroadcastPlan::Make({op_shape}, info.shape);
 
-    auto in = FlatInput<T>::Acquire(ops[0]);
+    auto in = ops[0].flat_data<T>();
     const T* ptr    = in.ptr;
     Index    stride = in.stride;
 
@@ -2050,8 +1965,8 @@ Value ExecBinaryMatMulT(const ExecContextInfo& info,
     Index r_rows = ops[1].rows();
     RowBroadcastPlan row_plan = RowBroadcastPlan::Compute({l_rows, r_rows});
 
-    auto l_in = FlatInput<T>::Acquire(ops[0]);
-    auto r_in = FlatInput<T>::Acquire(ops[1]);
+    auto l_in = ops[0].flat_data<T>();
+    auto r_in = ops[1].flat_data<T>();
     const T* l_ptr    = l_in.ptr;
     const T* r_ptr    = r_in.ptr;
     Index    l_stride = l_in.stride;
@@ -2106,8 +2021,8 @@ Value ExecBinaryDivT(const ExecContextInfo& info,
     Index r_rows = ops[1].rows();
     RowBroadcastPlan row_plan = RowBroadcastPlan::Compute({l_rows, r_rows});
 
-    auto l_in = FlatInput<T>::Acquire(ops[0]);
-    auto r_in = FlatInput<T>::Acquire(ops[1]);
+    auto l_in = ops[0].flat_data<T>();
+    auto r_in = ops[1].flat_data<T>();
     const T* l_ptr    = l_in.ptr;
     const T* r_ptr    = r_in.ptr;
     Index    l_stride = l_in.stride;
@@ -2217,9 +2132,9 @@ static Value ExecConditionalT(const ExecContextInfo& info,
     ShapeBroadcastPlan shape_plan = ShapeBroadcastPlan::Make(op_shapes, info.shape);
     RowBroadcastPlan   row_plan   = RowBroadcastPlan::Compute(row_counts);
 
-    auto c_in = FlatInput<int>::Acquire(cond);
-    auto t_in = FlatInput<T>::Acquire(ops[1]);
-    auto f_in = FlatInput<T>::Acquire(ops[2]);
+    auto c_in = cond.flat_data<int>();
+    auto t_in = ops[1].flat_data<T>();
+    auto f_in = ops[2].flat_data<T>();
 
     const int* c_ptr = c_in.ptr;
     Index c_stride = c_in.stride;
@@ -2256,7 +2171,7 @@ static Value ExecConditionalT(const ExecContextInfo& info,
     return Value(out_src->with_self_data(std::move(*out_ds)));
 }
 
-// -- String path: read strings directly, no FlatInput ---
+// -- String path: read strings directly, no flat_data ---
 
 static Value ExecConditionalString(const ExecContextInfo& info,
                                     const std::vector<Value>& ops,
@@ -2276,7 +2191,7 @@ static Value ExecConditionalString(const ExecContextInfo& info,
     ShapeBroadcastPlan shape_plan = ShapeBroadcastPlan::Make(op_shapes, info.shape);
     RowBroadcastPlan   row_plan   = RowBroadcastPlan::Compute(row_counts);
 
-    auto c_in = FlatInput<int>::Acquire(cond);
+    auto c_in = cond.flat_data<int>();
     const int* c_ptr = c_in.ptr;
     Index c_stride = c_in.stride;
 
@@ -2517,13 +2432,13 @@ static Value ExecIfT(const ExecContextInfo& info,
     RowBroadcastPlan   row_plan   = RowBroadcastPlan::Compute(row_counts);
 
     // --- acquire flat inputs: conditions (int), values (T) ---
-    std::vector<FlatInput<int>> cond_ins(num_pairs);
-    std::vector<FlatInput<T>>   val_ins(num_pairs);
+    std::vector<Value::FlatData<int>> cond_ins(num_pairs);
+    std::vector<Value::FlatData<T>>   val_ins(num_pairs);
     for (Index p = 0; p < num_pairs; ++p) {
-        cond_ins[p] = FlatInput<int>::Acquire(ops[2 * p]);
-        val_ins[p]  = FlatInput<T>::Acquire(ops[2 * p + 1]);
+        cond_ins[p] = ops[2 * p].flat_data<int>();
+        val_ins[p]  = ops[2 * p + 1].flat_data<T>();
     }
-    auto else_in = FlatInput<T>::Acquire(ops[n - 1]);
+    auto else_in = ops[n - 1].flat_data<T>();
 
     // --- allocate output ---
     auto out_ds = std::unique_ptr<DataSeries>(
@@ -2600,9 +2515,9 @@ static Value ExecIfString(const ExecContextInfo& info,
     RowBroadcastPlan   row_plan   = RowBroadcastPlan::Compute(row_counts);
 
     // --- acquire flat condition inputs (int) ---
-    std::vector<FlatInput<int>> cond_ins(num_pairs);
+    std::vector<Value::FlatData<int>> cond_ins(num_pairs);
     for (Index p = 0; p < num_pairs; ++p)
-        cond_ins[p] = FlatInput<int>::Acquire(ops[2 * p]);
+        cond_ins[p] = ops[2 * p].flat_data<int>();
 
     // --- read all value operands as flat string vectors ---
     auto read_flat = [](const Value& v, Index rows, Index stride,

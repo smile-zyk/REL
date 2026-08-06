@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 #include "data_array.h"
 #include "measurement.h"
 #include "xdataset_predefine.h"
@@ -28,9 +29,29 @@ using namespace xdataset;
 //  Measurement is stored by value (~64 bytes on the stack); DataArray is
 //  stored via shared_ptr to avoid deep copies when the same array is
 //  returned through multiple evaluation paths.
+//
+//  Calling data() on a Measurement-backed Value auto-converts it to an
+//  Independent DataArray so that the unified mutation API works seamlessly.
 
 class REL_VALUE_API Value
 {
+public:
+    // =====================================================================
+    //  FlatData<T> — typed flat pointer + optional owning storage
+    // =====================================================================
+    //
+    //  Returned by flat_data<T>().  Replaces the old FlatInput<T> pattern
+    //  in operation.cc.  Measurement-backed Values are auto-converted to a
+    //  single-row DataSeries; DataArray-backed Values borrow the underlying
+    //  DataSeries when the dtype already matches, or copy+promote otherwise.
+
+    template <typename T>
+    struct FlatData {
+        std::unique_ptr<DataSeries> owner;  // owns memory when conversion needed
+        const T*                    ptr;    // contiguous T data pointer
+        Index                       stride; // T-elements per logical row
+    };
+
 public:
     // ---- construction --------------------------------------------------
 
@@ -78,6 +99,19 @@ public:
     Index     rows() const;         // Measurement = 1, DataArray = data().size()
     Index     element_count() const;
 
+    // ---- unified inspection (replaces is_measurement/is_data_array branching) -
+
+    /// Ordered names of independent variables.  Empty for Measurement.
+    std::vector<std::string> indep_names() const;
+
+    /// True when this Value holds a Dependent DataArray.
+    /// Always false for Measurement.
+    bool is_dependent() const;
+
+    /// Multi-dimension spec.  Measurement returns a single regular dim of
+    /// size 1; DataArray delegates to multi_dimension_spec().
+    MultiDimensionSpec dimension_spec() const;
+
     // ---- convenience queries -------------------------------------------
 
     bool is_scalar() const { return data_kind() == DataKind::kScalar; }
@@ -93,6 +127,42 @@ public:
 
     /// True when already canonical (no-op for canonicalized()).
     bool is_canonicalized() const;
+
+    // ---- flat data access ----------------------------------------------
+
+    /// Acquire typed flat data from this Value.
+    /// Measurement: converts to a single-row DataSeries in the target type.
+    /// DataArray: borrows the underlying DataSeries when dtype matches;
+    ///            copies + promotes otherwise.
+    template <typename T>
+    FlatData<T> flat_data() const;
+
+    // ---- data / indep_data access --------------------------------------
+
+    /// Mutable self data.  Measurement-backed Values are auto-converted to
+    /// an Independent DataArray on first access.
+    DataSeries& data();
+    /// Read-only self data.  Throws std::runtime_error for Measurement-backed
+    /// Values; callers must check is_data_array() first or use data() instead.
+    const DataSeries& data() const;
+
+    /// Mutable independent variable data by 1-based index.
+    /// Throws std::runtime_error for Measurement-backed Values.
+    DataSeries& indep_data(Index index);
+    const DataSeries& indep_data(Index index) const;
+
+    /// Mutable independent variable data by name.
+    /// Throws std::runtime_error for Measurement-backed Values.
+    DataSeries& indep_data(const std::string& name);
+    const DataSeries& indep_data(const std::string& name) const;
+
+    /// Replace self data in place.  Measurement-backed Values are
+    /// auto-converted first.  Invalidates the DataFrame cache.
+    void replace_self_data(DataSeries new_self);
+
+    /// Return a new Value with replaced self data, preserving all other
+    /// metadata (MultiDimensionSpec, DataArrayKind, independent dims).
+    Value with_self_data(DataSeries new_self) const;
 
     // ---- formatting ----------------------------------------------------
 
@@ -170,5 +240,65 @@ private:
     > Storage;
     Storage storage_;
 };
+
+}  // namespace rel
+
+// =========================================================================
+//  Value::flat_data<T>() — template implementation
+// =========================================================================
+//
+//  Defined here (in header) because it is a template that must be visible
+//  to all translation units using it.
+
+namespace rel {
+
+template <typename T>
+Value::FlatData<T> Value::flat_data() const {
+    if (is_measurement()) {
+        FlatData<T> fd;
+        const Measurement& m = as_measurement();
+
+        // Boolean has no DataSeries support; build directly in target dtype.
+        if (m.data_type() == DataType::kBoolean) {
+            fd.owner = std::unique_ptr<DataSeries>(
+                new DataSeries(DataTypeOf<T>::tag, DataShape::Scalar()));
+            fd.owner->resize(1);
+            fd.owner->template scalar_at<T>(0) =
+                static_cast<T>(m.as_scalar<bool>() ? 1 : 0);
+            fd.ptr    = fd.owner->template contiguous_data<T>();
+            fd.stride = 1;
+            return fd;
+        }
+
+        fd.owner = std::unique_ptr<DataSeries>(
+            new DataSeries(m.data_type(), m.shape()));
+        fd.owner->append(m);
+
+        DataType target = DataTypeOf<T>::tag;
+        if (m.data_type() != target) {
+            fd.owner = std::unique_ptr<DataSeries>(
+                new DataSeries(fd.owner->promoted_data_type(target)));
+        }
+        fd.ptr    = fd.owner->template contiguous_data<T>();
+        fd.stride = static_cast<Index>(fd.owner->element_count());
+        return fd;
+    }
+
+    // DataArray path
+    FlatData<T> fd;
+    const DataSeries& src = as_data_array().data();
+    if (src.data_type() == DataTypeOf<T>::tag) {
+        // borrow directly — no copy
+        fd.ptr    = src.contiguous_data<T>();
+        fd.stride = static_cast<Index>(src.element_count());
+    } else {
+        DataType target = DataTypeOf<T>::tag;
+        fd.owner = std::unique_ptr<DataSeries>(
+            new DataSeries(src.promoted_data_type(target)));
+        fd.ptr    = fd.owner->template contiguous_data<T>();
+        fd.stride = static_cast<Index>(fd.owner->element_count());
+    }
+    return fd;
+}
 
 }  // namespace rel
