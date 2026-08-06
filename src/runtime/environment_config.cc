@@ -1,4 +1,4 @@
-#include "eval/environment_config.h"
+#include "environment_config.h"
 
 #include <fstream>
 #include <stdexcept>

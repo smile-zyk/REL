@@ -1,8 +1,8 @@
 #pragma once
 
-#include "ast/expr.h"
-#include "eval/error.h"
-#include "scanner/token.h"
+#include "expr.h"
+#include "error.h"
+#include "token.h"
 
 #include <string>
 #include <vector>

@@ -1,9 +1,9 @@
 ﻿// Evaluator sweep/matrix tests -> uses eval for concise test setup.
 
-#include "eval/evaluator.h"
+#include "evaluator.h"
 #include "rel.h"
 
-#include "ast/expr.h"
+#include "expr.h"
 #include "data_array.h"
 #include "data_series.h"
 #include "measurement.h"

@@ -1,6 +1,6 @@
-#include "ast/ast_printer.h"
-#include "parser/parser.h"
-#include "scanner/scanner.h"
+#include "ast_printer.h"
+#include "parser.h"
+#include "scanner.h"
 
 #include <gtest/gtest.h>
 

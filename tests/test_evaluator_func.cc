@@ -1,7 +1,7 @@
 // Custom function tests: registration, default parameter slots, dispatch.
 
 #include "rel.h"
-#include "eval/environment.h"
+#include "environment.h"
 
 #include "measurement.h"
 

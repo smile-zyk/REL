@@ -1,7 +1,7 @@
 // Function plugin tests: load a plugin DLL, call its registered functions.
 
 #include "rel.h"
-#include "eval/environment.h"
+#include "environment.h"
 
 #include "measurement.h"
 

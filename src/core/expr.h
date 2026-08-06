@@ -1,6 +1,6 @@
 #pragma once
 
-#include "scanner/token.h"
+#include "token.h"
 
 #include <memory>
 #include <string>

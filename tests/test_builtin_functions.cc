@@ -2,7 +2,7 @@
 // variables) and the math library (sin, cos, tan, log, ln, log10).
 
 #include "rel.h"
-#include "eval/environment.h"
+#include "environment.h"
 
 #include "data_array.h"
 #include "data_series.h"

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ast/expr.h"
-#include "eval/environment.h"
+#include "expr.h"
+#include "environment.h"
 #include "value.h"
 
 #include <string>
@@ -73,6 +73,11 @@ private:
     /// Throws std::runtime_error when the callee is neither a matrix-like
     /// value nor a registered function.
     rel::Value eval_matrix_index(const CallExpr& expr);
+
+    /// Resolve a reference (single identifier, dotted path, DDot) into a
+    /// Value using Environment lookups and Dataset traversal.
+    rel::Value ResolveReference(
+        const std::vector<RefSegment>& segments) const;
 
     Environment& env_;
     rel::Value result_;

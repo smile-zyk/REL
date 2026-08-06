@@ -1,10 +1,10 @@
 ﻿// Evaluator step-1 tests: literals and boolean expressions.
 
-#include "eval/evaluator.h"
-#include "eval/environment.h"
+#include "evaluator.h"
+#include "environment.h"
 #include "rel.h"
 
-#include "ast/expr.h"
+#include "expr.h"
 
 #include "data_array.h"
 #include "measurement.h"

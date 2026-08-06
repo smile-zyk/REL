@@ -1,4 +1,4 @@
-#include "ast/ast_printer.h"
+#include "ast_printer.h"
 
 #include <sstream>
 

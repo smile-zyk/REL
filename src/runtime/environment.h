@@ -5,7 +5,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "ast/expr.h"
 #include "value.h"  // rel::Value
 #include "dataset.h"
 #include "environment_config.h"
@@ -32,10 +31,8 @@ extern FunctionLibrary kMathLibrary;
 //    - LoadFromConfig() loads datasets/plugins globally, not per-env.
 //    - Define() rejects names that collide with builtin constants.
 //
-//  ResolveReference() converts a parsed ReferenceExpr's segments into
-//  a Value by walking the Dataset tree or looking up variables/constants.
 
-class Environment
+class REL_VALUE_API Environment
 {
 public:
     Environment() = default;
@@ -124,18 +121,14 @@ public:
     /// Unregisters the functions the plugin registered, then releases the library.
     static void UnloadFunctionPlugin(LoadedPlugin* plugin);
 
-    // ---- reference resolution ---------------------------------------------
+    // ---- direct lookups (AST-free) ----------------------------------------
 
-    /// Convert parsed reference segments into a Value.
-    ///
-    /// Single-segment: user variables → builtin constants → default dataset
-    ///                 unique-name shortcut.
-    /// Two-segment DDot: dataset..variable (unique across that dataset).
-    /// Two-or-more Dot:  the last segment is the variable name,
-    ///                    the second-to-last is the block name,
-    ///                    all preceding segments form the group path.
-    ///                    First segment may optionally be a dataset name.
-    rel::Value ResolveReference(const std::vector<RefSegment>& segments) const;
+    /// Look up a name in user variables, then builtin constants.
+    /// Returns nullptr when not found in either.
+    const rel::Value* LookupVariableOrConstant(const std::string& name) const;
+
+    /// Find a registered Dataset by name, or nullptr if not found.
+    static xdataset::Dataset* FindDataset(const std::string& name);
 
 private:
     std::unordered_map<std::string, rel::Value> variables_;

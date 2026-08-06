@@ -1,9 +1,9 @@
 #include "rel.h"
 
-#include "eval/environment.h"
-#include "eval/evaluator.h"
-#include "parser/parser.h"
-#include "scanner/scanner.h"
+#include "environment.h"
+#include "evaluator.h"
+#include "parser.h"
+#include "scanner.h"
 
 #include <stdexcept>
 

@@ -5,8 +5,8 @@
 // callback.  Plugins only need the header-only function.h (no rel_core
 // link) plus the xdataset library for rel::Value.
 
-#include "eval/rel_plugin.h"
-#include "eval/function.h"
+#include "rel_plugin.h"
+#include "function.h"
 
 #include <vector>
 

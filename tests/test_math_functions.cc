@@ -4,7 +4,7 @@
 //  real, re, imag, im, conj, conjg, mag, phase).
 
 #include "rel.h"
-#include "eval/environment.h"
+#include "environment.h"
 
 #include "data_array.h"
 #include "data_series.h"

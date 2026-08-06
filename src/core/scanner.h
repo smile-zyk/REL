@@ -1,6 +1,6 @@
 #pragma once
 
-#include "eval/error.h"
+#include "error.h"
 #include "token.h"
 
 #include <cstddef>

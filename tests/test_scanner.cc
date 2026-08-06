@@ -1,7 +1,7 @@
 ﻿// Scanner tests powered by GoogleTest.
 
-#include "scanner/scanner.h"
-#include "scanner/token.h"
+#include "scanner.h"
+#include "token.h"
 
 #include <gtest/gtest.h>
 

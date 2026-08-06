@@ -23,43 +23,64 @@ set(BUILD_XDATASET_TEST OFF CACHE BOOL "Build xdataset unit tests" FORCE)
 set(BUILD_XDATASET_PYTHON OFF CACHE BOOL "Build the xdataset Python bindings" FORCE)
 add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
 
-# Value layer: Measurement/DataArray operators on top of xdataset storage.
-# Kept as a SHARED library so the value-level symbols can be consumed across
-# DLL boundaries (e.g. function plugins) with a single Value definition.
-add_library(rel_value SHARED
-    src/value/value.cc
-    src/value/operation.cc
-)
-target_compile_definitions(rel_value PRIVATE REL_VALUE_BUILD_DLL)
-target_include_directories(rel_value PUBLIC src src/value)
-target_link_libraries(rel_value PUBLIC xdataset)
+# =========================================================================
+#  rel_runtime (SHARED) — value layer + runtime services
+# =========================================================================
+#
+#  Everything that operates on xdataset types without touching the REL
+#  language front-end (scanner, parser, AST, evaluator).  Kept as a SHARED
+#  library so Value/Function/Environment symbols can be consumed across DLL
+#  boundaries (e.g. function plugins) with a single definition per type.
+#
+#  Contents:
+#    value/              Value, Operation  (was rel_value)
+#    eval/environment*   Environment, dataset/variable/function registries
+#    eval/rel_plugin     dynamic library loader
+#    eval/builtin/*      builtin function libraries
+#    eval/function.h     Function / FunctionLibrary (header-only)
 
-# Core library: scanner, parser, AST, evaluator (linked by both the CLI and
-# the test executable).
-add_library(rel_core STATIC
-    src/scanner/token.cc
-    src/scanner/scanner.cc
-    src/ast/expr.cc
-    src/ast/ast_printer.cc
-    src/parser/parser.cc
-    src/eval/environment.cc
-    src/eval/environment_config.cc
-    src/eval/error.cc
-    src/eval/evaluator.cc
-    src/eval/builtin/builtin_library.cc
-    src/eval/builtin/math_library.cc
-    src/eval/rel_plugin.cc
-    src/rel.cc
+add_library(rel_runtime SHARED
+    src/runtime/value.cc
+    src/runtime/operation.cc
+    src/runtime/environment.cc
+    src/runtime/environment_config.cc
+    src/runtime/rel_plugin.cc
+    src/runtime/builtin_library.cc
+    src/runtime/math_library.cc
 )
-target_include_directories(rel_core PUBLIC src)
-target_link_libraries(rel_core PUBLIC xdataset rel_value)
+target_compile_definitions(rel_runtime PRIVATE REL_VALUE_BUILD_DLL)
+target_include_directories(rel_runtime PUBLIC src/runtime)
+target_link_libraries(rel_runtime PUBLIC xdataset)
 
 # Plugin loader needs dlopen on Linux.
 if(UNIX AND NOT APPLE)
-    target_link_libraries(rel_core PUBLIC ${CMAKE_DL_LIBS})
+    target_link_libraries(rel_runtime PUBLIC ${CMAKE_DL_LIBS})
 endif()
 
-# CLI driver: REPL + file mode.
+# =========================================================================
+#  rel_core (STATIC) — REL language front-end + interpreter
+# =========================================================================
+#
+#  Scanner, parser, AST, and evaluator.  Depends on rel_runtime for Value
+#  types and Environment services.
+
+add_library(rel_core STATIC
+    src/core/token.cc
+    src/core/scanner.cc
+    src/core/expr.cc
+    src/core/ast_printer.cc
+    src/core/parser.cc
+    src/core/error.cc
+    src/core/evaluator.cc
+    src/core/rel.cc
+)
+target_include_directories(rel_core PUBLIC src/core src/runtime)
+target_link_libraries(rel_core PUBLIC xdataset rel_runtime)
+
+# =========================================================================
+#  rel (EXECUTABLE) — CLI driver: REPL + file mode
+# =========================================================================
+
 add_executable(rel src/main.cc)
 target_link_libraries(rel PRIVATE rel_core)
 
@@ -72,14 +93,14 @@ elseif(UNIX)
     target_link_libraries(rel PRIVATE Readline::Readline)
 endif()
 
-# Copy xdataset DLL and its dependencies next to rel.exe on Windows.
+# Copy xdataset DLL, rel_runtime DLL and its dependencies next to rel.exe.
 if(WIN32)
     add_custom_command(TARGET rel POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:xdataset>"
             "$<TARGET_FILE_DIR:rel>"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:rel_value>"
+            "$<TARGET_FILE:rel_runtime>"
             "$<TARGET_FILE_DIR:rel>"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-mingw-dynamic/debug/bin/libunits.dll"
@@ -94,12 +115,16 @@ if(WIN32)
     endif()
 endif()
 
-# ---- Function plugin (sample) ------------------------------------------
-# A plugin only needs the header-only function.h (include dir `src`) and the
-# rel_value library (for xdataset::Value); it does not link against rel_core.
+# =========================================================================
+#  Function plugin (sample)
+# =========================================================================
+#
+#  A plugin only needs rel_runtime (function.h is header-only); it does not
+#  link against rel_core.
+
 add_library(rel_plugin_sample SHARED plugins/sample/rel_plugin_sample.cc)
-target_include_directories(rel_plugin_sample PRIVATE src src/value)
-target_link_libraries(rel_plugin_sample PRIVATE rel_value)
+target_include_directories(rel_plugin_sample PRIVATE src/runtime)
+target_link_libraries(rel_plugin_sample PRIVATE rel_runtime)
 
 # ---- Tests ---------------------------------------------------------------
 # Single test executable (same pattern as xdataset_test): all test sources are

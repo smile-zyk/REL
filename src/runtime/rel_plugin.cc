@@ -10,8 +10,8 @@
 
 #include "rel_plugin.h"
 
-#include "eval/environment.h"
-#include "eval/function.h"
+#include "environment.h"
+#include "function.h"
 
 #include <string>
 #include <vector>

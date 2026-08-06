@@ -12,7 +12,7 @@
 //   - Complex -> the result is Complex
 // String cells have no meaningful math mapping and are rejected.
 
-#include "eval/function.h"
+#include "function.h"
 
 #include <cmath>
 #include <complex>

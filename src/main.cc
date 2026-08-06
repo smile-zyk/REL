@@ -5,11 +5,11 @@
 //     evaluate it, and print the result.
 //   - File mode (one argument): evaluate each non-empty line from a file.
 
-#include "eval/environment.h"
-#include "eval/evaluator.h"
+#include "environment.h"
+#include "evaluator.h"
 #include "rel.h"
-#include "parser/parser.h"
-#include "scanner/scanner.h"
+#include "parser.h"
+#include "scanner.h"
 
 #ifdef _WIN32
 // No readline on Windows yet — fall back to std::getline.

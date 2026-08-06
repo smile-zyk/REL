@@ -207,13 +207,100 @@ void Evaluator::visit_reference(const ReferenceExpr& expr)
 {
     try
     {
-        result_ = env_.ResolveReference(expr.segments);
+        result_ = ResolveReference(expr.segments);
     }
     catch (const std::exception& e)
     {
         throw std::runtime_error(
             std::string("line ") + std::to_string(expr.line) +
             ", column " + std::to_string(expr.column) + ": " + e.what());
+    }
+}
+
+// =========================================================================
+//  ResolveReference — AST-aware reference resolution (formerly in Environment)
+// =========================================================================
+
+rel::Value Evaluator::ResolveReference(
+    const std::vector<RefSegment>& segments) const
+{
+    if (segments.empty())
+        return rel::Value();
+
+    // ---- 1 segment: variable lookup ---------------------------------
+    if (segments.size() == 1)
+    {
+        const std::string& name = segments[0].name;
+
+        // 1a) User variable / builtin constant
+        const rel::Value* c = env_.LookupVariableOrConstant(name);
+        if (c)
+            return *c;
+
+        // 1b) Unique lookup in default dataset
+        xdataset::Dataset* ds = Environment::DefaultDataset();
+        if (ds && ds->HasUniqueDataArray(name))
+        {
+            return rel::Value(ds->GetDataArray(name));
+        }
+
+        throw std::runtime_error(
+            "undefined identifier '" + name + "'");
+    }
+
+    // ---- 2 segments DDot: dataset..unique_variable ------------------
+    if (segments.size() == 2 && segments[1].sep == RefSeparator::DDot)
+    {
+        xdataset::Dataset* ds = Environment::FindDataset(segments[0].name);
+        if (!ds)
+        {
+            throw std::runtime_error(
+                "unknown Dataset '" + segments[0].name + "'");
+        }
+
+        return rel::Value(ds->GetDataArray(segments[1].name));
+    }
+
+    // ---- ≥2 segments Dot: path navigation ---------------------------
+    {
+        // Determine which Dataset to use.
+        xdataset::Dataset* ds = Environment::DefaultDataset();
+        std::size_t start = 0;
+
+        xdataset::Dataset* explicit_ds =
+            Environment::FindDataset(segments[0].name);
+        if (explicit_ds)
+        {
+            ds = explicit_ds;
+            start = 1;
+        }
+
+        if (!ds)
+        {
+            throw std::runtime_error(
+                "no default Dataset set; cannot resolve '" +
+                segments[0].name + "'");
+        }
+
+        // segments[start .. n-3]: group path (join with '/')
+        // segments[n-2]:         block name
+        // segments[n-1]:         variable name
+        if (segments.size() < start + 2)
+        {
+            throw std::runtime_error(
+                "reference needs at least block.variable after path");
+        }
+
+        std::ostringstream path;
+        for (std::size_t i = start; i + 2 < segments.size(); ++i)
+        {
+            if (i > start) path << "/";
+            path << segments[i].name;
+        }
+        if (path.tellp() > 0) path << "/";
+        path << segments[segments.size() - 2].name;
+
+        return rel::Value(ds->GetDataArray(path.str(), segments.back().name));
     }
 }
 

@@ -5,8 +5,9 @@
 // as an Independent DataArray holding one String Scalar row per entry.
 // what()/indep()/min()/max()/output() work on Values.
 
-#include "rel.h"
-#include "eval/environment.h"
+#include "function.h"
+#include "environment.h"
+#include "value.h"
 
 #include <cstdlib>
 #include <sstream>
@@ -132,12 +133,11 @@ namespace rel
                         rows.push_back("Kind: " + std::string(
                             da.data_kind() == xdataset::DataArrayKind::kDependent
                                 ? "Dependent" : "Independent"));
-                        rows.push_back("Dimension: " + FormatDimensionSpec(da.multi_dimension_spec()));
-                        rows.push_back("Data Shape: " + FormatDataShape(da.data().data_kind(),
-                                                                        da.data().data_shape()));
-                        rows.push_back("Data Type: " + FormatDataType(da.data().data_type()));
+                        rows.push_back("Dimension: " + da.multi_dimension_spec().to_string());
+                        rows.push_back("Data Shape: " + da.data().data_shape().to_string());
+                        rows.push_back("Data Type: " + std::string(xdataset::DataTypeToString(da.data().data_type())));
                         if (da.data().unit().has_dimension())
-                            rows.push_back("Unit: " + FormatUnit(da.data().unit()));
+                            rows.push_back("Unit: " + da.data().unit().to_string());
                     }
                     else
                     {
@@ -145,10 +145,10 @@ namespace rel
                         rows.push_back("Dependency: []");
                         rows.push_back("Kind: Independent");
                         rows.push_back("Dimension: [1]");
-                        rows.push_back("Data Shape: " + FormatDataShape(m.data_kind(), m.shape()));
-                        rows.push_back("Data Type: " + FormatDataType(m.data_type()));
+                        rows.push_back("Data Shape: " + m.shape().to_string());
+                        rows.push_back("Data Type: " + std::string(xdataset::DataTypeToString(m.data_type())));
                         if (m.unit().has_dimension())
-                            rows.push_back("Unit: " + FormatUnit(m.unit()));
+                            rows.push_back("Unit: " + m.unit().to_string());
                     }
 
                     return rel::Value::ArrayString(rows);
