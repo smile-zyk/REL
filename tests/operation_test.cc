@@ -7,8 +7,9 @@
 #include "operation/operator.h"
 #include "block_fixtures.h"
 
+#include <complex>
 #include <gtest/gtest.h>
-
+#include <string>
 #include <vector>
 
 using xdataset::Block;
