@@ -189,6 +189,49 @@ inline Value ExecUnaryT(const ExecContextInfo& info,
     }
 }
 
+// =========================================================================
+//  ExecUnaryCT -- unary entry point with input/output type change
+//  (used for abs/real/imag/phase where complex input produces real output)
+// =========================================================================
+
+template <typename In, typename Out>
+inline Value ExecUnaryCT(const ExecContextInfo& info,
+                          const std::vector<Value>& ops,
+                          Out (*op)(In))
+{
+    bool is_meas = ops[0].is_measurement();
+
+    DataShape op_shape = ops[0].data_shape();
+    ShapeBroadcastPlan shape_plan = ShapeBroadcastPlan::Make({op_shape}, info.shape);
+
+    auto in = ops[0].flat_data<In>();
+    const In* ptr = in.ptr;
+    Index stride = in.stride;
+
+    auto out_ds = std::unique_ptr<DataSeries>(
+        new DataSeries(DataTypeOf<Out>::tag, info.shape));
+    out_ds->set_unit(info.unit);
+    out_ds->resize(static_cast<std::size_t>(info.rows));
+    Out* out = out_ds->mutable_contiguous_data<Out>();
+
+    Index out_stride = shape_plan.result_elements;
+    for (Index i = 0; i < info.rows; ++i) {
+        Index i_off = i * stride;
+        Index o_off = i * out_stride;
+        for (Index j = 0; j < shape_plan.result_elements; ++j)
+            out[o_off + j] = op(ptr[i_off + j]);
+    }
+
+    if (is_meas) {
+        return Value(out_ds->measurement_at(0));
+    } else {
+        const DataArray& src = ops[0].as_data_array();
+        auto da = std::make_shared<DataArray>(src.clone());
+        da->set_data(std::move(*out_ds));
+        return Value(da);
+    }
+}
+
 }  // namespace operation
 }  // namespace rel
 

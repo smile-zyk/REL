@@ -1,10 +1,9 @@
 #pragma once
 
+#include "rel_runtime_api.h"
 #include "value.h"  // rel::Value
 
 #include <functional>
-#include <sstream>
-#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -25,19 +24,16 @@ namespace rel
     //  with defaults) is the caller's job — the Evaluator queries
     //  HasDefault()/DefaultValue() per slot and passes the fully-resolved
     //  argument list to Invoke().
-    //
-    //  Everything in this header is inline so that external function plugins
-    //  can construct Function objects without linking against rel_core.
 
     /// Native implementation of a registered REL function.
-    typedef std::function<rel::Value(const std::vector<rel::Value>&)> NativeFunction;
+    typedef std::function<Value(const std::vector<Value>&)> NativeFunction;
 
     /// One parameter of a function; may carry a default value.
     struct FunctionParam
     {
         std::string name;
-        bool has_default = false;
-        rel::Value default_value;
+        bool        has_default = false;
+        Value       default_value;
 
         FunctionParam() = default;
 
@@ -47,7 +43,7 @@ namespace rel
         {}
 
         /// Parameter with a fixed default value.
-        FunctionParam(std::string name_value, rel::Value default_value_value)
+        FunctionParam(std::string name_value, Value default_value_value)
             : name(std::move(name_value))
             , has_default(true)
             , default_value(std::move(default_value_value))
@@ -61,7 +57,7 @@ namespace rel
     }
 
     /// Convenience: a parameter with a default value.
-    inline FunctionParam Param(std::string name, rel::Value default_value)
+    inline FunctionParam Param(std::string name, Value default_value)
     {
         return FunctionParam(std::move(name), std::move(default_value));
     }
@@ -80,9 +76,9 @@ namespace rel
             , impl_(std::move(impl_value))
         {}
 
-        const std::string& name() const { return name_; }
+        const std::string&              name()   const { return name_; }
         const std::vector<FunctionParam>& params() const { return params_; }
-        const NativeFunction& impl() const { return impl_; }
+        const NativeFunction&           impl()   const { return impl_; }
 
         /// Number of declared parameters.
         std::size_t arity() const { return params_.size(); }
@@ -96,14 +92,7 @@ namespace rel
         /// Default value of the parameter at `index`.
         /// Throws std::out_of_range when `index` is out of range, and
         /// std::logic_error when the parameter has no default.
-        const rel::Value& DefaultValue(std::size_t index) const
-        {
-            if (index >= params_.size())
-                throw std::out_of_range("Function::DefaultValue: parameter index out of range");
-            if (!params_[index].has_default)
-                throw std::logic_error("Function::DefaultValue: parameter has no default value");
-            return params_[index].default_value;
-        }
+        REL_RUNTIME_API const Value& DefaultValue(std::size_t index) const;
 
         /// Invoke the implementation with the fully-resolved argument list
         /// (defaults filled in, in declaration order).
@@ -111,26 +100,12 @@ namespace rel
         /// Throws std::runtime_error when:
         ///   - the argument count exceeds the declared arity,
         ///   - the function has no implementation.
-        rel::Value Invoke(const std::vector<rel::Value>& args) const
-        {
-            if (!impl_)
-                throw std::runtime_error("function '" + name_ + "' has no implementation");
-
-            if (args.size() > params_.size())
-            {
-                std::ostringstream oss;
-                oss << "function '" << name_ << "' expects at most " << params_.size()
-                    << " argument(s), got " << args.size();
-                throw std::runtime_error(oss.str());
-            }
-
-            return impl_(args);
-        }
+        REL_RUNTIME_API Value Invoke(const std::vector<Value>& args) const;
 
     private:
-        std::string name_;
+        std::string                name_;
         std::vector<FunctionParam> params_;
-        NativeFunction impl_;
+        NativeFunction             impl_;
     };
 
     /// A named collection of functions, registerable in one call
@@ -144,11 +119,11 @@ namespace rel
             : name_(std::move(name))
         {}
 
-        const std::string& name() const { return name_; }
+        const std::string&            name()      const { return name_; }
         const std::vector<Function>& functions() const { return functions_; }
 
-        std::size_t size() const { return functions_.size(); }
-        bool empty() const { return functions_.empty(); }
+        std::size_t size()  const { return functions_.size(); }
+        bool        empty() const { return functions_.empty(); }
 
         /// Append one function.
         FunctionLibrary& Add(Function fn)
@@ -166,8 +141,9 @@ namespace rel
         }
 
     private:
-        std::string name_;
+        std::string           name_;
         std::vector<Function> functions_;
     };
 
-} // namespace rel
+}  // namespace rel
+
