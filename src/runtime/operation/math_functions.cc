@@ -19,7 +19,7 @@ namespace operation {
 using namespace xdataset;
 
 // =========================================================================
-//  Element-wise math ops (double path â€” used for Integer and Real)
+//  Element-wise math ops (double path â€?used for Integer and Real)
 // =========================================================================
 
 static inline double op_sin_d  (double x) { return std::sin(x); }
@@ -117,7 +117,7 @@ static Unit DeriveUnitFirst(const std::vector<Unit>& units) {
 }
 
 // =========================================================================
-//  Execute callbacks â€” standard math (dtype dispatch: Real â†’ Complex)
+//  Execute callbacks â€?standard math (dtype dispatch: Real â†?Complex)
 // =========================================================================
 
 Value ExecuteSin(const ExecContextInfo& info,
@@ -325,7 +325,7 @@ Value ExecuteSqr(const ExecContextInfo& info,
 }
 
 // =========================================================================
-//  Execute callbacks â€” abs (output is always Real)
+//  Execute callbacks â€?abs (output is always Real)
 // =========================================================================
 
 Value ExecuteAbs(const ExecContextInfo& info,
@@ -335,7 +335,7 @@ Value ExecuteAbs(const ExecContextInfo& info,
             return ExecUnaryT<double>(info, ops,
                 static_cast<double(*)(double)>(std::abs));
         case DataType::kComplex: {
-            // abs(complex) â†’ real; do a manual unary loop with type change
+            // abs(complex) â†?real; do a manual unary loop with type change
             bool is_meas = ops[0].is_measurement();
             DataShape op_shape = ops[0].data_shape();
             ShapeBroadcastPlan shape_plan = ShapeBroadcastPlan::Make({op_shape}, info.shape);
@@ -359,7 +359,7 @@ Value ExecuteAbs(const ExecContextInfo& info,
             }
 
             if (is_meas)
-                return Value(MakeMeasFromFlat(out, info.shape, info.unit));
+                return Value(out_ds->measurement_at(0));
             {
                 const DataArray& src = ops[0].as_data_array();
                 auto da = std::make_shared<DataArray>(src.clone());
@@ -373,7 +373,7 @@ Value ExecuteAbs(const ExecContextInfo& info,
 }
 
 // =========================================================================
-//  Execute callbacks â€” sgn
+//  Execute callbacks â€?sgn
 // =========================================================================
 
 Value ExecuteSgn(const ExecContextInfo& info,
@@ -389,7 +389,7 @@ Value ExecuteSgn(const ExecContextInfo& info,
 }
 
 // =========================================================================
-//  Execute callbacks â€” real / imag (output always Real)
+//  Execute callbacks â€?real / imag (output always Real)
 // =========================================================================
 
 Value ExecuteReal(const ExecContextInfo& info,
@@ -421,7 +421,7 @@ Value ExecuteReal(const ExecContextInfo& info,
             }
 
             if (is_meas)
-                return Value(MakeMeasFromFlat(out, info.shape, info.unit));
+                return Value(out_ds->measurement_at(0));
             {
                 const DataArray& src = ops[0].as_data_array();
                 auto da = std::make_shared<DataArray>(src.clone());
@@ -463,7 +463,7 @@ Value ExecuteImag(const ExecContextInfo& info,
             }
 
             if (is_meas)
-                return Value(MakeMeasFromFlat(out, info.shape, info.unit));
+                return Value(out_ds->measurement_at(0));
             {
                 const DataArray& src = ops[0].as_data_array();
                 auto da = std::make_shared<DataArray>(src.clone());
@@ -477,7 +477,7 @@ Value ExecuteImag(const ExecContextInfo& info,
 }
 
 // =========================================================================
-//  Execute callbacks â€” conj
+//  Execute callbacks â€?conj
 // =========================================================================
 
 Value ExecuteConj(const ExecContextInfo& info,
@@ -495,7 +495,7 @@ Value ExecuteConj(const ExecContextInfo& info,
 }
 
 // =========================================================================
-//  Execute callbacks â€” phase
+//  Execute callbacks â€?phase
 // =========================================================================
 
 Value ExecutePhase(const ExecContextInfo& info,
@@ -527,7 +527,7 @@ Value ExecutePhase(const ExecContextInfo& info,
             }
 
             if (is_meas)
-                return Value(MakeMeasFromFlat(out, info.shape, info.unit));
+                return Value(out_ds->measurement_at(0));
             {
                 const DataArray& src = ops[0].as_data_array();
                 auto da = std::make_shared<DataArray>(src.clone());
@@ -639,7 +639,7 @@ const OpTraits kOpAbs = {
     DeriveDtypeMath, DeriveUnitFirst, ExecuteAbs
 };
 
-// real / imag â€” complexâ†’real downcast
+// real / imag â€?complexâ†’real downcast
 const OpTraits kOpReal = {
     1, DeriveShapeBroadcast, DeriveRowsBroadcast,
     DeriveDtypeMathRealDown, DeriveUnitFirst, ExecuteReal
@@ -655,14 +655,14 @@ const OpTraits kOpPhase = {
     DeriveDtypeMathRealDown, DeriveUnitFirst, ExecutePhase
 };
 
-// conj â€” complexâ†’complex, realâ†’real, intâ†’int (type-preserving)
+// conj â€?complexâ†’complex, realâ†’real, intâ†’int (type-preserving)
 const OpTraits kOpConj = {
     1, DeriveShapeBroadcast, DeriveRowsBroadcast,
     DeriveDtypeMathConj, DeriveUnitFirst, ExecuteConj
 };
 
 // =========================================================================
-//  Binary math â€” element ops
+//  Binary math â€?element ops
 // =========================================================================
 
 static inline double op_atan2_d(double y, double x) { return std::atan2(y, x); }
@@ -671,7 +671,7 @@ static inline double op_root_d(double x, double n)  { return std::pow(x, 1.0 / n
 static inline C      op_root_c(C x, C n)             { return std::pow(x, C(1.0) / n); }
 
 // =========================================================================
-//  Binary math â€” derive callbacks
+//  Binary math â€?derive callbacks
 // =========================================================================
 
 static DataType DeriveDtypeAtan2(const std::vector<DataType>& dtypes) {
@@ -707,7 +707,7 @@ static Unit DeriveUnitRoot(const std::vector<Unit>& units) {
 }
 
 // =========================================================================
-//  Binary math â€” execute callbacks
+//  Binary math â€?execute callbacks
 // =========================================================================
 
 Value ExecuteAtan2(const ExecContextInfo& info,
@@ -728,7 +728,7 @@ Value ExecuteRoot(const ExecContextInfo& info,
 }
 
 // =========================================================================
-//  Binary math â€” OpTraits
+//  Binary math â€?OpTraits
 // =========================================================================
 
 const OpTraits kOpAtan2 = {

@@ -77,36 +77,11 @@ inline void ExecUnaryLoop(Index rows,
 }
 
 // =========================================================================
-//  Output helpers
+//  ExecBinaryArithT -- binary arithmetic entry point
 // =========================================================================
-
-/// Reconstruct a Measurement from a flat typed buffer and a DataShape.
-template <typename T>
-inline Measurement MakeMeasFromFlat(const T* data,
-                                     const DataShape& shape,
-                                     const Unit& unit) {
-    DataKind dk = shape.kind();
-
-    if (dk == DataKind::kScalar)
-        return Measurement::Scalar(data[0], unit);
-
-    if (dk == DataKind::kVector) {
-        Index w = shape[0];
-        Eigen::Matrix<T, 1, Eigen::Dynamic> v(w);
-        for (Index i = 0; i < w; ++i)
-            v(i) = data[i];
-        return Measurement::Vector(v, unit);
-    }
-
-    // Matrix
-    Index r = shape[0];
-    Index c = shape[1];
-    Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> m(r, c);
-    for (Index i = 0; i < r; ++i)
-        for (Index j = 0; j < c; ++j)
-            m(i, j) = data[i * c + j];
-    return Measurement::Matrix(m, unit);
-}
+//
+//  Extract operand metadata, compute broadcast plans, flatten inputs,
+//  allocate output, run the unified loop, and convert back to Value.
 
 /// Binary ops: when the output is a DataArray, choose which operand's
 /// metadata (MultiDimensionSpec, DataArrayKind) to inherit.
@@ -117,13 +92,6 @@ inline const DataArray* SelectOutputSource(bool l_meas, bool r_meas,
     if (!l_meas && r_meas) return &ops[0].as_data_array();
     return nullptr;
 }
-
-// =========================================================================
-//  ExecBinaryArithT -- binary arithmetic entry point
-// =========================================================================
-//
-//  Extract operand metadata, compute broadcast plans, flatten inputs,
-//  allocate output, run the unified loop, and convert back to Value.
 
 template <typename T>
 inline Value ExecBinaryArithT(const ExecContextInfo& info,
@@ -163,7 +131,7 @@ inline Value ExecBinaryArithT(const ExecContextInfo& info,
                    l_ptr, l_stride, r_ptr, r_stride, out, elem_op);
 
     if (l_meas && r_meas) {
-        return Value(MakeMeasFromFlat(out, info.shape, info.unit));
+        return Value(out_ds->measurement_at(0));
     } else {
         auto da = std::make_shared<DataArray>(out_src->clone());
         da->set_data(std::move(*out_ds));
@@ -198,7 +166,7 @@ inline Value ExecUnaryT(const ExecContextInfo& info,
     ExecUnaryLoop(info.rows, shape_plan, ptr, stride, out, op);
 
     if (is_meas) {
-        return Value(MakeMeasFromFlat(out, info.shape, info.unit));
+        return Value(out_ds->measurement_at(0));
     } else {
         const DataArray& src = ops[0].as_data_array();
         auto da = std::make_shared<DataArray>(src.clone());
