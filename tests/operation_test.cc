@@ -4,7 +4,7 @@
 //
 //  Tests for the public Operation* API.
 
-#include "operation.h"
+#include "operation/operator.h"
 #include "block_fixtures.h"
 
 #include <gtest/gtest.h>
@@ -29,32 +29,32 @@ using xdataset::MatXcd;
 using xdataset::MatXs;
 using xdataset::block_fixtures::MakeBaseCreateInfo;
 
-using rel::OperationAdd;
-using rel::OperationSub;
-using rel::OperationMul;
-using rel::OperationDiv;
-using rel::OperationMod;
-using rel::OperationPow;
-using rel::OperationNegate;
-using rel::OperationNot;
-using rel::OperationBitNot;
-using rel::OperationEq;
-using rel::OperationNeq;
-using rel::OperationLt;
-using rel::OperationGt;
-using rel::OperationLe;
-using rel::OperationGe;
-using rel::OperationAnd;
-using rel::OperationOr;
-using rel::OperationBitAnd;
-using rel::OperationBitOr;
-using rel::OperationBitXor;
-using rel::OperationShl;
-using rel::OperationShr;
-using rel::OperationConditional;
-using rel::OperationIf;
-using rel::OperationMatrix;
-using rel::OperationSweep;
+using rel::operation::OperationAdd;
+using rel::operation::OperationSub;
+using rel::operation::OperationMul;
+using rel::operation::OperationDiv;
+using rel::operation::OperationMod;
+using rel::operation::OperationPow;
+using rel::operation::OperationNegate;
+using rel::operation::OperationNot;
+using rel::operation::OperationBitNot;
+using rel::operation::OperationEq;
+using rel::operation::OperationNeq;
+using rel::operation::OperationLt;
+using rel::operation::OperationGt;
+using rel::operation::OperationLe;
+using rel::operation::OperationGe;
+using rel::operation::OperationAnd;
+using rel::operation::OperationOr;
+using rel::operation::OperationBitAnd;
+using rel::operation::OperationBitOr;
+using rel::operation::OperationBitXor;
+using rel::operation::OperationShl;
+using rel::operation::OperationShr;
+using rel::operation::OperationConditional;
+using rel::operation::OperationIf;
+using rel::operation::OperationMatrix;
+using rel::operation::OperationSweep;
 
 #define EXPECT_MEAS_SCALAR_DOUBLE(val, expected) do { \
     ASSERT_TRUE((val).is_measurement()); \

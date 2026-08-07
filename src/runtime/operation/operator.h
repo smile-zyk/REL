@@ -1,4 +1,4 @@
-﻿#ifndef REL_RUNTIME_OPERATION_H
+#ifndef REL_RUNTIME_OPERATION_H
 #define REL_RUNTIME_OPERATION_H
 
 #include "rel_runtime_api.h"
@@ -12,10 +12,11 @@ namespace rel {
 using namespace xdataset;
 
 // =========================================================================
-//  Value operators
+//  Value operators (must be in namespace rel for ADL)
 // =========================================================================
 //
-//  These operators delegate to the corresponding OperationXxx kernels below.
+//  These operators delegate to the corresponding rel::operation::OperationXxx
+//  kernels below.
 
 // -- Value: arithmetic / comparison / logical / bitwise / shift / unary / pow
 REL_RUNTIME_API Value operator+(const Value& lhs, const Value& rhs);
@@ -45,6 +46,11 @@ REL_RUNTIME_API Value operator!(const Value& v);
 REL_RUNTIME_API Value operator~(const Value& v);
 
 REL_RUNTIME_API Value pow(const Value& base, const Value& exponent);
+
+}  // namespace rel
+
+namespace rel {
+namespace operation {
 
 // =========================================================================
 //  Operation kernels (delegate targets for the operators above)
@@ -106,15 +112,15 @@ REL_RUNTIME_API Value OperationOr(const Value& lhs, const Value& rhs);
 // Ternary
 // =========================================================================
 
-/// Conditional(condition, true_value, false_value) 锟?ternary operator.
-/// condition is evaluated as logical (non-zero 锟?1, zero 锟?0).
+/// Conditional(condition, true_value, false_value) -- ternary operator.
+/// condition is evaluated as logical (non-zero -> 1, zero -> 0).
 /// For each element, if condition is 1 the result is taken from true_value,
 /// otherwise from false_value.  Supports row broadcast and shape broadcast.
 REL_RUNTIME_API Value OperationConditional(const Value& condition,
                                          const Value& true_value,
                                          const Value& false_value);
 /// If(cond0, val0, cond1, val1, ..., cond_{n-1}, val_{n-1}, else_val)
-/// 锟?multi-branch if/elseif/else.  Takes 2n+1 operands (n >= 1).
+/// -- multi-branch if/elseif/else.  Takes 2n+1 operands (n >= 1).
 /// For each element, the first branch whose condition is non-zero provides
 /// the result; if no condition matches, the final else_val is used.
 /// This generalizes Conditional to an arbitrary number of branches.
@@ -123,12 +129,13 @@ REL_RUNTIME_API Value OperationIf(const std::vector<Value>& operands);
 // Variadic generators
 // =========================================================================
 
-/// Matrix {} 锟?stack operands with row broadcast.
+/// Matrix {} -- stack operands with row broadcast.
 REL_RUNTIME_API Value OperationMatrix(const std::vector<Value>& operands);
 
-/// Sweep [] 锟?collect operands into a DataArray (one row per operand).
+/// Sweep [] -- collect operands into a DataArray (one row per operand).
 REL_RUNTIME_API Value OperationSweep(const std::vector<Value>& operands);
 
+}  // namespace operation
 }  // namespace rel
 
 #endif  // REL_RUNTIME_OPERATION_H

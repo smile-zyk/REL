@@ -1,8 +1,8 @@
-﻿// =============================================================================
+// =============================================================================
 //  REL -- Operation pipeline (derive + operate)
 // =============================================================================
 
-#include "operation_pipeline.h"
+#include "operation/pipeline.h"
 #include "data_series.h"
 #include "data_array.h"
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 namespace rel {
+namespace operation {
 
 // =========================================================================
 //  RowBroadcastPlan::Compute
@@ -265,4 +266,5 @@ Unit DeriveUnitSameDim(const std::vector<Unit>& units) {
     return res;
 }
 
+}  // namespace operation
 }  // namespace rel

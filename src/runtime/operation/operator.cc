@@ -21,8 +21,8 @@
 //  xdataset but now live in the rel_runtime library so that xdataset stays a
 //  pure storage library.
 
-#include "operation.h"
-#include "operation_pipeline.h"
+#include "operation/operator.h"
+#include "operation/pipeline.h"
 #include "data_series.h"
 #include "data_array.h"
 
@@ -40,33 +40,38 @@ namespace rel {
 //  Value operators (delegate to OperationXxx)
 // =========================================================================
 
-Value operator+(const Value& a, const Value& b) { return OperationAdd(a,b); }
-Value operator-(const Value& a, const Value& b) { return OperationSub(a,b); }
-Value operator*(const Value& a, const Value& b) { return OperationMul(a,b); }
-Value operator/(const Value& a, const Value& b) { return OperationDiv(a,b); }
-Value operator%(const Value& a, const Value& b) { return OperationMod(a,b); }
+Value operator+(const Value& a, const Value& b) { return operation::OperationAdd(a,b); }
+Value operator-(const Value& a, const Value& b) { return operation::OperationSub(a,b); }
+Value operator*(const Value& a, const Value& b) { return operation::OperationMul(a,b); }
+Value operator/(const Value& a, const Value& b) { return operation::OperationDiv(a,b); }
+Value operator%(const Value& a, const Value& b) { return operation::OperationMod(a,b); }
 
-Value operator==(const Value& a, const Value& b) { return OperationEq(a,b); }
-Value operator!=(const Value& a, const Value& b) { return OperationNeq(a,b); }
-Value operator<(const Value& a, const Value& b)  { return OperationLt(a,b); }
-Value operator>(const Value& a, const Value& b)  { return OperationGt(a,b); }
-Value operator<=(const Value& a, const Value& b) { return OperationLe(a,b); }
-Value operator>=(const Value& a, const Value& b) { return OperationGe(a,b); }
+Value operator==(const Value& a, const Value& b) { return operation::OperationEq(a,b); }
+Value operator!=(const Value& a, const Value& b) { return operation::OperationNeq(a,b); }
+Value operator<(const Value& a, const Value& b)  { return operation::OperationLt(a,b); }
+Value operator>(const Value& a, const Value& b)  { return operation::OperationGt(a,b); }
+Value operator<=(const Value& a, const Value& b) { return operation::OperationLe(a,b); }
+Value operator>=(const Value& a, const Value& b) { return operation::OperationGe(a,b); }
 
-Value operator&&(const Value& a, const Value& b) { return OperationAnd(a,b); }
-Value operator||(const Value& a, const Value& b) { return OperationOr(a,b); }
+Value operator&&(const Value& a, const Value& b) { return operation::OperationAnd(a,b); }
+Value operator||(const Value& a, const Value& b) { return operation::OperationOr(a,b); }
 
-Value operator&(const Value& a, const Value& b)  { return OperationBitAnd(a,b); }
-Value operator|(const Value& a, const Value& b)  { return OperationBitOr(a,b); }
-Value operator^(const Value& a, const Value& b)  { return OperationBitXor(a,b); }
-Value operator<<(const Value& a, const Value& b) { return OperationShl(a,b); }
-Value operator>>(const Value& a, const Value& b) { return OperationShr(a,b); }
+Value operator&(const Value& a, const Value& b)  { return operation::OperationBitAnd(a,b); }
+Value operator|(const Value& a, const Value& b)  { return operation::OperationBitOr(a,b); }
+Value operator^(const Value& a, const Value& b)  { return operation::OperationBitXor(a,b); }
+Value operator<<(const Value& a, const Value& b) { return operation::OperationShl(a,b); }
+Value operator>>(const Value& a, const Value& b) { return operation::OperationShr(a,b); }
 
-Value operator-(const Value& v) { return OperationNegate(v); }
-Value operator!(const Value& v) { return OperationNot(v); }
-Value operator~(const Value& v) { return OperationBitNot(v); }
+Value operator-(const Value& v) { return operation::OperationNegate(v); }
+Value operator!(const Value& v) { return operation::OperationNot(v); }
+Value operator~(const Value& v) { return operation::OperationBitNot(v); }
 
-Value pow(const Value& base, const Value& exp) { return OperationPow(base, exp); }
+Value pow(const Value& base, const Value& exp) { return operation::OperationPow(base, exp); }
+
+}  // namespace rel
+
+namespace rel {
+namespace operation {
 
 // =========================================================================
 //  Operator-specific Derive callbacks
@@ -2606,4 +2611,5 @@ Value OperationIf(const std::vector<Value>& ops) { return Operate(ops, kOpIf); }
 Value OperationMatrix(const std::vector<Value>& ops)     { return Operate(ops, kOpMatrix); }
 Value OperationSweep(const std::vector<Value>& ops)      { return Operate(ops, kOpSweep); }
 
+}  // namespace operation
 }  // namespace rel

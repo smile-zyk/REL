@@ -1,7 +1,7 @@
 #include "evaluator.h"
 
 #include "multi_index_selector.h"
-#include "operation.h"
+#include "operation/operator.h"
 #include "unit.h"
 
 #include <complex>
@@ -313,7 +313,7 @@ void Evaluator::visit_conditional(const ConditionalExpr& expr)
     rel::Value cond   = Evaluate(*expr.condition);
     rel::Value then_v = Evaluate(*expr.then_branch);
     rel::Value else_v = Evaluate(*expr.else_branch);
-    result_ = rel::OperationConditional(cond, then_v, else_v);
+    result_ = rel::operation::OperationConditional(cond, then_v, else_v);
 }
 
 // =========================================================================
@@ -332,7 +332,7 @@ void Evaluator::visit_if(const IfExpr& expr)
     }
     operands.push_back(Evaluate(*expr.else_value));
 
-    result_ = rel::OperationIf(operands);
+    result_ = rel::operation::OperationIf(operands);
 }
 
 // =========================================================================
@@ -480,7 +480,7 @@ void Evaluator::visit_sweep(const SweepExpr& expr)
         return;
     }
 
-    result_ = rel::OperationSweep(items);
+    result_ = rel::operation::OperationSweep(items);
 }
 
 // =========================================================================
@@ -515,7 +515,7 @@ void Evaluator::visit_matrix(const MatrixExpr& expr)
         return;
     }
 
-    result_ = rel::OperationMatrix(items);
+    result_ = rel::operation::OperationMatrix(items);
 }
 
 // =========================================================================
