@@ -38,10 +38,6 @@ namespace rel
     /// Native implementation of a registered REL function.
     typedef std::function<Value(const ArgMap&)> NativeFunction;
 
-    /// Callback that produces a default value from the already-resolved
-    /// preceding parameters (params[0] through params[index-1]).
-    typedef std::function<Value(const ArgMap& resolved_so_far)> ComputedDefaultFunc;
-
     /// One parameter of a function; may carry a default value.
     struct FunctionParam
     {
@@ -49,7 +45,7 @@ namespace rel
         bool                has_default          = false;
         bool                has_computed_default = false;
         Value               default_value;
-        ComputedDefaultFunc  computed_default;
+        NativeFunction       computed_default;
 
         FunctionParam() = default;
 
@@ -66,7 +62,7 @@ namespace rel
         {}
 
         /// Parameter whose default is computed at resolve time.
-        FunctionParam(std::string name_value, ComputedDefaultFunc computed_default_value)
+        FunctionParam(std::string name_value, NativeFunction computed_default_value)
             : name(std::move(name_value))
             , has_computed_default(true)
             , computed_default(std::move(computed_default_value))
@@ -86,7 +82,7 @@ namespace rel
     }
 
     /// Convenience: a parameter whose default is computed at resolve time.
-    inline FunctionParam ComputedParam(std::string name, ComputedDefaultFunc fn)
+    inline FunctionParam ComputedParam(std::string name, NativeFunction fn)
     {
         return FunctionParam(std::move(name), std::move(fn));
     }
