@@ -103,7 +103,7 @@ namespace rel
 
         /// Build what(x) — inspect a Value as 5 rows of ArrayString:
         ///   Dependency / Kind / Dimension / Data Shape / Data Type.
-        /// Uses Value's unified inspection API (no is_measurement/is_data_array branching).
+        /// Rendering uses the shared rel::Format* helpers.
         static Function make_what()
         {
             return Function(
@@ -112,27 +112,25 @@ namespace rel
                 [](const std::vector<rel::Value>& args) -> rel::Value {
                     const rel::Value& v = args[0];
                     std::vector<std::string> rows;
-                    rows.reserve(6);
+                    rows.reserve(5);
 
-                    // Dependency: "[a, b, c]" from indep_names()
+                    // Dependency: "[a, b, c]" from the independent names.
+                    std::ostringstream dep;
+                    dep << '[';
+                    const std::vector<std::string>& names = v.indep_names();
+                    for (std::size_t i = 0; i < names.size(); ++i)
                     {
-                        std::ostringstream dep;
-                        dep << '[';
-                        const auto& names = v.indep_names();
-                        for (std::size_t i = 0; i < names.size(); ++i) {
-                            if (i > 0) dep << ", ";
-                            dep << names[i];
-                        }
-                        dep << ']';
-                        rows.push_back("Dependency: " + dep.str());
+                        if (i > 0) dep << ", ";
+                        dep << names[i];
                     }
+                    dep << ']';
 
+                    rows.push_back("Dependency: " + dep.str());
                     rows.push_back("Kind: " + std::string(
                         v.is_dependent() ? "Dependent" : "Independent"));
                     rows.push_back("Dimension: " + v.dimension_spec().to_string());
                     rows.push_back("Data Shape: " + v.data_shape().to_string());
-                    rows.push_back("Data Type: " + std::string(
-                        xdataset::DataTypeToString(v.data_type())));
+                    rows.push_back("Data Type: " + std::string(xdataset::DataTypeToString(v.data_type())));
                     if (v.unit().has_dimension())
                         rows.push_back("Unit: " + v.unit().to_string());
 

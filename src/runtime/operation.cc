@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 //  xdataset -- operation framework
 // =============================================================================
 //
@@ -22,6 +22,7 @@
 //  pure storage library.
 
 #include "operation.h"
+#include "operation_pipeline.h"
 #include "data_series.h"
 #include "data_array.h"
 
@@ -68,462 +69,12 @@ Value operator~(const Value& v) { return OperationBitNot(v); }
 Value pow(const Value& base, const Value& exp) { return OperationPow(base, exp); }
 
 // =========================================================================
-//  Measurement operators (delegate to OperationXxx)
+//  Operator-specific Derive callbacks
 // =========================================================================
-
-// -- unary
-Measurement operator-(const Measurement& v) { return OperationNegate(Value(v)).as_measurement(); }
-Measurement operator!(const Measurement& v) { return OperationNot(Value(v)).as_measurement(); }
-Measurement operator~(const Measurement& v) { return OperationBitNot(Value(v)).as_measurement(); }
-
-// -- arithmetic
-Measurement operator+(const Measurement& a, const Measurement& b) { return OperationAdd(Value(a), Value(b)).as_measurement(); }
-Measurement operator-(const Measurement& a, const Measurement& b) { return OperationSub(Value(a), Value(b)).as_measurement(); }
-Measurement operator*(const Measurement& a, const Measurement& b) { return OperationMul(Value(a), Value(b)).as_measurement(); }
-Measurement operator/(const Measurement& a, const Measurement& b) { return OperationDiv(Value(a), Value(b)).as_measurement(); }
-Measurement operator%(const Measurement& a, const Measurement& b) { return OperationMod(Value(a), Value(b)).as_measurement(); }
-
-Measurement pow(const Measurement& base, const Measurement& exp) { return OperationPow(Value(base), Value(exp)).as_measurement(); }
-
-// -- comparison
-Measurement operator==(const Measurement& a, const Measurement& b) { return OperationEq(Value(a), Value(b)).as_measurement(); }
-Measurement operator!=(const Measurement& a, const Measurement& b) { return OperationNeq(Value(a), Value(b)).as_measurement(); }
-Measurement operator<(const Measurement& a, const Measurement& b)  { return OperationLt(Value(a), Value(b)).as_measurement(); }
-Measurement operator>(const Measurement& a, const Measurement& b)  { return OperationGt(Value(a), Value(b)).as_measurement(); }
-Measurement operator<=(const Measurement& a, const Measurement& b) { return OperationLe(Value(a), Value(b)).as_measurement(); }
-Measurement operator>=(const Measurement& a, const Measurement& b) { return OperationGe(Value(a), Value(b)).as_measurement(); }
-
-// -- logical
-Measurement operator&&(const Measurement& a, const Measurement& b) { return OperationAnd(Value(a), Value(b)).as_measurement(); }
-Measurement operator||(const Measurement& a, const Measurement& b) { return OperationOr(Value(a), Value(b)).as_measurement(); }
-
-// -- bitwise / shift
-Measurement operator&(const Measurement& a, const Measurement& b)  { return OperationBitAnd(Value(a), Value(b)).as_measurement(); }
-Measurement operator|(const Measurement& a, const Measurement& b)  { return OperationBitOr(Value(a), Value(b)).as_measurement(); }
-Measurement operator^(const Measurement& a, const Measurement& b)  { return OperationBitXor(Value(a), Value(b)).as_measurement(); }
-Measurement operator<<(const Measurement& a, const Measurement& b) { return OperationShl(Value(a), Value(b)).as_measurement(); }
-Measurement operator>>(const Measurement& a, const Measurement& b) { return OperationShr(Value(a), Value(b)).as_measurement(); }
-
-// =========================================================================
-//  DataArray operators (delegate to OperationXxx)
-// =========================================================================
-
-// -- arithmetic (AA, AM, MA)
-DataArray operator+(const DataArray& a, const DataArray& b)  { return OperationAdd(Value(a), Value(b)).as_data_array(); }
-DataArray operator-(const DataArray& a, const DataArray& b)  { return OperationSub(Value(a), Value(b)).as_data_array(); }
-DataArray operator*(const DataArray& a, const DataArray& b)  { return OperationMul(Value(a), Value(b)).as_data_array(); }
-DataArray operator/(const DataArray& a, const DataArray& b)  { return OperationDiv(Value(a), Value(b)).as_data_array(); }
-DataArray operator+(const DataArray& a, const Measurement& b){ return OperationAdd(Value(a), Value(b)).as_data_array(); }
-DataArray operator-(const DataArray& a, const Measurement& b){ return OperationSub(Value(a), Value(b)).as_data_array(); }
-DataArray operator*(const DataArray& a, const Measurement& b){ return OperationMul(Value(a), Value(b)).as_data_array(); }
-DataArray operator/(const DataArray& a, const Measurement& b){ return OperationDiv(Value(a), Value(b)).as_data_array(); }
-DataArray operator+(const Measurement& a, const DataArray& b){ return OperationAdd(Value(a), Value(b)).as_data_array(); }
-DataArray operator-(const Measurement& a, const DataArray& b){ return OperationSub(Value(a), Value(b)).as_data_array(); }
-DataArray operator*(const Measurement& a, const DataArray& b){ return OperationMul(Value(a), Value(b)).as_data_array(); }
-DataArray operator/(const Measurement& a, const DataArray& b){ return OperationDiv(Value(a), Value(b)).as_data_array(); }
-
-// -- comparison (AA, AM, MA)
-DataArray operator==(const DataArray& a, const DataArray& b) { return OperationEq(Value(a), Value(b)).as_data_array(); }
-DataArray operator!=(const DataArray& a, const DataArray& b) { return OperationNeq(Value(a), Value(b)).as_data_array(); }
-DataArray operator<(const DataArray& a, const DataArray& b)  { return OperationLt(Value(a), Value(b)).as_data_array(); }
-DataArray operator>(const DataArray& a, const DataArray& b)  { return OperationGt(Value(a), Value(b)).as_data_array(); }
-DataArray operator<=(const DataArray& a, const DataArray& b) { return OperationLe(Value(a), Value(b)).as_data_array(); }
-DataArray operator>=(const DataArray& a, const DataArray& b) { return OperationGe(Value(a), Value(b)).as_data_array(); }
-
-DataArray operator==(const DataArray& a, const Measurement& b) { return OperationEq(Value(a), Value(b)).as_data_array(); }
-DataArray operator!=(const DataArray& a, const Measurement& b) { return OperationNeq(Value(a), Value(b)).as_data_array(); }
-DataArray operator<(const DataArray& a, const Measurement& b)  { return OperationLt(Value(a), Value(b)).as_data_array(); }
-DataArray operator>(const DataArray& a, const Measurement& b)  { return OperationGt(Value(a), Value(b)).as_data_array(); }
-DataArray operator<=(const DataArray& a, const Measurement& b) { return OperationLe(Value(a), Value(b)).as_data_array(); }
-DataArray operator>=(const DataArray& a, const Measurement& b) { return OperationGe(Value(a), Value(b)).as_data_array(); }
-
-DataArray operator==(const Measurement& a, const DataArray& b) { return OperationEq(Value(a), Value(b)).as_data_array(); }
-DataArray operator!=(const Measurement& a, const DataArray& b) { return OperationNeq(Value(a), Value(b)).as_data_array(); }
-DataArray operator<(const Measurement& a, const DataArray& b)  { return OperationLt(Value(a), Value(b)).as_data_array(); }
-DataArray operator>(const Measurement& a, const DataArray& b)  { return OperationGt(Value(a), Value(b)).as_data_array(); }
-DataArray operator<=(const Measurement& a, const DataArray& b) { return OperationLe(Value(a), Value(b)).as_data_array(); }
-DataArray operator>=(const Measurement& a, const DataArray& b) { return OperationGe(Value(a), Value(b)).as_data_array(); }
-
-// -- logical (AA, AM, MA)
-DataArray operator&&(const DataArray& a, const DataArray& b){ return OperationAnd(Value(a), Value(b)).as_data_array(); }
-DataArray operator||(const DataArray& a, const DataArray& b){ return OperationOr(Value(a), Value(b)).as_data_array(); }
-DataArray operator&&(const DataArray& a, const Measurement& b){ return OperationAnd(Value(a), Value(b)).as_data_array(); }
-DataArray operator||(const DataArray& a, const Measurement& b){ return OperationOr(Value(a), Value(b)).as_data_array(); }
-DataArray operator&&(const Measurement& a, const DataArray& b){ return OperationAnd(Value(a), Value(b)).as_data_array(); }
-DataArray operator||(const Measurement& a, const DataArray& b){ return OperationOr(Value(a), Value(b)).as_data_array(); }
-
-// -- bitwise (AA, AM, MA)
-DataArray operator&(const DataArray& a, const DataArray& b) { return OperationBitAnd(Value(a), Value(b)).as_data_array(); }
-DataArray operator|(const DataArray& a, const DataArray& b) { return OperationBitOr(Value(a), Value(b)).as_data_array(); }
-DataArray operator^(const DataArray& a, const DataArray& b) { return OperationBitXor(Value(a), Value(b)).as_data_array(); }
-DataArray operator&(const DataArray& a, const Measurement& b){ return OperationBitAnd(Value(a), Value(b)).as_data_array(); }
-DataArray operator|(const DataArray& a, const Measurement& b){ return OperationBitOr(Value(a), Value(b)).as_data_array(); }
-DataArray operator^(const DataArray& a, const Measurement& b){ return OperationBitXor(Value(a), Value(b)).as_data_array(); }
-DataArray operator&(const Measurement& a, const DataArray& b){ return OperationBitAnd(Value(a), Value(b)).as_data_array(); }
-DataArray operator|(const Measurement& a, const DataArray& b){ return OperationBitOr(Value(a), Value(b)).as_data_array(); }
-DataArray operator^(const Measurement& a, const DataArray& b){ return OperationBitXor(Value(a), Value(b)).as_data_array(); }
-
-// -- shift (AA, AM, MA)
-DataArray operator<<(const DataArray& a, const DataArray& b){ return OperationShl(Value(a), Value(b)).as_data_array(); }
-DataArray operator>>(const DataArray& a, const DataArray& b){ return OperationShr(Value(a), Value(b)).as_data_array(); }
-DataArray operator<<(const DataArray& a, const Measurement& b){ return OperationShl(Value(a), Value(b)).as_data_array(); }
-DataArray operator>>(const DataArray& a, const Measurement& b){ return OperationShr(Value(a), Value(b)).as_data_array(); }
-DataArray operator<<(const Measurement& a, const DataArray& b){ return OperationShl(Value(a), Value(b)).as_data_array(); }
-DataArray operator>>(const Measurement& a, const DataArray& b){ return OperationShr(Value(a), Value(b)).as_data_array(); }
-
-// -- modulo (AA, AM, MA)
-DataArray operator%(const DataArray& a, const DataArray& b) { return OperationMod(Value(a), Value(b)).as_data_array(); }
-DataArray operator%(const DataArray& a, const Measurement& b){ return OperationMod(Value(a), Value(b)).as_data_array(); }
-DataArray operator%(const Measurement& a, const DataArray& b){ return OperationMod(Value(a), Value(b)).as_data_array(); }
-
-// -- unary
-DataArray operator-(const DataArray& v) { return OperationNegate(Value(v)).as_data_array(); }
-DataArray operator!(const DataArray& v) { return OperationNot(Value(v)).as_data_array(); }
-DataArray operator~(const DataArray& v) { return OperationBitNot(Value(v)).as_data_array(); }
-
-// -- pow
-DataArray pow(const DataArray& base, const DataArray& exp)      { return OperationPow(Value(base), Value(exp)).as_data_array(); }
-DataArray pow(const DataArray& base, const Measurement& exp)    { return OperationPow(Value(base), Value(exp)).as_data_array(); }
-DataArray pow(const Measurement& base, const DataArray& exp)    { return OperationPow(Value(base), Value(exp)).as_data_array(); }
-
-// =========================================================================
-//  Internal types (not exposed via operation.h)
-// =========================================================================
-
-enum class OpCategory {
-    kPow,
-    kNot, kBitNot, kNegate,
-    kMul, kDiv, kMod,
-    kAdd, kSub,
-    kShl, kShr,
-    kLt, kGt, kLe, kGe,
-    kEq, kNeq,
-    kBitAnd, kBitXor, kBitOr,
-    kAnd, kOr,
-    kConditional,
-    kIf,
-    kMatrix, kSweep
-};
-
-struct RowBroadcastPlan {
-    Index              result_size;
-    std::vector<bool>  broadcast;
-
-    static RowBroadcastPlan Compute(const std::vector<Index>& sizes);
-};
-
-struct OperandBroadcastShapeInfo {
-    Index elements;
-    Index cols;
-    bool  broadcast_row;
-    bool  broadcast_col;
-};
-
-struct ShapeBroadcastPlan {
-    DataShape          result_shape;
-    Index              result_elements;
-    Index              result_cols;
-    std::vector<OperandBroadcastShapeInfo> ops;
-
-    static ShapeBroadcastPlan Make(const std::vector<DataShape>& operand_shapes,
-                                    const DataShape& result);
-    Index MapFlatIndex(Index result_flat, int k) const;
-};
-
-struct ExecContextInfo {
-    OpCategory         op;
-    Index              rows;
-    DataShape          shape;
-    DataType           dtype;
-    Unit               unit;
-};
-
-template <typename T>
-using ElemOp = T (*)(T, T);
-
-template <typename T>
-using UnaryOp = T (*)(T);
-
-typedef DataShape (*DeriveShapeFunc)(const std::vector<DataShape>& operand_shapes);
-typedef DataType (*DeriveDtypeFunc)(const std::vector<DataType>& dtypes);
-typedef Unit     (*DeriveUnitFunc)(const std::vector<Unit>& units);
-typedef Index    (*DeriveRowsFunc)(const std::vector<Index>& rows);
-typedef Value    (*ExecuteFunc)(const ExecContextInfo& info,
-                                const std::vector<Value>& ops);
-
-enum Arity : Index {
-    kVariadic = -1
-};
-
-struct OpTraits {
-    OpCategory      op;
-    Index           arity;
-    DeriveShapeFunc derive_shape;
-    DeriveRowsFunc  derive_rows;
-    DeriveDtypeFunc derive_dtype;
-    DeriveUnitFunc  derive_unit;
-    ExecuteFunc     execute;
-};
-
-// =========================================================================
-//  RowBroadcastPlan::Compute
-// =========================================================================
-
-RowBroadcastPlan RowBroadcastPlan::Compute(const std::vector<Index>& sizes) {
-    RowBroadcastPlan plan;
-    Index r = 1;
-    for (size_t i = 0; i < sizes.size(); ++i) {
-        Index s = sizes[i];
-        if (s == 1) continue;
-        if (r == 1) { r = s; continue; }
-        if (s != r)
-            throw std::invalid_argument(
-                "broadcast size mismatch (" + std::to_string(r) +
-                " vs " + std::to_string(s) + ") at index " +
-                std::to_string(i));
-    }
-    plan.result_size = r;
-    for (size_t i = 0; i < sizes.size(); ++i)
-        plan.broadcast.push_back(sizes[i] == 1 && r > 1);
-    return plan;
-}
-
-// =========================================================================
-//  ShapeBroadcastPlan::Make
-// =========================================================================
-
-ShapeBroadcastPlan ShapeBroadcastPlan::Make(const std::vector<DataShape>& operand_shapes,
-                     const DataShape& result) {
-    ShapeBroadcastPlan sp;
-    DataKind rk = result.kind();
-    sp.result_shape    = result;
-    sp.result_elements = (rk == DataKind::kScalar) ? 1
-                       : (rk == DataKind::kVector) ? result[0]
-                       : result[0] * result[1];
-
-    if (rk == DataKind::kMatrix)
-        sp.result_cols = result[1];
-    else if (rk == DataKind::kVector)
-        sp.result_cols = result[0];
-    else
-        sp.result_cols = 1;
-
-    for (size_t i = 0; i < operand_shapes.size(); ++i) {
-        DataKind k = operand_shapes[i].kind();
-        const auto& s = operand_shapes[i];
-
-        OperandBroadcastShapeInfo op;
-        op.elements = (k == DataKind::kScalar) ? 1
-                    : (k == DataKind::kVector) ? s[0]
-                    : s[0] * s[1];
-
-        bool bc_row = false, bc_col = false;
-        Index cols = 1;
-
-        if (k == DataKind::kScalar) {
-            bc_row = true;
-            bc_col = true;
-            cols   = 1;
-
-        } else if (k == DataKind::kVector) {
-            Index w = s[0];
-            if (rk == DataKind::kVector) {
-                bc_col = (w == 1 && sp.result_cols > 1);
-                cols   = w;
-            } else /* result is Matrix */ {
-                // row-vector [1, w] -> broadcast rows, columns must match
-                bc_row = true;
-                bc_col = (w == 1 && result[1] > 1);
-                cols   = w;
-            }
-
-        } else /* kMatrix */ {
-            cols   = s[1];
-            bc_row = (s[0] == 1 && result[0] > 1);
-            bc_col = (s[1] == 1 && result[1] > 1);
-        }
-
-        op.cols = cols;
-        op.broadcast_row = bc_row;
-        op.broadcast_col = bc_col;
-        sp.ops.push_back(op);
-    }
-
-    return sp;
-}
-
-// =========================================================================
-//  ShapeBroadcastPlan::MapFlatIndex
-// =========================================================================
-
-Index ShapeBroadcastPlan::MapFlatIndex(Index result_flat, int k) const {
-    const OperandBroadcastShapeInfo& op = ops[static_cast<size_t>(k)];
-    if (op.elements == 1) return 0;
-
-    // Vectors are treated as single-row matrices (1 row, w cols)
-    Index row = 0, col = result_flat;
-    if (result_cols > 1 && result_elements != result_cols) {
-        row = result_flat / result_cols;
-        col = result_flat % result_cols;
-    }
-
-    Index r = op.broadcast_row ? 0 : row;
-    Index c = op.broadcast_col ? 0 : col;
-    return r * op.cols + c;
-}
-
-// =========================================================================
-//  Operate
-// =========================================================================
-
-Value Operate(const std::vector<Value>& operands, const OpTraits& traits) {
-    // --- arity check ---------------------------------------------------
-    if (traits.arity != Arity::kVariadic) {
-        Index n = static_cast<Index>(operands.size());
-        if (n != traits.arity) {
-            throw std::invalid_argument(
-                std::string("arity mismatch: expected ") +
-                std::to_string(traits.arity) + " operand(s), got " +
-                std::to_string(n));
-        }
-    }
-
-    // Canonicalize operands (absorb scale multipliers, convert to base SI)
-    std::vector<Value> canonical_ops;
-    canonical_ops.reserve(operands.size());
-    for (size_t i = 0; i < operands.size(); ++i) {
-        canonical_ops.push_back(operands[i].canonicalized());
-    }
-
-    // Extract per-operand metadata from canonicalized operands
-    std::vector<DataShape> operand_shapes;
-    std::vector<Index>     row_counts;
-    std::vector<DataType>  dtypes;
-    std::vector<Unit>      units;
-
-    for (size_t i = 0; i < canonical_ops.size(); ++i) {
-        operand_shapes.push_back(canonical_ops[i].data_shape());
-        row_counts.push_back(canonical_ops[i].rows());
-        dtypes.push_back(canonical_ops[i].data_type());
-        units.push_back(canonical_ops[i].unit());
-    }
-
-    // Derive result metadata from canonicalized operands
-    DataShape shape       = traits.derive_shape(operand_shapes);
-    Index     rows        = traits.derive_rows(row_counts);
-    DataType  dtype       = traits.derive_dtype(dtypes);
-    Unit      unit        = traits.derive_unit(units);
-
-    // Pack context
-    ExecContextInfo info;
-    info.op    = traits.op;
-    info.rows  = rows;
-    info.shape = shape;
-    info.dtype = dtype;
-    info.unit  = unit;
-
-    return traits.execute(info, canonical_ops);
-}
-
-// =========================================================================
-//  Derive callbacks
-// =========================================================================
-
-// -- DeriveShapeBroadcast --
-
-DataShape DeriveShapeBroadcast(const std::vector<DataShape>& operand_shapes) {
-    // --- result kind ---
-    DataKind res_kind = DataKind::kScalar;
-    for (size_t i = 0; i < operand_shapes.size(); ++i) {
-        DataKind k = operand_shapes[i].kind();
-        if (k == DataKind::kMatrix)
-            res_kind = DataKind::kMatrix;
-        else if (k == DataKind::kVector && res_kind != DataKind::kMatrix)
-            res_kind = DataKind::kVector;
-    }
-
-    if (res_kind == DataKind::kScalar)
-        return DataShape::Scalar();
-
-    if (res_kind == DataKind::kVector) {
-        Index w = 1;
-        for (size_t i = 0; i < operand_shapes.size(); ++i) {
-            if (operand_shapes[i].kind() == DataKind::kScalar) continue;
-            Index sw = operand_shapes[i][0];
-            if (sw == 1) continue;
-            if (w == 1) { w = sw; continue; }
-            if (sw != w)
-                throw std::invalid_argument(
-                    "vector width mismatch (" + std::to_string(w) +
-                    " vs " + std::to_string(sw) + ")");
-        }
-        return DataShape::Vector(w);
-    }
-
-    // Matrix: row & col independently
-    Index r = 1, c = 1;
-    for (size_t i = 0; i < operand_shapes.size(); ++i) {
-        Index op_r = 1, op_c = 1;
-        DataKind k = operand_shapes[i].kind();
-        const auto& s = operand_shapes[i];
-
-        if      (k == DataKind::kScalar) { op_r = 1; op_c = 1; }
-        else if (k == DataKind::kVector) { op_r = 1; op_c = s[0]; }  // 1 row, w cols
-        else /* kMatrix */               { op_r = s[0]; op_c = s[1]; }
-
-        if (op_r == 1) { /* broadcast */ }
-        else if (r == 1) { r = op_r; }
-        else if (op_r != r)
-            throw std::invalid_argument(
-                "row dim mismatch (" + std::to_string(r) +
-                " vs " + std::to_string(op_r) + ")");
-
-        if (op_c == 1) { /* broadcast */ }
-        else if (c == 1) { c = op_c; }
-        else if (op_c != c)
-            throw std::invalid_argument(
-                "col dim mismatch (" + std::to_string(c) +
-                " vs " + std::to_string(op_c) + ")");
-    }
-    return DataShape::Matrix(r, c);
-}
-
-// -- DeriveShapeMatrix --
-
-DataShape DeriveShapeMatrix(const std::vector<DataShape>& operand_shapes) {
-    if (operand_shapes.empty())
-        throw std::invalid_argument("matrix: empty input");
-
-    const Index N = static_cast<Index>(operand_shapes.size());
-
-    const DataKind k0 = operand_shapes[0].kind();
-    const DataShape& s0 = operand_shapes[0];
-    for (size_t i = 1; i < operand_shapes.size(); ++i) {
-        if (operand_shapes[i].kind() != k0)
-            throw std::invalid_argument(
-                "matrix: kind mismatch at index " + std::to_string(i));
-        if (operand_shapes[i] != s0)
-            throw std::invalid_argument(
-                "matrix: shape mismatch at index " + std::to_string(i));
-    }
-
-    DataShape result;
-    if (k0 == DataKind::kScalar)
-        result = DataShape::Vector(N);
-    else if (k0 == DataKind::kVector)
-        result = DataShape::Matrix(N, s0[0]);
-    else
-        throw std::invalid_argument("matrix: cannot concat matrices");
-
-    return result;
-}
-
-// =========================================================================
-//  Helper: effective (r, c) for matrix multiplication
-// =========================================================================
-//  Scalar -> (1,1)  Vector[w] -> (1,w)  Matrix[r,c] -> (r,c)
 
 namespace {
+
+// -- Matrix helpers -----------------------------------------------------------
 
 std::pair<Index, Index> EffectiveRC(const DataShape& s) {
     DataKind k = s.kind();
@@ -539,143 +90,106 @@ DataShape MakeShapeRC(Index r, Index c) {
     return DataShape::Matrix(r, c);
 }
 
-}  // anonymous namespace
+// -- Shape: Matrix, Mul, Div --------------------------------------------------
 
-// -- DeriveShapeMul --
+static DataShape DeriveShapeMatrix(const std::vector<DataShape>& operand_shapes) {
+    if (operand_shapes.empty())
+        throw std::invalid_argument("matrix: empty input");
+    const Index N = static_cast<Index>(operand_shapes.size());
+    const DataKind k0 = operand_shapes[0].kind();
+    const DataShape& s0 = operand_shapes[0];
+    for (size_t i = 1; i < operand_shapes.size(); ++i) {
+        if (operand_shapes[i].kind() != k0)
+            throw std::invalid_argument("matrix: kind mismatch at index " + std::to_string(i));
+        if (operand_shapes[i] != s0)
+            throw std::invalid_argument("matrix: shape mismatch at index " + std::to_string(i));
+    }
+    if (k0 == DataKind::kScalar) return DataShape::Vector(N);
+    if (k0 == DataKind::kVector) return DataShape::Matrix(N, s0[0]);
+    throw std::invalid_argument("matrix: cannot concat matrices");
+}
 
-DataShape DeriveShapeMul(const std::vector<DataShape>& operand_shapes) {
-    // If any operand is scalar, fall back to element-wise broadcast
+static DataShape DeriveShapeMul(const std::vector<DataShape>& operand_shapes) {
     if (operand_shapes[0].kind() == DataKind::kScalar ||
         operand_shapes[1].kind() == DataKind::kScalar)
         return DeriveShapeBroadcast(operand_shapes);
-
-    // Both non-scalar: matrix multiplication (Vector always 1xw)
     auto rcA = EffectiveRC(operand_shapes[0]);
     auto rcB = EffectiveRC(operand_shapes[1]);
     Index rA = rcA.first, cA = rcA.second;
     Index rB = rcB.first, cB = rcB.second;
-
     if (cA != rB)
         throw std::invalid_argument(
             "matmul inner dim mismatch: (" + std::to_string(rA) + "x" +
             std::to_string(cA) + ") x (" + std::to_string(rB) + "x" +
             std::to_string(cB) + ")");
-
     return MakeShapeRC(rA, cB);
 }
 
-// -- DeriveShapeDiv --
-
-DataShape DeriveShapeDiv(const std::vector<DataShape>& operand_shapes) {
-    // If RHS is scalar, fall back to element-wise broadcast
+static DataShape DeriveShapeDiv(const std::vector<DataShape>& operand_shapes) {
     if (operand_shapes[1].kind() == DataKind::kScalar)
         return DeriveShapeBroadcast(operand_shapes);
-
-    // RHS non-scalar: A / B = A x inv(B)
-    // pinv(B) has effective shape (cB, rB)
     auto rcA = EffectiveRC(operand_shapes[0]);
     auto rcB = EffectiveRC(operand_shapes[1]);
     Index rA = rcA.first, cA = rcA.second;
     Index rB = rcB.first, cB = rcB.second;
-
-    // RHS must be square for true inverse; non-square uses pseudo-inverse.
-    // For square RHS, invertibility will be verified at runtime.
     if (rB != cB)
         throw std::invalid_argument(
             "RHS matrix must be square for division (got " +
             std::to_string(rB) + "x" + std::to_string(cB) + ")");
-
-    // A x inv(B): (rA, cA) x (cB, rB), inner dim cA == cB
     if (cA != cB)
         throw std::invalid_argument(
             "A(cols) must equal B(cols) for division: (" + std::to_string(rA) + "x" +
             std::to_string(cA) + ") / (" + std::to_string(rB) + "x" +
             std::to_string(cB) + ")");
-
     return MakeShapeRC(rA, rB);
 }
 
-// -- DeriveRowsBroadcast --
+// -- Rows: Sum -----------------------------------------------------------------
 
-Index DeriveRowsBroadcast(const std::vector<Index>& rows) {
-    return RowBroadcastPlan::Compute(rows).result_size;
-}
-
-Index DeriveRowsSum(const std::vector<Index>& rows) {
+static Index DeriveRowsSum(const std::vector<Index>& rows) {
     Index total = 0;
     for (size_t i = 0; i < rows.size(); ++i) total += rows[i];
     return total;
 }
 
-// -- DeriveDtypePromote --
+// -- Dtype: Div, Mod, Pow, Bitwise, Cmp, ForceInt, Merge ----------------------
 
-DataType DeriveDtypePromote(const std::vector<DataType>& dtypes) {
-    DataType res = DataType::kInteger;
-    for (size_t i = 0; i < dtypes.size(); ++i) {
-        DataType dt = dtypes[i];
-        if (dt == DataType::kString)
-            throw std::invalid_argument(
-                "arithmetic: string operand not allowed");
-        // Boolean is Measurement-only; normalize to Integer for computation
-        if (dt == DataType::kBoolean)
-            dt = DataType::kInteger;
-        if (dt == DataType::kComplex)
-            res = DataType::kComplex;
-        else if (dt == DataType::kReal && res != DataType::kComplex)
-            res = DataType::kReal;
-    }
-    return res;
-}
-
-// -- DeriveDtypeDiv --
-
-DataType DeriveDtypeDiv(const std::vector<DataType>& dtypes) {
+static DataType DeriveDtypeDiv(const std::vector<DataType>& dtypes) {
     DataType res = DeriveDtypePromote(dtypes);
     if (res == DataType::kInteger) res = DataType::kReal;
     return res;
 }
 
-// -- DeriveDtypeMod --
-
-DataType DeriveDtypeMod(const std::vector<DataType>& dtypes) {
-    // Only int and double; Bool normalizes to int.  Complex/string throw.
+static DataType DeriveDtypeMod(const std::vector<DataType>& dtypes) {
     bool has_real = false;
     for (size_t i = 0; i < dtypes.size(); ++i) {
         DataType dt = dtypes[i];
         if (dt == DataType::kBoolean) dt = DataType::kInteger;
         if (dt == DataType::kReal)    { has_real = true; continue; }
         if (dt == DataType::kInteger) continue;
-        throw std::invalid_argument(
-            "mod: unsupported type " + std::to_string(static_cast<int>(dt)));
+        throw std::invalid_argument("mod: unsupported type " + std::to_string(static_cast<int>(dt)));
     }
     return has_real ? DataType::kReal : DataType::kInteger;
 }
 
-// -- DeriveDtypePow --
-
-DataType DeriveDtypePow(const std::vector<DataType>& dtypes) {
+static DataType DeriveDtypePow(const std::vector<DataType>& dtypes) {
     DataType res = DeriveDtypePromote(dtypes);
     if (res == DataType::kInteger) res = DataType::kReal;
     return res;
 }
 
-// -- DeriveDtypeBitwise --
-
-DataType DeriveDtypeBitwise(const std::vector<DataType>& dtypes) {
+static DataType DeriveDtypeBitwise(const std::vector<DataType>& dtypes) {
     for (size_t i = 0; i < dtypes.size(); ++i) {
         DataType dt = dtypes[i];
-        if (dt == DataType::kBoolean) continue;  // bool OK, normalizes to int
+        if (dt == DataType::kBoolean) continue;
         if (dt == DataType::kInteger) continue;
-        throw std::invalid_argument(
-            "bitwise: int operand required, got type " +
+        throw std::invalid_argument("bitwise: int operand required, got type " +
             std::to_string(static_cast<int>(dt)));
     }
     return DataType::kInteger;
 }
 
-// -- DeriveDtypeCmp -- infer comparison type from operand types, result always int
-
-DataType DeriveDtypeCmp(const std::vector<DataType>& dtypes) {
+static DataType DeriveDtypeCmp(const std::vector<DataType>& dtypes) {
     DataType res = DataType::kInteger;
     for (size_t i = 0; i < dtypes.size(); ++i) {
         DataType dt = dtypes[i];
@@ -689,23 +203,18 @@ DataType DeriveDtypeCmp(const std::vector<DataType>& dtypes) {
     return res;
 }
 
-DataType DeriveDtypeForceInt(const std::vector<DataType>& /*dtypes*/) {
+static DataType DeriveDtypeForceInt(const std::vector<DataType>& /*dtypes*/) {
     return DataType::kInteger;
 }
 
-// -- DeriveDtypeMerge --
-
-DataType DeriveDtypeMerge(const std::vector<DataType>& dtypes) {
+static DataType DeriveDtypeMerge(const std::vector<DataType>& dtypes) {
     if (dtypes.empty()) return DataType::kInteger;
     bool all_string = true, any_string = false;
     DataType res = DataType::kInteger;
     for (size_t i = 0; i < dtypes.size(); ++i) {
         DataType dt = dtypes[i];
         if (dt == DataType::kBoolean) dt = DataType::kInteger;
-        if (dt == DataType::kString) {
-            any_string = true;
-            continue;
-        }
+        if (dt == DataType::kString) { any_string = true; continue; }
         all_string = false;
         if (dt == DataType::kComplex)
             res = DataType::kComplex;
@@ -717,129 +226,75 @@ DataType DeriveDtypeMerge(const std::vector<DataType>& dtypes) {
     return all_string ? DataType::kString : res;
 }
 
-// -- DeriveUnitSameDim --
+// -- Unit: Mul, Div, Dimless, First --------------------------------------------
 
-Unit DeriveUnitSameDim(const std::vector<Unit>& units) {
-    if (units.empty()) return Unit();
+static Unit DeriveUnitMul(const std::vector<Unit>& units) {
     Unit res = units[0];
-    for (size_t i = 1; i < units.size(); ++i) {
-        if (res.same_dimension(units[i])) continue;
-        if (!res.has_dimension()) { res = units[i]; continue; }
-        if (!units[i].has_dimension()) continue;
-        throw std::invalid_argument("unit dimension mismatch");
-    }
+    for (size_t i = 1; i < units.size(); ++i) res = res * units[i];
     return res;
 }
 
-// -- DeriveUnitMul --
-
-Unit DeriveUnitMul(const std::vector<Unit>& units) {
+static Unit DeriveUnitDiv(const std::vector<Unit>& units) {
     Unit res = units[0];
-    for (size_t i = 1; i < units.size(); ++i)
-        res = res * units[i];
+    for (size_t i = 1; i < units.size(); ++i) res = res / units[i];
     return res;
 }
 
-// -- DeriveUnitDiv --
-
-Unit DeriveUnitDiv(const std::vector<Unit>& units) {
-    Unit res = units[0];
-    for (size_t i = 1; i < units.size(); ++i)
-        res = res / units[i];
-    return res;
-}
-
-// -- DeriveUnitDimless --
-
-Unit DeriveUnitDimless(const std::vector<Unit>& /*units*/) {
+static Unit DeriveUnitDimless(const std::vector<Unit>& /*units*/) {
     return Unit();
 }
 
-// -- DeriveUnitFirst --
-
-Unit DeriveUnitFirst(const std::vector<Unit>& units) {
+static Unit DeriveUnitFirst(const std::vector<Unit>& units) {
     return units[0];
 }
 
-// -- DeriveDtypeConditional --
+// -- Conditional / If ----------------------------------------------------------
 
-DataType DeriveDtypeConditional(const std::vector<DataType>& dtypes) {
-    // Only promote from true (index 1) and false (index 2).
-    // Condition (index 0) is interpreted as logical int.
-    // String is allowed only when both true and false are strings.
+static DataType DeriveDtypeConditional(const std::vector<DataType>& dtypes) {
     bool all_string = true, any_string = false;
     DataType res = DataType::kInteger;
     for (size_t i = 1; i < dtypes.size(); ++i) {
         DataType dt = dtypes[i];
-        if (dt == DataType::kBoolean)
-            dt = DataType::kInteger;
-        if (dt == DataType::kString) {
-            any_string = true;
-            continue;
-        }
+        if (dt == DataType::kBoolean) dt = DataType::kInteger;
+        if (dt == DataType::kString) { any_string = true; continue; }
         all_string = false;
-        if (dt == DataType::kComplex)
-            res = DataType::kComplex;
-        else if (dt == DataType::kReal && res != DataType::kComplex)
-            res = DataType::kReal;
+        if (dt == DataType::kComplex) res = DataType::kComplex;
+        else if (dt == DataType::kReal && res != DataType::kComplex) res = DataType::kReal;
     }
     if (any_string && !all_string)
-        throw std::invalid_argument(
-            "conditional: cannot mix string with numeric types");
+        throw std::invalid_argument("conditional: cannot mix string with numeric types");
     return all_string ? DataType::kString : res;
 }
 
-// -- DeriveUnitConditional --
-
-Unit DeriveUnitConditional(const std::vector<Unit>& units) {
-    // Only consider true (index 1) and false (index 2) for unit derivation
-    std::vector<Unit> tf_units = {units[1], units[2]};
-    return DeriveUnitSameDim(tf_units);
+static Unit DeriveUnitConditional(const std::vector<Unit>& units) {
+    return DeriveUnitSameDim({units[1], units[2]});
 }
 
-// -- DeriveDtypeIf --
-
-DataType DeriveDtypeIf(const std::vector<DataType>& dtypes) {
-    // dtypes layout: [cond0, val0, cond1, val1, ..., cond_{n-1}, val_{n-1}, else]
-    // size = 2n+1, n>=1.  Only promote from value operands
-    // (odd indices 1,3,...,2n-1 and last index 2n).
-    // Conditions (even indices except the last) are interpreted as logical int.
+static DataType DeriveDtypeIf(const std::vector<DataType>& dtypes) {
     bool all_string = true, any_string = false;
     DataType res = DataType::kInteger;
     for (size_t i = 1; i < dtypes.size(); ++i) {
-        // Skip conditions (even indices except the last which is the else value)
         if (i % 2 == 0 && i != dtypes.size() - 1) continue;
-
         DataType dt = dtypes[i];
-        if (dt == DataType::kBoolean)
-            dt = DataType::kInteger;
-        if (dt == DataType::kString) {
-            any_string = true;
-            continue;
-        }
+        if (dt == DataType::kBoolean) dt = DataType::kInteger;
+        if (dt == DataType::kString) { any_string = true; continue; }
         all_string = false;
-        if (dt == DataType::kComplex)
-            res = DataType::kComplex;
-        else if (dt == DataType::kReal && res != DataType::kComplex)
-            res = DataType::kReal;
+        if (dt == DataType::kComplex) res = DataType::kComplex;
+        else if (dt == DataType::kReal && res != DataType::kComplex) res = DataType::kReal;
     }
     if (any_string && !all_string)
-        throw std::invalid_argument(
-            "if: cannot mix string with numeric types");
+        throw std::invalid_argument("if: cannot mix string with numeric types");
     return all_string ? DataType::kString : res;
 }
 
-// -- DeriveUnitIf --
-
-Unit DeriveUnitIf(const std::vector<Unit>& units) {
-    // Only consider value operands (odd indices + last index)
+static Unit DeriveUnitIf(const std::vector<Unit>& units) {
     std::vector<Unit> val_units;
-    for (size_t i = 1; i < units.size(); ++i) {
-        if (i % 2 == 1 || i == units.size() - 1)
-            val_units.push_back(units[i]);
-    }
+    for (size_t i = 1; i < units.size(); ++i)
+        if (i % 2 == 1 || i == units.size() - 1) val_units.push_back(units[i]);
     return DeriveUnitSameDim(val_units);
 }
+
+}  // anonymous namespace
 
 // =========================================================================
 //  Element-wise operators
@@ -891,7 +346,7 @@ template <> inline int op_cmp_gt<std::complex<double>>(std::complex<double> a, s
 template <> inline int op_cmp_le<std::complex<double>>(std::complex<double> a, std::complex<double> b) { return std::abs(a) <= std::abs(b) ? 1 : 0; }
 template <> inline int op_cmp_ge<std::complex<double>>(std::complex<double> a, std::complex<double> b) { return std::abs(a) >= std::abs(b) ? 1 : 0; }
 
-// String cmp — non-template to avoid copy overhead
+// String cmp 鈥?non-template to avoid copy overhead
 inline int str_cmp_eq(const std::string& a, const std::string& b) { return a == b ? 1 : 0; }
 inline int str_cmp_ne(const std::string& a, const std::string& b) { return a != b ? 1 : 0; }
 inline int str_cmp_lt(const std::string& a, const std::string& b) { return a <  b ? 1 : 0; }
@@ -1136,7 +591,7 @@ Value ExecBinaryArithT(const ExecContextInfo& info,
     bool l_meas = ops[0].is_measurement();
     bool r_meas = ops[1].is_measurement();
 
-    // --- 提取 per-operand shape/rows ---
+    // --- 鎻愬彇 per-operand shape/rows ---
     DataShape l_shape = ops[0].data_shape();
     DataShape r_shape = ops[1].data_shape();
     std::vector<DataShape> op_shapes = {l_shape, r_shape};
@@ -1145,7 +600,7 @@ Value ExecBinaryArithT(const ExecContextInfo& info,
     Index r_rows = ops[1].rows();
     std::vector<Index> row_counts = {l_rows, r_rows};
 
-    // --- 计算广播 plan ---
+    // --- 璁＄畻骞挎挱 plan ---
     ShapeBroadcastPlan shape_plan = ShapeBroadcastPlan::Make(op_shapes, info.shape);
     RowBroadcastPlan   row_plan   = RowBroadcastPlan::Compute(row_counts);
 
@@ -1167,7 +622,7 @@ Value ExecBinaryArithT(const ExecContextInfo& info,
     }
 
     // ====================================
-    //  Step 2: 分配输出
+    //  Step 2: 鍒嗛厤杈撳嚭
     // ====================================
     const DataArray* out_src = SelectOutputSource(l_meas, r_meas, ops);
 
@@ -1178,13 +633,13 @@ Value ExecBinaryArithT(const ExecContextInfo& info,
     T* out = out_ds->mutable_contiguous_data<T>();
 
     // ====================================
-    //  Step 3: 统一核心循环
+    //  Step 3: 缁熶竴鏍稿績寰幆
     // ====================================
     ExecBinaryLoop(info.rows, row_plan, shape_plan,
                    l_ptr, l_stride, r_ptr, r_stride, out, elem_op);
 
     // ====================================
-    //  Step 4: 输出 -> Value
+    //  Step 4: 杈撳嚭 -> Value
     // ====================================
     if (l_meas && r_meas) {
         return Value(MakeMeasFromFlat(out, info.shape, info.unit));
@@ -1293,7 +748,7 @@ static Value ExecBinaryCmpString(const ExecContextInfo& info,
     ShapeBroadcastPlan shape_plan = ShapeBroadcastPlan::Make(op_shapes, info.shape);
     RowBroadcastPlan   row_plan   = RowBroadcastPlan::Compute(row_counts);
 
-    // Build flat string arrays (no flat_data — strings handled separately)
+    // Build flat string arrays (no flat_data 鈥?strings handled separately)
     Index l_stride = static_cast<Index>(l_shape.element_count());
     Index r_stride = static_cast<Index>(r_shape.element_count());
     Index result_rows = info.rows;
@@ -1388,7 +843,7 @@ Value ExecuteBinaryCmp(const ExecContextInfo& info,
                         const std::vector<Value>& ops) {
     // info.dtype = comparison type (from DeriveDtypeCmp).
     // Result is always int 0/1.
-    // For scalar Meas×Meas the int is upgraded to Boolean.
+    // For scalar Meas脳Meas the int is upgraded to Boolean.
 
     switch (info.dtype) {
         case DataType::kString:
@@ -1407,8 +862,8 @@ Value ExecuteBinaryCmp(const ExecContextInfo& info,
 Value ExecuteBinaryLogical(const ExecContextInfo& info,
                             const std::vector<Value>& ops) {
     // Logical ops (AND/OR) first convert both operands to int via as_logical()
-    // (non-zero → 1), then apply the logical element op in int domain.
-    // Both Measurement and Scalar shape → upgrade to Boolean.
+    // (non-zero 鈫?1), then apply the logical element op in int domain.
+    // Both Measurement and Scalar shape 鈫?upgrade to Boolean.
 
     // Build int operands via as_logical()
     auto make_logical = [](const Value& v) -> Value {
@@ -1463,7 +918,7 @@ Value ExecuteBinaryShift(const ExecContextInfo& info,
 //  ExecuteMatrix ({} generator) - stack operands with row broadcast
 // =========================================================================
 //
-//  Output: all Measurement → Measurement, otherwise DataArray.
+//  Output: all Measurement 鈫?Measurement, otherwise DataArray.
 
 template <typename T>
 static Value ExecMatrixT(const ExecContextInfo& info,
@@ -1661,7 +1116,7 @@ Value ExecuteMatrix(const ExecContextInfo& info,
 // =========================================================================
 //
 //  RowBroadcastPlan handles row broadcast. ShapeBroadcastPlan handles cell
-//  broadcast (Scalar ↔ Vector etc.).
+//  broadcast (Scalar 鈫?Vector etc.).
 
 template <typename T>
 static Value ExecSweepT(const ExecContextInfo& info,
@@ -1904,8 +1359,8 @@ Value ExecuteUnaryNegate(const ExecContextInfo& info,
 
 Value ExecuteUnaryNot(const ExecContextInfo& info,
                        const std::vector<Value>& ops) {
-    // Logical NOT: first convert to int via as_logical() (non-zero→1),
-    // then apply NOT.  Scalar Meas → upgrade to Boolean.
+    // Logical NOT: first convert to int via as_logical() (non-zero鈫?),
+    // then apply NOT.  Scalar Meas 鈫?upgrade to Boolean.
 
     Value v;
     if (ops[0].is_measurement()) {
@@ -2274,7 +1729,7 @@ static Value ExecConditionalString(const ExecContextInfo& info,
     Index result_rows_total = info.rows * out_stride;
 
     if (c_meas && t_meas && f_meas) {
-        // Measurement output — use string tensors or scalar directly
+        // Measurement output 鈥?use string tensors or scalar directly
         DataKind dk = info.shape.kind();
         if (dk == DataKind::kScalar) {
             Index cj = shape_plan.MapFlatIndex(0, 0);

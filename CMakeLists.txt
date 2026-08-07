@@ -42,6 +42,7 @@ add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
 add_library(rel_runtime SHARED
     src/runtime/value.cc
     src/runtime/operation.cc
+    src/runtime/operation_pipeline.cc
     src/runtime/environment.cc
     src/runtime/environment_config.cc
     src/runtime/rel_plugin.cc
