@@ -234,28 +234,6 @@ static DataType DeriveDtypeMerge(const std::vector<DataType>& dtypes) {
     return all_string ? DataType::kString : res;
 }
 
-// -- Unit: Mul, Div, Dimless, First --------------------------------------------
-
-static Unit DeriveUnitMul(const std::vector<Unit>& units) {
-    Unit res = units[0];
-    for (size_t i = 1; i < units.size(); ++i) res = res * units[i];
-    return res;
-}
-
-static Unit DeriveUnitDiv(const std::vector<Unit>& units) {
-    Unit res = units[0];
-    for (size_t i = 1; i < units.size(); ++i) res = res / units[i];
-    return res;
-}
-
-static Unit DeriveUnitDimless(const std::vector<Unit>& /*units*/) {
-    return Unit();
-}
-
-static Unit DeriveUnitFirst(const std::vector<Unit>& units) {
-    return units[0];
-}
-
 // -- Conditional / If ----------------------------------------------------------
 
 static DataType DeriveDtypeConditional(const std::vector<DataType>& dtypes) {

@@ -112,9 +112,7 @@ static DataType DeriveDtypeMathConj(const std::vector<DataType>& dtypes) {
     return dt;
 }
 
-static Unit DeriveUnitFirst(const std::vector<Unit>& units) {
-    return units[0];
-}
+
 
 // =========================================================================
 //  Execute callbacks �?standard math (dtype dispatch: Real �?Complex)

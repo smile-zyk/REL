@@ -268,5 +268,25 @@ Unit DeriveUnitSameDim(const std::vector<Unit>& units) {
     return res;
 }
 
+Unit DeriveUnitFirst(const std::vector<Unit>& units) {
+    return units[0];
+}
+
+Unit DeriveUnitMul(const std::vector<Unit>& units) {
+    Unit res = units[0];
+    for (size_t i = 1; i < units.size(); ++i) res = res * units[i];
+    return res;
+}
+
+Unit DeriveUnitDiv(const std::vector<Unit>& units) {
+    Unit res = units[0];
+    for (size_t i = 1; i < units.size(); ++i) res = res / units[i];
+    return res;
+}
+
+Unit DeriveUnitDimless(const std::vector<Unit>& /*units*/) {
+    return Unit();
+}
+
 }  // namespace operation
 }  // namespace rel
