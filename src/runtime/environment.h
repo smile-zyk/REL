@@ -32,7 +32,7 @@ extern FunctionLibrary kMathLibrary;
 //    - Define() rejects names that collide with builtin constants.
 //
 
-class REL_VALUE_API Environment
+class REL_RUNTIME_API Environment
 {
 public:
     Environment() = default;

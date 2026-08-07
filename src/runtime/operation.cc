@@ -18,7 +18,7 @@
 //
 //  This file also implements the Value / Measurement / DataArray operators
 //  (delegating to the OperationXxx kernels below).  They used to live in
-//  xdataset but now live in the rel_value library so that xdataset stays a
+//  xdataset but now live in the rel_runtime library so that xdataset stays a
 //  pure storage library.
 
 #include "operation.h"

@@ -33,7 +33,7 @@ add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
 #  boundaries (e.g. function plugins) with a single definition per type.
 #
 #  Contents:
-#    value/              Value, Operation  (was rel_value)
+#    value/              Value, Operation  (was rel_runtime)
 #    eval/environment*   Environment, dataset/variable/function registries
 #    eval/rel_plugin     dynamic library loader
 #    eval/builtin/*      builtin function libraries
@@ -48,7 +48,7 @@ add_library(rel_runtime SHARED
     src/runtime/builtin_library.cc
     src/runtime/math_library.cc
 )
-target_compile_definitions(rel_runtime PRIVATE REL_VALUE_BUILD_DLL)
+target_compile_definitions(rel_runtime PRIVATE REL_RUNTIME_BUILD_DLL)
 target_include_directories(rel_runtime PUBLIC src/runtime)
 target_link_libraries(rel_runtime PUBLIC xdataset)
 

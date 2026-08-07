@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rel_value_api.h"
+#include "rel_runtime_api.h"
 
 #include <boost/variant.hpp>
 
@@ -33,7 +33,7 @@ using namespace xdataset;
 //  Calling data() on a Measurement-backed Value auto-converts it to an
 //  Independent DataArray so that the unified mutation API works seamlessly.
 
-class REL_VALUE_API Value
+class REL_RUNTIME_API Value
 {
 public:
     // =====================================================================
