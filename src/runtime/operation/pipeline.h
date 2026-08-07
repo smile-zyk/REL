@@ -9,35 +9,33 @@
 namespace rel {
 namespace operation {
 
-using namespace xdataset;
-
 // =========================================================================
 //  Broadcast plans
 // =========================================================================
 
 struct RowBroadcastPlan {
-    Index              result_size;
+    xdataset::Index              result_size;
     std::vector<bool>  broadcast;
 
-    static RowBroadcastPlan Compute(const std::vector<Index>& sizes);
+    static RowBroadcastPlan Compute(const std::vector<xdataset::Index>& sizes);
 };
 
 struct OperandBroadcastShapeInfo {
-    Index elements;
-    Index cols;
+    xdataset::Index elements;
+    xdataset::Index cols;
     bool  broadcast_row;
     bool  broadcast_col;
 };
 
 struct ShapeBroadcastPlan {
-    DataShape          result_shape;
-    Index              result_elements;
-    Index              result_cols;
+    xdataset::DataShape          result_shape;
+    xdataset::Index              result_elements;
+    xdataset::Index              result_cols;
     std::vector<OperandBroadcastShapeInfo> ops;
 
-    static ShapeBroadcastPlan Make(const std::vector<DataShape>& operand_shapes,
-                                    const DataShape& result);
-    Index MapFlatIndex(Index result_flat, int k) const;
+    static ShapeBroadcastPlan Make(const std::vector<xdataset::DataShape>& operand_shapes,
+                                    const xdataset::DataShape& result);
+    xdataset::Index MapFlatIndex(xdataset::Index result_flat, int k) const;
 };
 
 // =========================================================================
@@ -45,10 +43,10 @@ struct ShapeBroadcastPlan {
 // =========================================================================
 
 struct ExecContextInfo {
-    Index              rows;
-    DataShape          shape;
-    DataType           dtype;
-    Unit               unit;
+    xdataset::Index              rows;
+    xdataset::DataShape          shape;
+    xdataset::DataType           dtype;
+    xdataset::Unit               unit;
 };
 
 template <typename T>
@@ -57,19 +55,19 @@ using ElemOp = T (*)(T, T);
 template <typename T>
 using UnaryOp = T (*)(T);
 
-typedef DataShape (*DeriveShapeFunc)(const std::vector<DataShape>& operand_shapes);
-typedef DataType (*DeriveDtypeFunc)(const std::vector<DataType>& dtypes);
-typedef Unit     (*DeriveUnitFunc)(const std::vector<Unit>& units);
-typedef Index    (*DeriveRowsFunc)(const std::vector<Index>& rows);
+typedef xdataset::DataShape (*DeriveShapeFunc)(const std::vector<xdataset::DataShape>& operand_shapes);
+typedef xdataset::DataType (*DeriveDtypeFunc)(const std::vector<xdataset::DataType>& dtypes);
+typedef xdataset::Unit     (*DeriveUnitFunc)(const std::vector<xdataset::Unit>& units);
+typedef xdataset::Index    (*DeriveRowsFunc)(const std::vector<xdataset::Index>& rows);
 typedef Value    (*ExecuteFunc)(const ExecContextInfo& info,
                                 const std::vector<Value>& ops);
 
-enum Arity : Index {
+enum Arity : xdataset::Index {
     kVariadic = -1
 };
 
 struct OpTraits {
-    Index           arity;
+    xdataset::Index           arity;
     DeriveShapeFunc derive_shape;
     DeriveRowsFunc  derive_rows;
     DeriveDtypeFunc derive_dtype;
@@ -81,18 +79,18 @@ struct OpTraits {
 //  Operate -- the core pipeline entry point
 // =========================================================================
 
-REL_RUNTIME_API Value Operate(const std::vector<Value>& operands,
-                              const OpTraits& traits);
+Value Operate(const std::vector<Value>& operands,
+              const OpTraits& traits);
 
 // =========================================================================
 //  Generic Derive callbacks (used by many operators)
 // =========================================================================
 
-REL_RUNTIME_API DataShape DeriveShapeBroadcast(const std::vector<DataShape>& operand_shapes);
-REL_RUNTIME_API Index    DeriveRowsBroadcast(const std::vector<Index>& rows);
+xdataset::DataShape DeriveShapeBroadcast(const std::vector<xdataset::DataShape>& operand_shapes);
+xdataset::Index    DeriveRowsBroadcast(const std::vector<xdataset::Index>& rows);
 
-REL_RUNTIME_API DataType DeriveDtypePromote(const std::vector<DataType>& dtypes);
-REL_RUNTIME_API Unit     DeriveUnitSameDim(const std::vector<Unit>& units);
+xdataset::DataType DeriveDtypePromote(const std::vector<xdataset::DataType>& dtypes);
+xdataset::Unit     DeriveUnitSameDim(const std::vector<xdataset::Unit>& units);
 
 }  // namespace operation
 }  // namespace rel

@@ -8,9 +8,6 @@
 
 namespace rel {
 
-// Bring all xdataset types into rel namespace for convenient unqualified use.
-using namespace xdataset;
-
 // =========================================================================
 //  Value operators (must be in namespace rel for ADL)
 // =========================================================================

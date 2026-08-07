@@ -13,11 +13,9 @@
 #include "unit.h"
 
 namespace rel {
-
-// Bring all xdataset types into rel namespace for convenient unqualified use,
-// since Value and its operators historically lived in namespace xdataset.
+// Bring all xdataset types into rel namespace -- Value is the core bridge
+// between rel and xdataset, and its API uses xdataset types extensively.
 using namespace xdataset;
-
 // =========================================================================
 //  Value �?unified value type for Measurement and DataArray
 // =========================================================================

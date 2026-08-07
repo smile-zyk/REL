@@ -13,6 +13,8 @@
 namespace rel {
 namespace operation {
 
+using namespace xdataset;
+
 // =========================================================================
 //  RowBroadcastPlan::Compute
 // =========================================================================
