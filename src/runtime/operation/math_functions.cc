@@ -696,14 +696,6 @@ static DataType DeriveDtypeRoot(const std::vector<DataType>& dtypes) {
     return res;
 }
 
-static Unit DeriveUnitAtan2(const std::vector<Unit>& units) {
-    return DeriveUnitSameDim({units[0], units[1]});
-}
-
-static Unit DeriveUnitRoot(const std::vector<Unit>& units) {
-    return DeriveUnitFirst({units[0]});
-}
-
 // =========================================================================
 //  Binary math �?execute callbacks
 // =========================================================================
@@ -731,12 +723,12 @@ Value ExecuteRoot(const ExecContextInfo& info,
 
 const OpTraits kOpAtan2 = {
     2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypeAtan2, DeriveUnitAtan2, ExecuteAtan2
+    DeriveDtypeAtan2, DeriveUnitSameDim, ExecuteAtan2
 };
 
 const OpTraits kOpRoot = {
     2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypeRoot, DeriveUnitRoot, ExecuteRoot
+    DeriveDtypeRoot, DeriveUnitFirst, ExecuteRoot
 };
 
 // =========================================================================

@@ -125,7 +125,7 @@ Index ShapeBroadcastPlan::MapFlatIndex(Index result_flat, int k) const {
 // =========================================================================
 
 Value Operate(const std::vector<Value>& operands, const OpTraits& traits) {
-    if (traits.arity != Arity::kVariadic) {
+    if (traits.arity != -1) {
         Index n = static_cast<Index>(operands.size());
         if (n != traits.arity) {
             throw std::invalid_argument(

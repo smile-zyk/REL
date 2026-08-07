@@ -62,10 +62,6 @@ typedef xdataset::Index    (*DeriveRowsFunc)(const std::vector<xdataset::Index>&
 typedef Value    (*ExecuteFunc)(const ExecContextInfo& info,
                                 const std::vector<Value>& ops);
 
-enum Arity : xdataset::Index {
-    kVariadic = -1
-};
-
 struct OpTraits {
     xdataset::Index           arity;
     DeriveShapeFunc derive_shape;

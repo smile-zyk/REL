@@ -2316,19 +2316,19 @@ const OpTraits kOpConditional = {
 };
 
 const OpTraits kOpIf = {
-    Arity::kVariadic, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    -1, DeriveShapeBroadcast, DeriveRowsBroadcast,
     DeriveDtypeIf, DeriveUnitIf, ExecuteIf
 };
 
 // ---- variadic --------------------------------------------------------------
 
 const OpTraits kOpSweep = {
-    Arity::kVariadic, DeriveShapeBroadcast,
+    -1, DeriveShapeBroadcast,
     DeriveRowsSum, DeriveDtypeMerge, DeriveUnitSameDim, ExecuteSweep
 };
 
 const OpTraits kOpMatrix = {
-    Arity::kVariadic, DeriveShapeMatrix,
+    -1, DeriveShapeMatrix,
     DeriveRowsBroadcast, DeriveDtypeMerge, DeriveUnitSameDim, ExecuteMatrix
 };
 
