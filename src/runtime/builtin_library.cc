@@ -51,10 +51,10 @@ namespace rel
 
         // ---- function factories --------------------------------------------
         //
-        //  Each make_xxx() builds the full Function object ï¿?name, parameter
-        //  list (including defaults), and implementation ï¿?in one place.
+        //  Each make_xxx() builds the full Function object ï¿½?name, parameter
+        //  list (including defaults), and implementation ï¿½?in one place.
 
-        /// Build datasets() ï¿?list every registered Dataset (global).
+        /// Build datasets() ï¿½?list every registered Dataset (global).
         static Function make_datasets()
         {
             return Function(
@@ -70,7 +70,7 @@ namespace rel
                 });
         }
 
-        /// Build default_dataset() ï¿?the current default Dataset (global).
+        /// Build default_dataset() ï¿½?the current default Dataset (global).
         static Function make_default_dataset()
         {
             return Function(
@@ -87,7 +87,7 @@ namespace rel
                 });
         }
 
-        /// Build variables() ï¿?return an empty list (user variables are per-Environment
+        /// Build variables() ï¿½?return an empty list (user variables are per-Environment
         /// and not accessible from global builtins).
         static Function make_variables()
         {
@@ -101,7 +101,7 @@ namespace rel
 
         // ---- what(x) -------------------------------------------------------
 
-        /// Build what(x) ï¿?inspect a Value as 5 rows of ArrayString:
+        /// Build what(x) ï¿½?inspect a Value as 5 rows of ArrayString:
         ///   Dependency / Kind / Dimension / Data Shape / Data Type.
         /// Rendering uses the shared rel::Format* helpers.
         static Function make_what()
@@ -140,7 +140,7 @@ namespace rel
 
         // ---- indep(da, selector) -------------------------------------------
 
-        /// Build indep(da, selector = 1) ï¿?extract an independent variable from
+        /// Build indep(da, selector = 1) ï¿½?extract an independent variable from
         /// a DataArray.  `selector` is either an Integer (1-based index, default
         /// 1) or a String (independent variable name); it is forwarded to
         /// DataArray::indep.
@@ -216,7 +216,7 @@ namespace rel
 
         // ---- output(da, variable_name = "data") ----------------------------
 
-        /// Build output(da, variable_name = "data") ï¿?write a DataArray's
+        /// Build output(da, variable_name = "data") ï¿½?write a DataArray's
         /// DataFrame view to "<variable_name>.csv" in the current directory.
         /// Returns a String Measurement carrying the absolute path written.
         static Function make_output()

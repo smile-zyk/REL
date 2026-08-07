@@ -5,7 +5,7 @@
 // rel::operation::OperationXxx, which runs through the full
 // derive + broadcast + execute flow.
 //
-// Type promotion: Boolean â†?Integer (0/1), Integer â†?Real promotion
+// Type promotion: Boolean ï¿½?Integer (0/1), Integer ï¿½?Real promotion
 // is handled by DeriveDtypeMath in the pipeline.
 
 #include "function.h"
