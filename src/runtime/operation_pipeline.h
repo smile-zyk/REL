@@ -11,25 +11,6 @@ namespace rel {
 using namespace xdataset;
 
 // =========================================================================
-//  Operation category
-// =========================================================================
-
-enum class OpCategory {
-    kPow,
-    kNot, kBitNot, kNegate,
-    kMul, kDiv, kMod,
-    kAdd, kSub,
-    kShl, kShr,
-    kLt, kGt, kLe, kGe,
-    kEq, kNeq,
-    kBitAnd, kBitXor, kBitOr,
-    kAnd, kOr,
-    kConditional,
-    kIf,
-    kMatrix, kSweep
-};
-
-// =========================================================================
 //  Broadcast plans
 // =========================================================================
 
@@ -63,7 +44,6 @@ struct ShapeBroadcastPlan {
 // =========================================================================
 
 struct ExecContextInfo {
-    OpCategory         op;
     Index              rows;
     DataShape          shape;
     DataType           dtype;
@@ -88,7 +68,6 @@ enum Arity : Index {
 };
 
 struct OpTraits {
-    OpCategory      op;
     Index           arity;
     DeriveShapeFunc derive_shape;
     DeriveRowsFunc  derive_rows;

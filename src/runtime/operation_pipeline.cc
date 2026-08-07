@@ -155,7 +155,6 @@ Value Operate(const std::vector<Value>& operands, const OpTraits& traits) {
     Unit      unit  = traits.derive_unit(units);
 
     ExecContextInfo info;
-    info.op    = traits.op;
     info.rows  = rows;
     info.shape = shape;
     info.dtype = dtype;

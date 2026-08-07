@@ -8,7 +8,7 @@
 //    execute callback registered in OpTraits.
 //
 //  The execute callback is responsible for performing the actual
-//  computation.  For binary arithmetic, ExecuteBinaryArith flattens
+//  computation.  For binary arithmetic, ExecBinaryArithT flattens
 //  all operands to typed T* buffers, computes broadcast plans, runs
 //  a unified loop, and converts the flat output back to Value.
 //
@@ -354,42 +354,6 @@ inline int str_cmp_gt(const std::string& a, const std::string& b) { return a >  
 inline int str_cmp_le(const std::string& a, const std::string& b) { return a <= b ? 1 : 0; }
 inline int str_cmp_ge(const std::string& a, const std::string& b) { return a >= b ? 1 : 0; }
 
-// Get cmp element-op by T and category
-template <typename T> int (*GetCmpOp(OpCategory cat))(T, T);
-template <> inline int (*GetCmpOp<int>(OpCategory cat))(int, int) {
-    switch (cat) {
-        case OpCategory::kEq:  return op_cmp_eq<int>;  case OpCategory::kNeq: return op_cmp_ne<int>;
-        case OpCategory::kLt:  return op_cmp_lt<int>;  case OpCategory::kGt:  return op_cmp_gt<int>;
-        case OpCategory::kLe:  return op_cmp_le<int>;  case OpCategory::kGe:  return op_cmp_ge<int>;
-        default: throw std::invalid_argument("not a comparison op");
-    }
-}
-template <> inline int (*GetCmpOp<double>(OpCategory cat))(double, double) {
-    switch (cat) {
-        case OpCategory::kEq:  return op_cmp_eq<double>; case OpCategory::kNeq: return op_cmp_ne<double>;
-        case OpCategory::kLt:  return op_cmp_lt<double>; case OpCategory::kGt:  return op_cmp_gt<double>;
-        case OpCategory::kLe:  return op_cmp_le<double>; case OpCategory::kGe:  return op_cmp_ge<double>;
-        default: throw std::invalid_argument("not a comparison op");
-    }
-}
-template <> inline int (*GetCmpOp<std::complex<double>>(OpCategory cat))(std::complex<double>, std::complex<double>) {
-    switch (cat) {
-        case OpCategory::kEq:  return op_cmp_eq<std::complex<double>>; case OpCategory::kNeq: return op_cmp_ne<std::complex<double>>;
-        case OpCategory::kLt:  return op_cmp_lt<std::complex<double>>; case OpCategory::kGt:  return op_cmp_gt<std::complex<double>>;
-        case OpCategory::kLe:  return op_cmp_le<std::complex<double>>; case OpCategory::kGe:  return op_cmp_ge<std::complex<double>>;
-        default: throw std::invalid_argument("not a comparison op");
-    }
-}
-
-inline int (*GetStrCmpOp(OpCategory cat))(const std::string&, const std::string&) {
-    switch (cat) {
-        case OpCategory::kEq:  return str_cmp_eq; case OpCategory::kNeq: return str_cmp_ne;
-        case OpCategory::kLt:  return str_cmp_lt; case OpCategory::kGt:  return str_cmp_gt;
-        case OpCategory::kLe:  return str_cmp_le; case OpCategory::kGe:  return str_cmp_ge;
-        default: throw std::invalid_argument("not a comparison op");
-    }
-}
-
 template <typename T> inline T op_and(T a, T b) {
     return static_cast<T>(
         (static_cast<int>(a) && static_cast<int>(b)) ? 1 : 0);
@@ -426,47 +390,6 @@ template <typename T> inline T op_shr(T /*a*/, T /*b*/) {
 }
 template <> inline int op_shr<int>(int a, int b) {
     return (b >= 0) ? (a >> b) : (a << (-b));
-}
-
-template <typename T>
-ElemOp<T> GetArithElemOp(OpCategory cat) {
-    switch (cat) {
-        case OpCategory::kAdd: return op_add<T>;
-        case OpCategory::kSub: return op_sub<T>;
-        case OpCategory::kMul: return op_mul<T>;
-        case OpCategory::kDiv: return op_div<T>;
-        case OpCategory::kMod: return op_mod<T>;
-        case OpCategory::kPow: return op_pow<T>;
-        default: throw std::invalid_argument("not an arithmetic op");
-    }
-}
-
-template <typename T>
-ElemOp<T> GetLogicalElemOp(OpCategory cat) {
-    switch (cat) {
-        case OpCategory::kAnd: return op_and<T>;
-        case OpCategory::kOr:  return op_or<T>;
-        default: throw std::invalid_argument("not a logical op");
-    }
-}
-
-template <typename T>
-ElemOp<T> GetBitwiseElemOp(OpCategory cat) {
-    switch (cat) {
-        case OpCategory::kBitAnd: return op_bitand<T>;
-        case OpCategory::kBitOr:  return op_bitor<T>;
-        case OpCategory::kBitXor: return op_bitxor<T>;
-        default: throw std::invalid_argument("not a bitwise op");
-    }
-}
-
-template <typename T>
-ElemOp<T> GetShiftElemOp(OpCategory cat) {
-    switch (cat) {
-        case OpCategory::kShl: return op_shl<T>;
-        case OpCategory::kShr: return op_shr<T>;
-        default: throw std::invalid_argument("not a shift op");
-    }
 }
 
 }  // anonymous namespace
@@ -614,13 +537,6 @@ Value ExecBinaryArithT(const ExecContextInfo& info,
     Index    l_stride = l_in.stride;
     Index    r_stride = r_in.stride;
 
-    // --- zero-divisor check (div/mod, both Meas scalar only) ---
-    if (l_meas && r_meas && info.shape.kind() == DataKind::kScalar &&
-        (info.op == OpCategory::kDiv || info.op == OpCategory::kMod)) {
-        if (r_ptr[0] == T(0))
-            throw std::invalid_argument("division by zero");
-    }
-
     // ====================================
     //  Step 2: 鍒嗛厤杈撳嚭
     // ====================================
@@ -654,21 +570,88 @@ Value ExecBinaryArithT(const ExecContextInfo& info,
 //  Public execute callbacks
 // =========================================================================
 
-Value ExecuteBinaryArith(const ExecContextInfo& info,
-                          const std::vector<Value>& ops) {
+// =========================================================================
+//  Per-op execute callbacks -- binary arithmetic
+// =========================================================================
+
+Value ExecuteAdd(const ExecContextInfo& info,
+                  const std::vector<Value>& ops) {
     switch (info.dtype) {
         case DataType::kComplex:
-            return ExecBinaryArithT<std::complex<double>>(
-                info, ops, GetArithElemOp<std::complex<double>>(info.op));
+            return ExecBinaryArithT<std::complex<double>>(info, ops, op_add<std::complex<double>>);
         case DataType::kReal:
-            return ExecBinaryArithT<double>(
-                info, ops, GetArithElemOp<double>(info.op));
+            return ExecBinaryArithT<double>(info, ops, op_add<double>);
         case DataType::kInteger:
-            return ExecBinaryArithT<int>(
-                info, ops, GetArithElemOp<int>(info.op));
+            return ExecBinaryArithT<int>(info, ops, op_add<int>);
         default:
-            throw std::invalid_argument(
-                "unsupported dtype for arithmetic");
+            throw std::invalid_argument("unsupported dtype for arithmetic");
+    }
+}
+
+Value ExecuteSub(const ExecContextInfo& info,
+                  const std::vector<Value>& ops) {
+    switch (info.dtype) {
+        case DataType::kComplex:
+            return ExecBinaryArithT<std::complex<double>>(info, ops, op_sub<std::complex<double>>);
+        case DataType::kReal:
+            return ExecBinaryArithT<double>(info, ops, op_sub<double>);
+        case DataType::kInteger:
+            return ExecBinaryArithT<int>(info, ops, op_sub<int>);
+        default:
+            throw std::invalid_argument("unsupported dtype for arithmetic");
+    }
+}
+
+Value ExecuteMod(const ExecContextInfo& info,
+                  const std::vector<Value>& ops) {
+    // Zero-divisor check for scalar Measurement / Measurement
+    if (ops[0].is_measurement() && ops[1].is_measurement() &&
+        info.shape.kind() == DataKind::kScalar) {
+        switch (info.dtype) {
+            case DataType::kComplex: {
+                auto r_in = ops[1].flat_data<std::complex<double>>();
+                if (r_in.ptr[0] == std::complex<double>(0))
+                    throw std::invalid_argument("division by zero");
+                break;
+            }
+            case DataType::kReal: {
+                auto r_in = ops[1].flat_data<double>();
+                if (r_in.ptr[0] == 0.0)
+                    throw std::invalid_argument("division by zero");
+                break;
+            }
+            case DataType::kInteger: {
+                auto r_in = ops[1].flat_data<int>();
+                if (r_in.ptr[0] == 0)
+                    throw std::invalid_argument("division by zero");
+                break;
+            }
+            default: break;
+        }
+    }
+    switch (info.dtype) {
+        case DataType::kComplex:
+            return ExecBinaryArithT<std::complex<double>>(info, ops, op_mod<std::complex<double>>);
+        case DataType::kReal:
+            return ExecBinaryArithT<double>(info, ops, op_mod<double>);
+        case DataType::kInteger:
+            return ExecBinaryArithT<int>(info, ops, op_mod<int>);
+        default:
+            throw std::invalid_argument("unsupported dtype for arithmetic");
+    }
+}
+
+Value ExecutePow(const ExecContextInfo& info,
+                  const std::vector<Value>& ops) {
+    switch (info.dtype) {
+        case DataType::kComplex:
+            return ExecBinaryArithT<std::complex<double>>(info, ops, op_pow<std::complex<double>>);
+        case DataType::kReal:
+            return ExecBinaryArithT<double>(info, ops, op_pow<double>);
+        case DataType::kInteger:
+            return ExecBinaryArithT<int>(info, ops, op_pow<int>);
+        default:
+            throw std::invalid_argument("unsupported dtype for arithmetic");
     }
 }
 
@@ -678,7 +661,8 @@ Value ExecuteBinaryArith(const ExecContextInfo& info,
 
 template <typename T>
 Value ExecBinaryCmpT(const ExecContextInfo& info,
-                      const std::vector<Value>& ops)
+                      const std::vector<Value>& ops,
+                      int (*elem_op)(T, T))
 {
     bool l_meas = ops[0].is_measurement();
     bool r_meas = ops[1].is_measurement();
@@ -703,21 +687,18 @@ Value ExecBinaryCmpT(const ExecContextInfo& info,
 
     const DataArray* out_src = SelectOutputSource(l_meas, r_meas, ops);
 
-    // Output is int (0/1), using same shape/kind as result
     auto out_ds = std::unique_ptr<DataSeries>(
         new DataSeries(DataType::kInteger, info.shape));
     out_ds->set_unit(info.unit);
     out_ds->resize(static_cast<std::size_t>(info.rows));
     int* out = out_ds->mutable_contiguous_data<int>();
 
-    auto elem_op = GetCmpOp<T>(info.op);
     Index out_stride = shape_plan.result_elements;
 
     ExecBinaryLoop<T, int>(info.rows, row_plan, shape_plan,
                            l_ptr, l_stride, r_ptr, r_stride, out, elem_op);
 
     if (l_meas && r_meas) {
-        // Scalar Meas -> upgrade to Boolean
         if (info.shape.kind() == DataKind::kScalar)
             return Value::Boolean(out[0] != 0);
 
@@ -732,7 +713,8 @@ Value ExecBinaryCmpT(const ExecContextInfo& info,
 // -- String path for Cmp ---
 
 static Value ExecBinaryCmpString(const ExecContextInfo& info,
-                                  const std::vector<Value>& ops) {
+                                  const std::vector<Value>& ops,
+                                  int (*elem_op)(const std::string&, const std::string&)) {
     // Read strings directly; comparison at string type, output int
     bool l_meas = ops[0].is_measurement();
     bool r_meas = ops[1].is_measurement();
@@ -800,7 +782,6 @@ static Value ExecBinaryCmpString(const ExecContextInfo& info,
     read_flat(ops[1], r_rows, r_stride, r_flat);
 
     // Compare strings directly
-    auto elem_op = GetStrCmpOp(info.op);
 
     const DataArray* out_src = SelectOutputSource(l_meas, r_meas, ops);
 
@@ -839,33 +820,115 @@ static Value ExecBinaryCmpString(const ExecContextInfo& info,
 //  Public execute callbacks -- Cmp and Logic
 // =========================================================================
 
-Value ExecuteBinaryCmp(const ExecContextInfo& info,
-                        const std::vector<Value>& ops) {
-    // info.dtype = comparison type (from DeriveDtypeCmp).
-    // Result is always int 0/1.
-    // For scalar Meas脳Meas the int is upgraded to Boolean.
+// =========================================================================
+//  Per-op execute callbacks -- comparison
+// =========================================================================
 
+Value ExecuteEq(const ExecContextInfo& info,
+                 const std::vector<Value>& ops) {
     switch (info.dtype) {
         case DataType::kString:
             if (ops[0].data_type() != DataType::kString || ops[1].data_type() != DataType::kString)
                 throw std::invalid_argument("comparison: cannot mix string with numeric");
-            return ExecBinaryCmpString(info, ops);
+            return ExecBinaryCmpString(info, ops, str_cmp_eq);
         case DataType::kComplex:
-            return ExecBinaryCmpT<std::complex<double>>(info, ops);
+            return ExecBinaryCmpT<std::complex<double>>(info, ops, op_cmp_eq<std::complex<double>>);
         case DataType::kReal:
-            return ExecBinaryCmpT<double>(info, ops);
+            return ExecBinaryCmpT<double>(info, ops, op_cmp_eq<double>);
         default:
-            return ExecBinaryCmpT<int>(info, ops);
+            return ExecBinaryCmpT<int>(info, ops, op_cmp_eq<int>);
     }
 }
 
-Value ExecuteBinaryLogical(const ExecContextInfo& info,
-                            const std::vector<Value>& ops) {
-    // Logical ops (AND/OR) first convert both operands to int via as_logical()
-    // (non-zero 鈫?1), then apply the logical element op in int domain.
-    // Both Measurement and Scalar shape 鈫?upgrade to Boolean.
+Value ExecuteNeq(const ExecContextInfo& info,
+                  const std::vector<Value>& ops) {
+    switch (info.dtype) {
+        case DataType::kString:
+            if (ops[0].data_type() != DataType::kString || ops[1].data_type() != DataType::kString)
+                throw std::invalid_argument("comparison: cannot mix string with numeric");
+            return ExecBinaryCmpString(info, ops, str_cmp_ne);
+        case DataType::kComplex:
+            return ExecBinaryCmpT<std::complex<double>>(info, ops, op_cmp_ne<std::complex<double>>);
+        case DataType::kReal:
+            return ExecBinaryCmpT<double>(info, ops, op_cmp_ne<double>);
+        default:
+            return ExecBinaryCmpT<int>(info, ops, op_cmp_ne<int>);
+    }
+}
 
-    // Build int operands via as_logical()
+Value ExecuteLt(const ExecContextInfo& info,
+                 const std::vector<Value>& ops) {
+    switch (info.dtype) {
+        case DataType::kString:
+            if (ops[0].data_type() != DataType::kString || ops[1].data_type() != DataType::kString)
+                throw std::invalid_argument("comparison: cannot mix string with numeric");
+            return ExecBinaryCmpString(info, ops, str_cmp_lt);
+        case DataType::kComplex:
+            return ExecBinaryCmpT<std::complex<double>>(info, ops, op_cmp_lt<std::complex<double>>);
+        case DataType::kReal:
+            return ExecBinaryCmpT<double>(info, ops, op_cmp_lt<double>);
+        default:
+            return ExecBinaryCmpT<int>(info, ops, op_cmp_lt<int>);
+    }
+}
+
+Value ExecuteGt(const ExecContextInfo& info,
+                 const std::vector<Value>& ops) {
+    switch (info.dtype) {
+        case DataType::kString:
+            if (ops[0].data_type() != DataType::kString || ops[1].data_type() != DataType::kString)
+                throw std::invalid_argument("comparison: cannot mix string with numeric");
+            return ExecBinaryCmpString(info, ops, str_cmp_gt);
+        case DataType::kComplex:
+            return ExecBinaryCmpT<std::complex<double>>(info, ops, op_cmp_gt<std::complex<double>>);
+        case DataType::kReal:
+            return ExecBinaryCmpT<double>(info, ops, op_cmp_gt<double>);
+        default:
+            return ExecBinaryCmpT<int>(info, ops, op_cmp_gt<int>);
+    }
+}
+
+Value ExecuteLe(const ExecContextInfo& info,
+                 const std::vector<Value>& ops) {
+    switch (info.dtype) {
+        case DataType::kString:
+            if (ops[0].data_type() != DataType::kString || ops[1].data_type() != DataType::kString)
+                throw std::invalid_argument("comparison: cannot mix string with numeric");
+            return ExecBinaryCmpString(info, ops, str_cmp_le);
+        case DataType::kComplex:
+            return ExecBinaryCmpT<std::complex<double>>(info, ops, op_cmp_le<std::complex<double>>);
+        case DataType::kReal:
+            return ExecBinaryCmpT<double>(info, ops, op_cmp_le<double>);
+        default:
+            return ExecBinaryCmpT<int>(info, ops, op_cmp_le<int>);
+    }
+}
+
+Value ExecuteGe(const ExecContextInfo& info,
+                 const std::vector<Value>& ops) {
+    switch (info.dtype) {
+        case DataType::kString:
+            if (ops[0].data_type() != DataType::kString || ops[1].data_type() != DataType::kString)
+                throw std::invalid_argument("comparison: cannot mix string with numeric");
+            return ExecBinaryCmpString(info, ops, str_cmp_ge);
+        case DataType::kComplex:
+            return ExecBinaryCmpT<std::complex<double>>(info, ops, op_cmp_ge<std::complex<double>>);
+        case DataType::kReal:
+            return ExecBinaryCmpT<double>(info, ops, op_cmp_ge<double>);
+        default:
+            return ExecBinaryCmpT<int>(info, ops, op_cmp_ge<int>);
+    }
+}
+
+// =========================================================================
+//  Per-op execute callbacks -- logical, bitwise, shift
+// =========================================================================
+
+// Logical ops helper: convert both operands to int via as_logical(),
+// apply element op, then optionally upgrade scalar Measurement to Boolean.
+static Value DoBinaryLogical(const ExecContextInfo& info,
+                              const std::vector<Value>& ops,
+                              ElemOp<int> elem_op) {
     auto make_logical = [](const Value& v) -> Value {
         if (v.is_measurement()) {
             const Measurement& m = v.as_measurement();
@@ -884,8 +947,7 @@ Value ExecuteBinaryLogical(const ExecContextInfo& info,
     Value li = make_logical(ops[0]);
     Value ri = make_logical(ops[1]);
 
-    Value result = ExecBinaryArithT<int>(info, {li, ri},
-        GetLogicalElemOp<int>(info.op));
+    Value result = ExecBinaryArithT<int>(info, {li, ri}, elem_op);
 
     if (ops[0].is_measurement() && ops[1].is_measurement() &&
         info.shape.kind() == DataKind::kScalar) {
@@ -894,24 +956,39 @@ Value ExecuteBinaryLogical(const ExecContextInfo& info,
     return result;
 }
 
-// =========================================================================
-//  ExecuteBinaryBitwise -- int-only element-wise bitwise ops
-// =========================================================================
-
-Value ExecuteBinaryBitwise(const ExecContextInfo& info,
-                            const std::vector<Value>& ops) {
-    return ExecBinaryArithT<int>(info, ops,
-        GetBitwiseElemOp<int>(info.op));
+Value ExecuteAnd(const ExecContextInfo& info,
+                  const std::vector<Value>& ops) {
+    return DoBinaryLogical(info, ops, op_and<int>);
 }
 
-// =========================================================================
-//  ExecuteBinaryShift -- int-only element-wise shift ops
-// =========================================================================
+Value ExecuteOr(const ExecContextInfo& info,
+                 const std::vector<Value>& ops) {
+    return DoBinaryLogical(info, ops, op_or<int>);
+}
 
-Value ExecuteBinaryShift(const ExecContextInfo& info,
-                          const std::vector<Value>& ops) {
-    return ExecBinaryArithT<int>(info, ops,
-        GetShiftElemOp<int>(info.op));
+Value ExecuteBitAnd(const ExecContextInfo& info,
+                     const std::vector<Value>& ops) {
+    return ExecBinaryArithT<int>(info, ops, op_bitand<int>);
+}
+
+Value ExecuteBitOr(const ExecContextInfo& info,
+                    const std::vector<Value>& ops) {
+    return ExecBinaryArithT<int>(info, ops, op_bitor<int>);
+}
+
+Value ExecuteBitXor(const ExecContextInfo& info,
+                     const std::vector<Value>& ops) {
+    return ExecBinaryArithT<int>(info, ops, op_bitxor<int>);
+}
+
+Value ExecuteShl(const ExecContextInfo& info,
+                  const std::vector<Value>& ops) {
+    return ExecBinaryArithT<int>(info, ops, op_shl<int>);
+}
+
+Value ExecuteShr(const ExecContextInfo& info,
+                  const std::vector<Value>& ops) {
+    return ExecBinaryArithT<int>(info, ops, op_shr<int>);
 }
 
 // =========================================================================
@@ -1536,7 +1613,16 @@ Value ExecuteBinaryMul(const ExecContextInfo& info,
     // Scalar path: either operand is scalar -> element-wise broadcast
     if (ops[0].data_shape().kind() == DataKind::kScalar ||
         ops[1].data_shape().kind() == DataKind::kScalar) {
-        return ExecuteBinaryArith(info, ops);
+        switch (info.dtype) {
+            case DataType::kComplex:
+                return ExecBinaryArithT<std::complex<double>>(info, ops, op_mul<std::complex<double>>);
+            case DataType::kReal:
+                return ExecBinaryArithT<double>(info, ops, op_mul<double>);
+            case DataType::kInteger:
+                return ExecBinaryArithT<int>(info, ops, op_mul<int>);
+            default:
+                throw std::invalid_argument("unsupported dtype for mul");
+        }
     }
 
     // Matrix multiplication path
@@ -1560,7 +1646,41 @@ Value ExecuteBinaryDiv(const ExecContextInfo& info,
                         const std::vector<Value>& ops) {
     // Scalar path: RHS is scalar -> element-wise broadcast
     if (ops[1].data_shape().kind() == DataKind::kScalar) {
-        return ExecuteBinaryArith(info, ops);
+        // Zero-divisor check for scalar Measurement / Measurement
+        if (ops[0].is_measurement() && ops[1].is_measurement() &&
+            info.shape.kind() == DataKind::kScalar) {
+            switch (info.dtype) {
+                case DataType::kComplex: {
+                    auto r_in = ops[1].flat_data<std::complex<double>>();
+                    if (r_in.ptr[0] == std::complex<double>(0))
+                        throw std::invalid_argument("division by zero");
+                    break;
+                }
+                case DataType::kReal: {
+                    auto r_in = ops[1].flat_data<double>();
+                    if (r_in.ptr[0] == 0.0)
+                        throw std::invalid_argument("division by zero");
+                    break;
+                }
+                case DataType::kInteger: {
+                    auto r_in = ops[1].flat_data<int>();
+                    if (r_in.ptr[0] == 0)
+                        throw std::invalid_argument("division by zero");
+                    break;
+                }
+                default: break;
+            }
+        }
+        switch (info.dtype) {
+            case DataType::kComplex:
+                return ExecBinaryArithT<std::complex<double>>(info, ops, op_div<std::complex<double>>);
+            case DataType::kReal:
+                return ExecBinaryArithT<double>(info, ops, op_div<double>);
+            case DataType::kInteger:
+                return ExecBinaryArithT<int>(info, ops, op_div<int>);
+            default:
+                throw std::invalid_argument("unsupported dtype for div");
+        }
     }
 
     // Matrix division path: A x inv(B)
@@ -2300,146 +2420,146 @@ Value ExecuteIf(const ExecContextInfo& info,
 // ---- binary arithmetic -----------------------------------------------------
 
 const OpTraits kOpAdd = {
-    OpCategory::kAdd, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypePromote, DeriveUnitSameDim, ExecuteBinaryArith
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypePromote, DeriveUnitSameDim, ExecuteAdd
 };
 
 const OpTraits kOpSub = {
-    OpCategory::kSub, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypePromote, DeriveUnitSameDim, ExecuteBinaryArith
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypePromote, DeriveUnitSameDim, ExecuteSub
 };
 
 const OpTraits kOpMul = {
-    OpCategory::kMul, 2, DeriveShapeMul, DeriveRowsBroadcast,
+    2, DeriveShapeMul, DeriveRowsBroadcast,
     DeriveDtypePromote, DeriveUnitMul, ExecuteBinaryMul
 };
 
 const OpTraits kOpDiv = {
-    OpCategory::kDiv, 2, DeriveShapeDiv, DeriveRowsBroadcast,
+    2, DeriveShapeDiv, DeriveRowsBroadcast,
     DeriveDtypeDiv, DeriveUnitDiv, ExecuteBinaryDiv
 };
 
 const OpTraits kOpMod = {
-    OpCategory::kMod, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypeMod, DeriveUnitSameDim, ExecuteBinaryArith
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypeMod, DeriveUnitSameDim, ExecuteMod
 };
 
 const OpTraits kOpPow = {
-    OpCategory::kPow, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypePow, DeriveUnitFirst, ExecuteBinaryArith
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypePow, DeriveUnitFirst, ExecutePow
 };
 
 // ---- binary comparison -----------------------------------------------------
 
 const OpTraits kOpEq = {
-    OpCategory::kEq, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypeCmp, DeriveUnitDimless, ExecuteBinaryCmp
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypeCmp, DeriveUnitDimless, ExecuteEq
 };
 
 const OpTraits kOpNeq = {
-    OpCategory::kNeq, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypeCmp, DeriveUnitDimless, ExecuteBinaryCmp
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypeCmp, DeriveUnitDimless, ExecuteNeq
 };
 
 const OpTraits kOpLt = {
-    OpCategory::kLt, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypeCmp, DeriveUnitDimless, ExecuteBinaryCmp
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypeCmp, DeriveUnitDimless, ExecuteLt
 };
 
 const OpTraits kOpGt = {
-    OpCategory::kGt, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypeCmp, DeriveUnitDimless, ExecuteBinaryCmp
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypeCmp, DeriveUnitDimless, ExecuteGt
 };
 
 const OpTraits kOpLe = {
-    OpCategory::kLe, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypeCmp, DeriveUnitDimless, ExecuteBinaryCmp
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypeCmp, DeriveUnitDimless, ExecuteLe
 };
 
 const OpTraits kOpGe = {
-    OpCategory::kGe, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypeCmp, DeriveUnitDimless, ExecuteBinaryCmp
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypeCmp, DeriveUnitDimless, ExecuteGe
 };
 
 // ---- binary logical --------------------------------------------------------
 
 const OpTraits kOpAnd = {
-    OpCategory::kAnd, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypeForceInt, DeriveUnitDimless, ExecuteBinaryLogical
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypeForceInt, DeriveUnitDimless, ExecuteAnd
 };
 
 const OpTraits kOpOr = {
-    OpCategory::kOr, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypeForceInt, DeriveUnitDimless, ExecuteBinaryLogical
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypeForceInt, DeriveUnitDimless, ExecuteOr
 };
 
 // ---- binary bitwise ----------------------------------------------------
 
 const OpTraits kOpBitAnd = {
-    OpCategory::kBitAnd, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypeBitwise, DeriveUnitDimless, ExecuteBinaryBitwise
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypeBitwise, DeriveUnitDimless, ExecuteBitAnd
 };
 
 const OpTraits kOpBitOr = {
-    OpCategory::kBitOr, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypeBitwise, DeriveUnitDimless, ExecuteBinaryBitwise
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypeBitwise, DeriveUnitDimless, ExecuteBitOr
 };
 
 const OpTraits kOpBitXor = {
-    OpCategory::kBitXor, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypeBitwise, DeriveUnitDimless, ExecuteBinaryBitwise
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypeBitwise, DeriveUnitDimless, ExecuteBitXor
 };
 
 // ---- binary shift ------------------------------------------------------
 
 const OpTraits kOpShl = {
-    OpCategory::kShl, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypeBitwise, DeriveUnitDimless, ExecuteBinaryShift
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypeBitwise, DeriveUnitDimless, ExecuteShl
 };
 
 const OpTraits kOpShr = {
-    OpCategory::kShr, 2, DeriveShapeBroadcast, DeriveRowsBroadcast,
-    DeriveDtypeBitwise, DeriveUnitDimless, ExecuteBinaryShift
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypeBitwise, DeriveUnitDimless, ExecuteShr
 };
 
 // ---- unary ----------------------------------------------------------------
 
 const OpTraits kOpNegate = {
-    OpCategory::kNegate, 1, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    1, DeriveShapeBroadcast, DeriveRowsBroadcast,
     DeriveDtypePromote, DeriveUnitFirst, ExecuteUnaryNegate
 };
 
 const OpTraits kOpNot = {
-    OpCategory::kNot, 1, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    1, DeriveShapeBroadcast, DeriveRowsBroadcast,
     DeriveDtypeForceInt, DeriveUnitDimless, ExecuteUnaryNot
 };
 
 const OpTraits kOpBitNot = {
-    OpCategory::kBitNot, 1, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    1, DeriveShapeBroadcast, DeriveRowsBroadcast,
     DeriveDtypeBitwise, DeriveUnitDimless, ExecuteUnaryBitNot
 };
 
 // ---- ternary ---------------------------------------------------------------
 
 const OpTraits kOpConditional = {
-    OpCategory::kConditional, 3, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    3, DeriveShapeBroadcast, DeriveRowsBroadcast,
     DeriveDtypeConditional, DeriveUnitConditional, ExecuteConditional
 };
 
 const OpTraits kOpIf = {
-    OpCategory::kIf, Arity::kVariadic, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    Arity::kVariadic, DeriveShapeBroadcast, DeriveRowsBroadcast,
     DeriveDtypeIf, DeriveUnitIf, ExecuteIf
 };
 
 // ---- variadic --------------------------------------------------------------
 
 const OpTraits kOpSweep = {
-    OpCategory::kSweep, Arity::kVariadic, DeriveShapeBroadcast,
+    Arity::kVariadic, DeriveShapeBroadcast,
     DeriveRowsSum, DeriveDtypeMerge, DeriveUnitSameDim, ExecuteSweep
 };
 
 const OpTraits kOpMatrix = {
-    OpCategory::kMatrix, Arity::kVariadic, DeriveShapeMatrix,
+    Arity::kVariadic, DeriveShapeMatrix,
     DeriveRowsBroadcast, DeriveDtypeMerge, DeriveUnitSameDim, ExecuteMatrix
 };
 
