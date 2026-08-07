@@ -157,6 +157,7 @@ namespace
         rel::Value v;
         try {
             v = evaluator.Evaluate(*result.expr);
+            env.Define(name, v);
         } catch (const std::exception& e) {
             rel::Error err;
             err.kind    = rel::ErrorKind::RunTime;
@@ -166,7 +167,6 @@ namespace
             std::cerr << err.to_string() << std::endl;
             return 1;
         }
-        env.Define(name, v);
         std::cout << v.Format(name) << '\n';
         return 0;
     }

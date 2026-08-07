@@ -354,7 +354,7 @@ template <> inline int op_cmp_gt<std::complex<double>>(std::complex<double> a, s
 template <> inline int op_cmp_le<std::complex<double>>(std::complex<double> a, std::complex<double> b) { return std::abs(a) <= std::abs(b) ? 1 : 0; }
 template <> inline int op_cmp_ge<std::complex<double>>(std::complex<double> a, std::complex<double> b) { return std::abs(a) >= std::abs(b) ? 1 : 0; }
 
-// String cmp â€?non-template to avoid copy overhead
+// String cmp ï¿½?non-template to avoid copy overhead
 inline int str_cmp_eq(const std::string& a, const std::string& b) { return a == b ? 1 : 0; }
 inline int str_cmp_ne(const std::string& a, const std::string& b) { return a != b ? 1 : 0; }
 inline int str_cmp_lt(const std::string& a, const std::string& b) { return a <  b ? 1 : 0; }
@@ -584,7 +584,7 @@ static Value ExecBinaryCmpString(const ExecContextInfo& info,
     ShapeBroadcastPlan shape_plan = ShapeBroadcastPlan::Make(op_shapes, info.shape);
     RowBroadcastPlan   row_plan   = RowBroadcastPlan::Compute(row_counts);
 
-    // Build flat string arrays (no flat_data â€?strings handled separately)
+    // Build flat string arrays (no flat_data ï¿½?strings handled separately)
     Index l_stride = static_cast<Index>(l_shape.element_count());
     Index r_stride = static_cast<Index>(r_shape.element_count());
     Index result_rows = info.rows;
@@ -848,7 +848,7 @@ Value ExecuteShr(const ExecContextInfo& info,
 //  ExecuteMatrix ({} generator) - stack operands with row broadcast
 // =========================================================================
 //
-//  Output: all Measurement â†?Measurement, otherwise DataArray.
+//  Output: all Measurement ï¿½?Measurement, otherwise DataArray.
 
 template <typename T>
 static Value ExecMatrixT(const ExecContextInfo& info,
@@ -1046,7 +1046,7 @@ Value ExecuteMatrix(const ExecContextInfo& info,
 // =========================================================================
 //
 //  RowBroadcastPlan handles row broadcast. ShapeBroadcastPlan handles cell
-//  broadcast (Scalar â†?Vector etc.).
+//  broadcast (Scalar ï¿½?Vector etc.).
 
 template <typename T>
 static Value ExecSweepT(const ExecContextInfo& info,
@@ -1230,8 +1230,8 @@ Value ExecuteUnaryNegate(const ExecContextInfo& info,
 
 Value ExecuteUnaryNot(const ExecContextInfo& info,
                        const std::vector<Value>& ops) {
-    // Logical NOT: first convert to int via as_logical() (non-zeroâ†?),
-    // then apply NOT.  Scalar Meas â†?upgrade to Boolean.
+    // Logical NOT: first convert to int via as_logical() (non-zeroï¿½?),
+    // then apply NOT.  Scalar Meas ï¿½?upgrade to Boolean.
 
     Value v;
     if (ops[0].is_measurement()) {
@@ -1642,7 +1642,7 @@ static Value ExecConditionalString(const ExecContextInfo& info,
     Index result_rows_total = info.rows * out_stride;
 
     if (c_meas && t_meas && f_meas) {
-        // Measurement output â€?use string tensors or scalar directly
+        // Measurement output ï¿½?use string tensors or scalar directly
         DataKind dk = info.shape.kind();
         if (dk == DataKind::kScalar) {
             Index cj = shape_plan.MapFlatIndex(0, 0);

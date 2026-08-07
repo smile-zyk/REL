@@ -19,7 +19,7 @@ namespace operation {
 using namespace xdataset;
 
 // =========================================================================
-//  Element-wise math ops (double path â€?used for Integer and Real)
+//  Element-wise math ops (double path ï¿½?used for Integer and Real)
 // =========================================================================
 
 static inline double op_sin_d  (double x) { return std::sin(x); }
@@ -117,7 +117,7 @@ static Unit DeriveUnitFirst(const std::vector<Unit>& units) {
 }
 
 // =========================================================================
-//  Execute callbacks â€?standard math (dtype dispatch: Real â†?Complex)
+//  Execute callbacks ï¿½?standard math (dtype dispatch: Real ï¿½?Complex)
 // =========================================================================
 
 Value ExecuteSin(const ExecContextInfo& info,
@@ -325,7 +325,7 @@ Value ExecuteSqr(const ExecContextInfo& info,
 }
 
 // =========================================================================
-//  Execute callbacks â€?abs (output is always Real)
+//  Execute callbacks ï¿½?abs (output is always Real)
 // =========================================================================
 
 Value ExecuteAbs(const ExecContextInfo& info,
@@ -335,7 +335,7 @@ Value ExecuteAbs(const ExecContextInfo& info,
             return ExecUnaryT<double>(info, ops,
                 static_cast<double(*)(double)>(std::abs));
         case DataType::kComplex: {
-            // abs(complex) â†?real; do a manual unary loop with type change
+            // abs(complex) ï¿½?real; do a manual unary loop with type change
             bool is_meas = ops[0].is_measurement();
             DataShape op_shape = ops[0].data_shape();
             ShapeBroadcastPlan shape_plan = ShapeBroadcastPlan::Make({op_shape}, info.shape);
@@ -373,7 +373,7 @@ Value ExecuteAbs(const ExecContextInfo& info,
 }
 
 // =========================================================================
-//  Execute callbacks â€?sgn
+//  Execute callbacks ï¿½?sgn
 // =========================================================================
 
 Value ExecuteSgn(const ExecContextInfo& info,
@@ -389,7 +389,7 @@ Value ExecuteSgn(const ExecContextInfo& info,
 }
 
 // =========================================================================
-//  Execute callbacks â€?real / imag (output always Real)
+//  Execute callbacks ï¿½?real / imag (output always Real)
 // =========================================================================
 
 Value ExecuteReal(const ExecContextInfo& info,
@@ -477,7 +477,7 @@ Value ExecuteImag(const ExecContextInfo& info,
 }
 
 // =========================================================================
-//  Execute callbacks â€?conj
+//  Execute callbacks ï¿½?conj
 // =========================================================================
 
 Value ExecuteConj(const ExecContextInfo& info,
@@ -495,7 +495,7 @@ Value ExecuteConj(const ExecContextInfo& info,
 }
 
 // =========================================================================
-//  Execute callbacks â€?phase
+//  Execute callbacks ï¿½?phase
 // =========================================================================
 
 Value ExecutePhase(const ExecContextInfo& info,
@@ -639,7 +639,7 @@ const OpTraits kOpAbs = {
     DeriveDtypeMath, DeriveUnitFirst, ExecuteAbs
 };
 
-// real / imag â€?complexâ†’real downcast
+// real / imag ï¿½?complexâ†’real downcast
 const OpTraits kOpReal = {
     1, DeriveShapeBroadcast, DeriveRowsBroadcast,
     DeriveDtypeMathRealDown, DeriveUnitFirst, ExecuteReal
@@ -655,14 +655,14 @@ const OpTraits kOpPhase = {
     DeriveDtypeMathRealDown, DeriveUnitFirst, ExecutePhase
 };
 
-// conj â€?complexâ†’complex, realâ†’real, intâ†’int (type-preserving)
+// conj ï¿½?complexâ†’complex, realâ†’real, intâ†’int (type-preserving)
 const OpTraits kOpConj = {
     1, DeriveShapeBroadcast, DeriveRowsBroadcast,
     DeriveDtypeMathConj, DeriveUnitFirst, ExecuteConj
 };
 
 // =========================================================================
-//  Binary math â€?element ops
+//  Binary math ï¿½?element ops
 // =========================================================================
 
 static inline double op_atan2_d(double y, double x) { return std::atan2(y, x); }
@@ -671,7 +671,7 @@ static inline double op_root_d(double x, double n)  { return std::pow(x, 1.0 / n
 static inline C      op_root_c(C x, C n)             { return std::pow(x, C(1.0) / n); }
 
 // =========================================================================
-//  Binary math â€?derive callbacks
+//  Binary math ï¿½?derive callbacks
 // =========================================================================
 
 static DataType DeriveDtypeAtan2(const std::vector<DataType>& dtypes) {
@@ -686,13 +686,13 @@ static DataType DeriveDtypeAtan2(const std::vector<DataType>& dtypes) {
 }
 
 static DataType DeriveDtypeRoot(const std::vector<DataType>& dtypes) {
-    DataType res = DataType::kInteger;
+    DataType res = DataType::kReal;
     for (size_t i = 0; i < dtypes.size(); ++i) {
         DataType dt = dtypes[i];
         if (dt == DataType::kBoolean) dt = DataType::kInteger;
         if (dt == DataType::kComplex) { res = DataType::kComplex; continue; }
-        if (dt == DataType::kReal    && res != DataType::kComplex) { res = DataType::kReal; continue; }
-        if (dt == DataType::kInteger && res != DataType::kComplex && res != DataType::kReal) continue;
+        if (dt == DataType::kReal)    continue;
+        if (dt == DataType::kInteger) continue;
         throw std::runtime_error("root: unsupported type");
     }
     return res;
@@ -707,7 +707,7 @@ static Unit DeriveUnitRoot(const std::vector<Unit>& units) {
 }
 
 // =========================================================================
-//  Binary math â€?execute callbacks
+//  Binary math ï¿½?execute callbacks
 // =========================================================================
 
 Value ExecuteAtan2(const ExecContextInfo& info,
@@ -728,7 +728,7 @@ Value ExecuteRoot(const ExecContextInfo& info,
 }
 
 // =========================================================================
-//  Binary math â€?OpTraits
+//  Binary math ï¿½?OpTraits
 // =========================================================================
 
 const OpTraits kOpAtan2 = {
