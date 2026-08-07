@@ -10,6 +10,7 @@
 
 #include "function.h"
 #include "operation/math_functions.h"
+#include "operation/operator.h"
 
 #include <string>
 #include <vector>
@@ -26,6 +27,17 @@ namespace rel
                 std::vector<FunctionParam>{ Param("x") },
                 [name, fn](const std::vector<rel::Value>& args) -> rel::Value {
                     return fn(args[0]);
+                });
+        }
+
+        static Function make_binary_fn(const char* name,
+                                        rel::Value (*fn)(const rel::Value&, const rel::Value&))
+        {
+            return Function(
+                name,
+                std::vector<FunctionParam>{ Param("x"), Param("y") },
+                [name, fn](const std::vector<rel::Value>& args) -> rel::Value {
+                    return fn(args[0], args[1]);
                 });
         }
 
@@ -79,6 +91,11 @@ namespace rel
         lib.Add(make_unary_fn("conjg", OperationConj));
         lib.Add(make_unary_fn("mag",   OperationAbs));
         lib.Add(make_unary_fn("phase", OperationPhase));
+
+        // Binary math
+        lib.Add(make_binary_fn("pow",   OperationPow));
+        lib.Add(make_binary_fn("atan2", OperationAtan2));
+        lib.Add(make_binary_fn("root",  OperationRoot));
 
         return lib;
     }();

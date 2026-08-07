@@ -200,6 +200,90 @@ static Unit DeriveUnitFirst(const std::vector<Unit>& units) {
     return units[0];
 }
 
+// =========================================================================
+//  Binary execution helpers
+// =========================================================================
+
+template <typename T, typename Out = T>
+void ExecBinaryLoop(Index rows,
+                     const RowBroadcastPlan& row_plan,
+                     const ShapeBroadcastPlan& shape_plan,
+                     const T* l_ptr, Index l_stride,
+                     const T* r_ptr, Index r_stride,
+                     Out* out,
+                     Out (*elem_op)(T, T))
+{
+    Index out_stride = shape_plan.result_elements;
+
+    for (Index i = 0; i < rows; ++i) {
+        Index l_row_off = (row_plan.broadcast[0] ? 0 : i) * l_stride;
+        Index r_row_off = (row_plan.broadcast[1] ? 0 : i) * r_stride;
+        Index o_off     = i * out_stride;
+
+        for (Index j = 0; j < shape_plan.result_elements; ++j) {
+            Index lj = shape_plan.MapFlatIndex(j, 0);
+            Index rj = shape_plan.MapFlatIndex(j, 1);
+            out[o_off + j] = elem_op(
+                l_ptr[l_row_off + lj],
+                r_ptr[r_row_off + rj]);
+        }
+    }
+}
+
+static const DataArray* SelectOutputSource(bool l_meas, bool r_meas,
+                                            const std::vector<Value>& ops) {
+    if (!l_meas && !r_meas) return &ops[0].as_data_array();
+    if (l_meas && !r_meas) return &ops[1].as_data_array();
+    if (!l_meas && r_meas) return &ops[0].as_data_array();
+    return nullptr;
+}
+
+template <typename T>
+Value ExecBinaryArithT(const ExecContextInfo& info,
+                        const std::vector<Value>& ops,
+                        ElemOp<T> elem_op)
+{
+    bool l_meas = ops[0].is_measurement();
+    bool r_meas = ops[1].is_measurement();
+
+    DataShape l_shape = ops[0].data_shape();
+    DataShape r_shape = ops[1].data_shape();
+    std::vector<DataShape> op_shapes = {l_shape, r_shape};
+
+    Index l_rows = ops[0].rows();
+    Index r_rows = ops[1].rows();
+    std::vector<Index> row_counts = {l_rows, r_rows};
+
+    ShapeBroadcastPlan shape_plan = ShapeBroadcastPlan::Make(op_shapes, info.shape);
+    RowBroadcastPlan   row_plan   = RowBroadcastPlan::Compute(row_counts);
+
+    auto l_in    = ops[0].flat_data<T>();
+    auto r_in    = ops[1].flat_data<T>();
+    const T* l_ptr    = l_in.ptr;
+    const T* r_ptr    = r_in.ptr;
+    Index    l_stride = l_in.stride;
+    Index    r_stride = r_in.stride;
+
+    const DataArray* out_src = SelectOutputSource(l_meas, r_meas, ops);
+
+    auto out_ds = std::unique_ptr<DataSeries>(
+        new DataSeries(DataTypeOf<T>::tag, info.shape));
+    out_ds->set_unit(info.unit);
+    out_ds->resize(static_cast<std::size_t>(info.rows));
+    T* out = out_ds->mutable_contiguous_data<T>();
+
+    ExecBinaryLoop(info.rows, row_plan, shape_plan,
+                   l_ptr, l_stride, r_ptr, r_stride, out, elem_op);
+
+    if (l_meas && r_meas) {
+        return Value(MakeMeasFromFlat(out, info.shape, info.unit));
+    } else {
+        auto da = std::make_shared<DataArray>(out_src->clone());
+        da->set_data(std::move(*out_ds));
+        return Value(da);
+    }
+}
+
 }  // anonymous namespace
 
 // =========================================================================
@@ -748,6 +832,86 @@ const OpTraits kOpConj = {
 };
 
 // =========================================================================
+//  Binary math — element ops
+// =========================================================================
+
+static inline double op_atan2_d(double y, double x) { return std::atan2(y, x); }
+
+static inline double op_root_d(double x, double n)  { return std::pow(x, 1.0 / n); }
+static inline C      op_root_c(C x, C n)             { return std::pow(x, C(1.0) / n); }
+
+// =========================================================================
+//  Binary math — derive callbacks
+// =========================================================================
+
+static DataType DeriveDtypeAtan2(const std::vector<DataType>& dtypes) {
+    for (size_t i = 0; i < dtypes.size(); ++i) {
+        DataType dt = dtypes[i];
+        if (dt == DataType::kBoolean) continue;
+        if (dt == DataType::kInteger) continue;
+        if (dt == DataType::kReal)    continue;
+        throw std::runtime_error("atan2: arguments must be Integer, Real, or Boolean");
+    }
+    return DataType::kReal;
+}
+
+static DataType DeriveDtypeRoot(const std::vector<DataType>& dtypes) {
+    DataType res = DataType::kInteger;
+    for (size_t i = 0; i < dtypes.size(); ++i) {
+        DataType dt = dtypes[i];
+        if (dt == DataType::kBoolean) dt = DataType::kInteger;
+        if (dt == DataType::kComplex) { res = DataType::kComplex; continue; }
+        if (dt == DataType::kReal    && res != DataType::kComplex) { res = DataType::kReal; continue; }
+        if (dt == DataType::kInteger && res != DataType::kComplex && res != DataType::kReal) continue;
+        throw std::runtime_error("root: unsupported type");
+    }
+    return res;
+}
+
+static Unit DeriveUnitAtan2(const std::vector<Unit>& units) {
+    return DeriveUnitSameDim({units[0], units[1]});
+}
+
+static Unit DeriveUnitRoot(const std::vector<Unit>& units) {
+    return DeriveUnitFirst({units[0]});
+}
+
+// =========================================================================
+//  Binary math — execute callbacks
+// =========================================================================
+
+Value ExecuteAtan2(const ExecContextInfo& info,
+                    const std::vector<Value>& ops) {
+    return ExecBinaryArithT<double>(info, ops, op_atan2_d);
+}
+
+Value ExecuteRoot(const ExecContextInfo& info,
+                   const std::vector<Value>& ops) {
+    switch (info.dtype) {
+        case DataType::kReal:
+            return ExecBinaryArithT<double>(info, ops, op_root_d);
+        case DataType::kComplex:
+            return ExecBinaryArithT<C>(info, ops, op_root_c);
+        default:
+            throw std::invalid_argument("root: unsupported dtype");
+    }
+}
+
+// =========================================================================
+//  Binary math — OpTraits
+// =========================================================================
+
+const OpTraits kOpAtan2 = {
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypeAtan2, DeriveUnitAtan2, ExecuteAtan2
+};
+
+const OpTraits kOpRoot = {
+    2, DeriveShapeBroadcast, DeriveRowsBroadcast,
+    DeriveDtypeRoot, DeriveUnitRoot, ExecuteRoot
+};
+
+// =========================================================================
 //  Public API wrappers
 // =========================================================================
 
@@ -774,6 +938,9 @@ Value OperationReal (const Value& v) { return Operate({v}, kOpReal); }
 Value OperationImag (const Value& v) { return Operate({v}, kOpImag); }
 Value OperationConj (const Value& v) { return Operate({v}, kOpConj); }
 Value OperationPhase(const Value& v) { return Operate({v}, kOpPhase); }
+
+Value OperationAtan2(const Value& y, const Value& x) { return Operate({y, x}, kOpAtan2); }
+Value OperationRoot (const Value& x, const Value& n) { return Operate({x, n}, kOpRoot); }
 
 }  // namespace operation
 }  // namespace rel

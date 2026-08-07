@@ -43,6 +43,10 @@ REL_RUNTIME_API Value OperationImag (const Value& v);
 REL_RUNTIME_API Value OperationConj (const Value& v);
 REL_RUNTIME_API Value OperationPhase(const Value& v);
 
+// Binary math
+REL_RUNTIME_API Value OperationAtan2(const Value& y, const Value& x);
+REL_RUNTIME_API Value OperationRoot (const Value& x, const Value& n);
+
 }  // namespace operation
 }  // namespace rel
 
