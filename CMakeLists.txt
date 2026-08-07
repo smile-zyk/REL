@@ -43,6 +43,7 @@ add_library(rel_runtime SHARED
     src/runtime/value.cc
     src/runtime/operation/operator.cc
     src/runtime/operation/pipeline.cc
+    src/runtime/operation/operation_helpers.cc
     src/runtime/operation/math_functions.cc
     src/runtime/environment.cc
     src/runtime/environment_config.cc

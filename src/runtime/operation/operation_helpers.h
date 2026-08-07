@@ -1,13 +1,13 @@
 // =============================================================================
-//  REL -- Internal execution helpers (shared by operator.cc & math_functions.cc)
+//  REL -- Internal operation helpers (shared by operator.cc & math_functions.cc)
 // =============================================================================
 //
-//  This is a private header -- NOT part of the public API.  It contains
-//  the template functions used by both operator.cc and math_functions.cc
-//  to run element-wise unary and binary loops over flat data buffers.
+//  This is a private header -- NOT part of the public API.  It contains:
+//    - Shared templated execution loops (ExecBinaryLoop, ExecUnaryLoop, ...)
+//    - Shared Derive callbacks (DeriveShapeBroadcast, DeriveDtypePromote, ...)
 
-#ifndef REL_RUNTIME_OPERATION_EXEC_HELPERS_H
-#define REL_RUNTIME_OPERATION_EXEC_HELPERS_H
+#ifndef REL_RUNTIME_OPERATION_HELPERS_H
+#define REL_RUNTIME_OPERATION_HELPERS_H
 
 #include "operation/pipeline.h"
 #include "data_series.h"
@@ -20,6 +20,20 @@ namespace rel {
 namespace operation {
 
 using namespace xdataset;
+
+// =========================================================================
+//  Derive callbacks -- shape, rows, dtype, unit
+// =========================================================================
+
+DataShape DeriveShapeBroadcast(const std::vector<DataShape>& operand_shapes);
+Index    DeriveRowsBroadcast(const std::vector<Index>& rows);
+
+DataType DeriveDtypePromote(const std::vector<DataType>& dtypes);
+Unit     DeriveUnitSameDim(const std::vector<Unit>& units);
+Unit     DeriveUnitFirst(const std::vector<Unit>& units);
+Unit     DeriveUnitMul(const std::vector<Unit>& units);
+Unit     DeriveUnitDiv(const std::vector<Unit>& units);
+Unit     DeriveUnitDimless(const std::vector<Unit>& units);
 
 // =========================================================================
 //  ExecBinaryLoop -- core flat-buffer loop for binary ops
@@ -178,4 +192,4 @@ inline Value ExecUnaryT(const ExecContextInfo& info,
 }  // namespace operation
 }  // namespace rel
 
-#endif  // REL_RUNTIME_OPERATION_EXEC_HELPERS_H
+#endif  // REL_RUNTIME_OPERATION_HELPERS_H

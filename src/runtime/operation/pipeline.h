@@ -78,22 +78,6 @@ struct OpTraits {
 Value Operate(const std::vector<Value>& operands,
               const OpTraits& traits);
 
-// =========================================================================
-//  Generic Derive callbacks (used by many operators)
-// =========================================================================
-
-xdataset::DataShape DeriveShapeBroadcast(const std::vector<xdataset::DataShape>& operand_shapes);
-xdataset::Index    DeriveRowsBroadcast(const std::vector<xdataset::Index>& rows);
-
-xdataset::DataType DeriveDtypePromote(const std::vector<xdataset::DataType>& dtypes);
-xdataset::Unit     DeriveUnitSameDim(const std::vector<xdataset::Unit>& units);
-
-// Additional reusable derive callbacks
-xdataset::Unit DeriveUnitFirst(const std::vector<xdataset::Unit>& units);
-xdataset::Unit DeriveUnitMul(const std::vector<xdataset::Unit>& units);
-xdataset::Unit DeriveUnitDiv(const std::vector<xdataset::Unit>& units);
-xdataset::Unit DeriveUnitDimless(const std::vector<xdataset::Unit>& units);
-
 }  // namespace operation
 }  // namespace rel
 
