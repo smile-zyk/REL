@@ -1189,7 +1189,9 @@ Value ExecBinaryArithT(const ExecContextInfo& info,
     if (l_meas && r_meas) {
         return Value(MakeMeasFromFlat(out, info.shape, info.unit));
     } else {
-        return Value(out_src->with_self_data(std::move(*out_ds)));
+        auto da = std::make_shared<DataArray>(out_src->clone());
+        da->set_data(std::move(*out_ds));
+        return Value(da);
     }
 }
 
@@ -1266,7 +1268,9 @@ Value ExecBinaryCmpT(const ExecContextInfo& info,
 
         return Value(MakeMeasFromFlat(out, info.shape, info.unit));
     } else {
-        return Value(out_src->with_self_data(std::move(*out_ds)));
+        auto da = std::make_shared<DataArray>(out_src->clone());
+        da->set_data(std::move(*out_ds));
+        return Value(da);
     }
 }
 
@@ -1370,7 +1374,9 @@ static Value ExecBinaryCmpString(const ExecContextInfo& info,
             return Value::Boolean(out[0] != 0);
         return Value(MakeMeasFromFlat(out, info.shape, info.unit));
     } else {
-        return Value(out_src->with_self_data(std::move(*out_ds)));
+        auto da = std::make_shared<DataArray>(out_src->clone());
+        da->set_data(std::move(*out_ds));
+        return Value(da);
     }
 }
 
@@ -1408,9 +1414,6 @@ Value ExecuteBinaryLogical(const ExecContextInfo& info,
     auto make_logical = [](const Value& v) -> Value {
         if (v.is_measurement()) {
             const Measurement& m = v.as_measurement();
-            if (m.data_type() == DataType::kBoolean) {
-                return Value::Integer(m.as_scalar<bool>() ? 1 : 0);
-            }
             DataSeries ds(m.data_type(), m.shape());
             ds.append(m);
             auto logical_ds = std::unique_ptr<DataSeries>(new DataSeries(ds.as_logical()));
@@ -1418,7 +1421,9 @@ Value ExecuteBinaryLogical(const ExecContextInfo& info,
                         m.shape(), m.unit()));
         } else {
             auto logical_ds = std::unique_ptr<DataSeries>(new DataSeries(v.as_data_array().data().as_logical()));
-            return Value(v.as_data_array().with_self_data(std::move(*logical_ds)));
+            auto da = std::make_shared<DataArray>(v.as_data_array().clone());
+            da->set_data(std::move(*logical_ds));
+            return Value(da);
         }
     };
     Value li = make_logical(ops[0]);
@@ -1508,8 +1513,11 @@ static Value ExecMatrixT(const ExecContextInfo& info,
     const DataArray* tmpl = nullptr;
     for (size_t i = 0; i < ops.size(); ++i)
         if (ops[i].is_data_array()) { tmpl = &ops[i].as_data_array(); break; }
-    if (tmpl)
-        return Value(tmpl->with_self_data(std::move(*out_ds)));
+    if (tmpl) {
+        auto da = std::make_shared<DataArray>(tmpl->clone());
+        da->set_data(std::move(*out_ds));
+        return Value(da);
+    }
 
     return Value(DataArray::CreateIndependent(std::move(*out_ds)));
 }
@@ -1620,8 +1628,11 @@ static Value ExecMatrixString(const ExecContextInfo& info,
     const DataArray* tmpl = nullptr;
     for (size_t i = 0; i < ops.size(); ++i)
         if (ops[i].is_data_array()) { tmpl = &ops[i].as_data_array(); break; }
-    if (tmpl)
-        return Value(tmpl->with_self_data(std::move(*out_ds)));
+    if (tmpl) {
+        auto da = std::make_shared<DataArray>(tmpl->clone());
+        da->set_data(std::move(*out_ds));
+        return Value(da);
+    }
     return Value(DataArray::CreateIndependent(std::move(*out_ds)));
 }
 
@@ -1863,7 +1874,9 @@ Value ExecUnaryT(const ExecContextInfo& info,
         return Value(MakeMeasFromFlat(out, info.shape, info.unit));
     } else {
         const DataArray& src = ops[0].as_data_array();
-        return Value(src.with_self_data(std::move(*out_ds)));
+        auto da = std::make_shared<DataArray>(src.clone());
+        da->set_data(std::move(*out_ds));
+        return Value(da);
     }
 }
 
@@ -1897,18 +1910,16 @@ Value ExecuteUnaryNot(const ExecContextInfo& info,
     Value v;
     if (ops[0].is_measurement()) {
         const Measurement& m = ops[0].as_measurement();
-        if (m.data_type() == DataType::kBoolean) {
-            v = Value::Integer(m.as_scalar<bool>() ? 1 : 0);
-        } else {
-            DataSeries ds(m.data_type(), m.shape());
-            ds.append(m);
-            auto logical_ds = std::unique_ptr<DataSeries>(new DataSeries(ds.as_logical()));
-            v = Value(MakeMeasFromFlat(logical_ds->contiguous_data<int>(),
-                        m.shape(), m.unit()));
-        }
+        DataSeries ds(m.data_type(), m.shape());
+        ds.append(m);
+        auto logical_ds = std::unique_ptr<DataSeries>(new DataSeries(ds.as_logical()));
+        v = Value(MakeMeasFromFlat(logical_ds->contiguous_data<int>(),
+                    m.shape(), m.unit()));
     } else {
         auto logical_ds = std::unique_ptr<DataSeries>(new DataSeries(ops[0].as_data_array().data().as_logical()));
-        v = Value(ops[0].as_data_array().with_self_data(std::move(*logical_ds)));
+        auto da = std::make_shared<DataArray>(ops[0].as_data_array().clone());
+        da->set_data(std::move(*logical_ds));
+        v = Value(da);
     }
 
     Value result = ExecUnaryT<int>(info, {v}, op_not<int>);
@@ -1995,7 +2006,9 @@ Value ExecBinaryMatMulT(const ExecContextInfo& info,
     if (l_meas && r_meas) {
         return Value(MakeMeasFromFlat(out, info.shape, info.unit));
     } else {
-        return Value(out_src->with_self_data(std::move(*out_ds)));
+        auto da = std::make_shared<DataArray>(out_src->clone());
+        da->set_data(std::move(*out_ds));
+        return Value(da);
     }
 }
 
@@ -2053,7 +2066,9 @@ Value ExecBinaryDivT(const ExecContextInfo& info,
     if (l_meas && r_meas) {
         return Value(MakeMeasFromFlat(out, info.shape, info.unit));
     } else {
-        return Value(out_src->with_self_data(std::move(*out_ds)));
+        auto da = std::make_shared<DataArray>(out_src->clone());
+        da->set_data(std::move(*out_ds));
+        return Value(da);
     }
 }
 
@@ -2168,7 +2183,11 @@ static Value ExecConditionalT(const ExecContextInfo& info,
 
     if (c_meas && t_meas && f_meas)
         return Value(MakeMeasFromFlat(out, info.shape, info.unit));
-    return Value(out_src->with_self_data(std::move(*out_ds)));
+    {
+        auto da = std::make_shared<DataArray>(out_src->clone());
+        da->set_data(std::move(*out_ds));
+        return Value(da);
+    }
 }
 
 // -- String path: read strings directly, no flat_data ---
@@ -2346,7 +2365,11 @@ static Value ExecConditionalString(const ExecContextInfo& info,
             }
         }
     }
-    return Value(out_src->with_self_data(std::move(*out_ds)));
+    {
+        auto da = std::make_shared<DataArray>(out_src->clone());
+        da->set_data(std::move(*out_ds));
+        return Value(da);
+    }
 }
 
 Value ExecuteConditional(const ExecContextInfo& info,
@@ -2357,9 +2380,6 @@ Value ExecuteConditional(const ExecContextInfo& info,
     auto make_logical = [](const Value& v) -> Value {
         if (v.is_measurement()) {
             const Measurement& m = v.as_measurement();
-            if (m.data_type() == DataType::kBoolean) {
-                return Value::Integer(m.as_scalar<bool>() ? 1 : 0);
-            }
             DataSeries ds(m.data_type(), m.shape());
             ds.append(m);
             auto logical_ds = std::unique_ptr<DataSeries>(
@@ -2369,7 +2389,9 @@ Value ExecuteConditional(const ExecContextInfo& info,
         } else {
             auto logical_ds = std::unique_ptr<DataSeries>(
                 new DataSeries(v.as_data_array().data().as_logical()));
-            return Value(v.as_data_array().with_self_data(std::move(*logical_ds)));
+            auto da = std::make_shared<DataArray>(v.as_data_array().clone());
+            da->set_data(std::move(*logical_ds));
+            return Value(da);
         }
     };
 
@@ -2492,7 +2514,11 @@ static Value ExecIfT(const ExecContextInfo& info,
     }
     if (all_meas)
         return Value(MakeMeasFromFlat(out, info.shape, info.unit));
-    return Value(out_src->with_self_data(std::move(*out_ds)));
+    {
+        auto da = std::make_shared<DataArray>(out_src->clone());
+        da->set_data(std::move(*out_ds));
+        return Value(da);
+    }
 }
 
 // -- String path for If ---
@@ -2748,7 +2774,11 @@ static Value ExecIfString(const ExecContextInfo& info,
             }
         }
     }
-    return Value(out_src->with_self_data(std::move(*out_ds)));
+    {
+        auto da = std::make_shared<DataArray>(out_src->clone());
+        da->set_data(std::move(*out_ds));
+        return Value(da);
+    }
 }
 
 Value ExecuteIf(const ExecContextInfo& info,
@@ -2766,9 +2796,6 @@ Value ExecuteIf(const ExecContextInfo& info,
     auto make_logical = [](const Value& v) -> Value {
         if (v.is_measurement()) {
             const Measurement& m = v.as_measurement();
-            if (m.data_type() == DataType::kBoolean) {
-                return Value::Integer(m.as_scalar<bool>() ? 1 : 0);
-            }
             DataSeries ds(m.data_type(), m.shape());
             ds.append(m);
             auto logical_ds = std::unique_ptr<DataSeries>(
@@ -2778,7 +2805,9 @@ Value ExecuteIf(const ExecContextInfo& info,
         } else {
             auto logical_ds = std::unique_ptr<DataSeries>(
                 new DataSeries(v.as_data_array().data().as_logical()));
-            return Value(v.as_data_array().with_self_data(std::move(*logical_ds)));
+            auto da = std::make_shared<DataArray>(v.as_data_array().clone());
+            da->set_data(std::move(*logical_ds));
+            return Value(da);
         }
     };
 

@@ -106,36 +106,20 @@ MultiDimensionSpec Value::dimension_spec() const {
 
 // ---- data / indep_data access ----------------------------------------------
 
-DataSeries& Value::data() {
+DataSeries Value::data() const {
     if (is_measurement()) {
-        Measurement m = boost::get<Measurement>(storage_);
-        DataType dtype = m.data_type();
-
-        std::unique_ptr<DataSeries> ds;
-        if (dtype == DataType::kBoolean) {
-            ds.reset(new DataSeries(DataType::kInteger, DataShape::Scalar()));
-            ds->resize(1);
-            ds->scalar_at<int>(0) = m.as_scalar<bool>() ? 1 : 0;
-        } else {
-            ds.reset(new DataSeries(m.data_type(), m.shape()));
-            ds->append(m);
-        }
-        storage_ = std::make_shared<DataArray>(
-            DataArray::CreateIndependent(std::move(*ds)));
+        const Measurement& m = as_measurement();
+        DataSeries ds(m.data_type(), m.shape());
+        ds.append(m);
+        return ds;
     }
     return as_data_array().data();
 }
 
-const DataSeries& Value::data() const {
+const DataSeries& Value::data_ref() const {
     if (is_measurement())
-        throw std::runtime_error("Value::data(): Measurement-backed Value has no DataSeries");
+        throw std::runtime_error("Value::data_ref(): Measurement-backed Value has no DataSeries");
     return as_data_array().data();
-}
-
-DataSeries& Value::indep_data(Index index) {
-    if (is_measurement())
-        throw std::runtime_error("Value::indep_data: Measurement-backed Value has no independent data");
-    return as_data_array().indep_data(index);
 }
 
 const DataSeries& Value::indep_data(Index index) const {
@@ -144,57 +128,76 @@ const DataSeries& Value::indep_data(Index index) const {
     return as_data_array().indep_data(index);
 }
 
-DataSeries& Value::indep_data(const std::string& name) {
-    if (is_measurement())
-        throw std::runtime_error("Value::indep_data: Measurement-backed Value has no independent data");
-    return as_data_array().indep_data(name);
-}
-
 const DataSeries& Value::indep_data(const std::string& name) const {
     if (is_measurement())
         throw std::runtime_error("Value::indep_data: Measurement-backed Value has no independent data");
     return as_data_array().indep_data(name);
 }
 
-void Value::replace_self_data(DataSeries new_self) {
-    if (is_measurement()) {
-        Measurement m = boost::get<Measurement>(storage_);
-        DataType dtype = m.data_type();
+// ---- setters ----------------------------------------------------------------
 
-        std::unique_ptr<DataSeries> ds;
-        if (dtype == DataType::kBoolean) {
-            ds.reset(new DataSeries(DataType::kInteger, DataShape::Scalar()));
-            ds->resize(1);
-            ds->scalar_at<int>(0) = m.as_scalar<bool>() ? 1 : 0;
-        } else {
-            ds.reset(new DataSeries(m.data_type(), m.shape()));
-            ds->append(m);
-        }
-        storage_ = std::make_shared<DataArray>(
-            DataArray::CreateIndependent(std::move(*ds)));
+void Value::set_data(Measurement value) {
+    if (is_measurement()) {
+        storage_ = std::move(value);
+        return;
     }
-    as_data_array().replace_self_data(std::move(new_self));
+    DataSeries ds(value.data_type(), value.shape());
+    ds.append(value);
+    as_data_array().set_data(std::move(ds));
 }
 
-Value Value::with_self_data(DataSeries new_self) const {
+void Value::set_data(DataSeries new_self) {
     if (is_measurement()) {
-        Measurement m = as_measurement();
-        DataType dtype = m.data_type();
-
-        std::unique_ptr<DataSeries> ds;
-        if (dtype == DataType::kBoolean) {
-            // Boolean is always scalar; convert to Integer 0/1.
-            ds.reset(new DataSeries(DataType::kInteger, DataShape::Scalar()));
-            ds->append(Measurement::Integer(m.as_scalar<bool>() ? 1 : 0));
-        } else {
-            ds.reset(new DataSeries(m.data_type(), m.shape()));
-            ds->append(m);
-        }
-        return Value(DataArray::CreateIndependent(std::move(*ds))
-                         .with_self_data(std::move(new_self)));
+        if (new_self.size() == 0) return;
+        storage_ = new_self.measurement_at(0);
+        return;
     }
-    return Value(std::make_shared<DataArray>(
-        as_data_array().with_self_data(std::move(new_self))));
+    as_data_array().set_data(std::move(new_self));
+}
+
+void Value::set_data(Index row, Measurement value) {
+    if (is_measurement()) {
+        if (row != 0)
+            throw std::out_of_range("Measurement-backed Value only has row 0");
+        storage_ = std::move(value);
+        return;
+    }
+    as_data_array().set_data(row, std::move(value));
+}
+
+void Value::set_indep_data(DataSeries new_series) {
+    if (is_measurement())
+        throw std::runtime_error("Value::set_indep_data: Measurement-backed Value has no independent data");
+    as_data_array().set_indep_data(std::move(new_series));
+}
+
+void Value::set_indep_data(Index indep_index, DataSeries new_series) {
+    if (is_measurement())
+        throw std::runtime_error("Value::set_indep_data: Measurement-backed Value has no independent data");
+    as_data_array().set_indep_data(indep_index, std::move(new_series));
+}
+
+void Value::set_indep_data(const std::string& indep_name, DataSeries new_series) {
+    if (is_measurement())
+        throw std::runtime_error("Value::set_indep_data: Measurement-backed Value has no independent data");
+    as_data_array().set_indep_data(indep_name, std::move(new_series));
+}
+
+void Value::set_indep_data(Index indep_index, Index row, Measurement value) {
+    if (is_measurement())
+        throw std::runtime_error("Value::set_indep_data: Measurement-backed Value has no independent data");
+    as_data_array().set_indep_data(indep_index, row, std::move(value));
+}
+
+void Value::set_indep_data(const std::string& indep_name, Index row, Measurement value) {
+    if (is_measurement())
+        throw std::runtime_error("Value::set_indep_data: Measurement-backed Value has no independent data");
+    as_data_array().set_indep_data(indep_name, row, std::move(value));
+}
+
+Value Value::clone() const {
+    if (is_measurement()) return *this;
+    return Value(std::make_shared<DataArray>(as_data_array().clone()));
 }
 
 // ---- canonicalization ------------------------------------------------------

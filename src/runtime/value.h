@@ -139,30 +139,52 @@ public:
 
     // ---- data / indep_data access --------------------------------------
 
-    /// Mutable self data.  Measurement-backed Values are auto-converted to
-    /// an Independent DataArray on first access.
-    DataSeries& data();
-    /// Read-only self data.  Throws std::runtime_error for Measurement-backed
-    /// Values; callers must check is_data_array() first or use data() instead.
-    const DataSeries& data() const;
+    /// Return a copy of self data.  Measurement: creates a 1-row DataSeries
+    /// from the Measurement.  DataArray: returns a copy of the underlying series.
+    DataSeries data() const;
 
-    /// Mutable independent variable data by 1-based index.
+    /// Zero-copy reference to self data.  Only valid for DataArray-backed
+    /// Values.  Throws std::runtime_error for Measurement-backed Values.
+    const DataSeries& data_ref() const;
+
+    /// Read-only independent variable data by 1-based index.
     /// Throws std::runtime_error for Measurement-backed Values.
-    DataSeries& indep_data(Index index);
     const DataSeries& indep_data(Index index) const;
 
-    /// Mutable independent variable data by name.
+    /// Read-only independent variable data by name.
     /// Throws std::runtime_error for Measurement-backed Values.
-    DataSeries& indep_data(const std::string& name);
     const DataSeries& indep_data(const std::string& name) const;
+
+    // ---- setters (mutate in place) -------------------------------------
+
+    /// Replace the entire Value with a Measurement.
+    void set_data(Measurement value);
 
     /// Replace self data in place.  Measurement-backed Values are
     /// auto-converted first.  Invalidates the DataFrame cache.
-    void replace_self_data(DataSeries new_self);
+    void set_data(DataSeries new_self);
 
-    /// Return a new Value with replaced self data, preserving all other
-    /// metadata (MultiDimensionSpec, DataArrayKind, independent dims).
-    Value with_self_data(DataSeries new_self) const;
+    /// Replace the value at a specific row in the self data series.
+    /// Measurement-backed Values are auto-converted first.
+    void set_data(Index row, Measurement value);
+
+    /// Replace the last independent data series wholesale.
+    void set_indep_data(DataSeries new_series);
+
+    /// Replace an independent data series wholesale by index.
+    void set_indep_data(Index indep_index, DataSeries new_series);
+
+    /// Replace an independent data series wholesale by name.
+    void set_indep_data(const std::string& indep_name, DataSeries new_series);
+
+    /// Replace the value at a specific row in an independent data series by index.
+    void set_indep_data(Index indep_index, Index row, Measurement value);
+
+    /// Replace the value at a specific row in an independent data series by name.
+    void set_indep_data(const std::string& indep_name, Index row, Measurement value);
+
+    /// Return a deep copy of this Value.
+    Value clone() const;
 
     // ---- formatting ----------------------------------------------------
 
@@ -258,24 +280,12 @@ Value::FlatData<T> Value::flat_data() const {
         FlatData<T> fd;
         const Measurement& m = as_measurement();
 
-        // Boolean has no DataSeries support; build directly in target dtype.
-        if (m.data_type() == DataType::kBoolean) {
-            fd.owner = std::unique_ptr<DataSeries>(
-                new DataSeries(DataTypeOf<T>::tag, DataShape::Scalar()));
-            fd.owner->resize(1);
-            fd.owner->template scalar_at<T>(0) =
-                static_cast<T>(m.as_scalar<bool>() ? 1 : 0);
-            fd.ptr    = fd.owner->template contiguous_data<T>();
-            fd.stride = 1;
-            return fd;
-        }
-
         fd.owner = std::unique_ptr<DataSeries>(
             new DataSeries(m.data_type(), m.shape()));
         fd.owner->append(m);
 
         DataType target = DataTypeOf<T>::tag;
-        if (m.data_type() != target) {
+        if (fd.owner->data_type() != target) {
             fd.owner = std::unique_ptr<DataSeries>(
                 new DataSeries(fd.owner->promoted_data_type(target)));
         }
