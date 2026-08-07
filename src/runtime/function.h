@@ -3,6 +3,8 @@
 #include "rel_runtime_api.h"
 #include "value.h"  // rel::Value
 
+#include <tsl/ordered_map.h>
+
 #include <functional>
 #include <string>
 #include <utility>
@@ -21,19 +23,33 @@ namespace rel
     //  any parameter that has a default may be skipped at the call site.
     //
     //  Slot resolution (evaluating explicit arguments, filling omitted slots
-    //  with defaults) is the caller's job — the Evaluator queries
-    //  HasDefault()/DefaultValue() per slot and passes the fully-resolved
-    //  argument list to Invoke().
+    //  with defaults) is done inside Function::Invoke — the Evaluator
+    //  packs explicit call-site arguments into an ArgMap and delegates
+    //  everything else to Invoke().
+    //
+    //  Some parameters have a "computed default" — a value that cannot be
+    //  supplied as a static constant, but must be produced at resolve time
+    //  from the already-resolved parameters.  Computed defaults are
+    //  registered via ComputedParam().
+
+    /// Named-argument map: param names to resolved Values, in declaration order.
+    using ArgMap = tsl::ordered_map<std::string, Value>;
 
     /// Native implementation of a registered REL function.
-    typedef std::function<Value(const std::vector<Value>&)> NativeFunction;
+    typedef std::function<Value(const ArgMap&)> NativeFunction;
+
+    /// Callback that produces a default value from the already-resolved
+    /// preceding parameters (params[0] through params[index-1]).
+    typedef std::function<Value(const ArgMap& resolved_so_far)> ComputedDefaultFunc;
 
     /// One parameter of a function; may carry a default value.
     struct FunctionParam
     {
-        std::string name;
-        bool        has_default = false;
-        Value       default_value;
+        std::string         name;
+        bool                has_default          = false;
+        bool                has_computed_default = false;
+        Value               default_value;
+        ComputedDefaultFunc  computed_default;
 
         FunctionParam() = default;
 
@@ -48,6 +64,13 @@ namespace rel
             , has_default(true)
             , default_value(std::move(default_value_value))
         {}
+
+        /// Parameter whose default is computed at resolve time.
+        FunctionParam(std::string name_value, ComputedDefaultFunc computed_default_value)
+            : name(std::move(name_value))
+            , has_computed_default(true)
+            , computed_default(std::move(computed_default_value))
+        {}
     };
 
     /// Convenience: a required parameter.
@@ -56,16 +79,24 @@ namespace rel
         return FunctionParam(std::move(name));
     }
 
-    /// Convenience: a parameter with a default value.
+    /// Convenience: a parameter with a fixed default value.
     inline FunctionParam Param(std::string name, Value default_value)
     {
         return FunctionParam(std::move(name), std::move(default_value));
+    }
+
+    /// Convenience: a parameter whose default is computed at resolve time.
+    inline FunctionParam ComputedParam(std::string name, ComputedDefaultFunc fn)
+    {
+        return FunctionParam(std::move(name), std::move(fn));
     }
 
     /// A user-registered function with parameter defaults.
     class Function
     {
     public:
+        /// Named-argument map: param names to resolved Values, in declaration order.
+        using ArgMap = tsl::ordered_map<std::string, Value>;
         Function() = default;
 
         Function(std::string name_value,
@@ -83,24 +114,27 @@ namespace rel
         /// Number of declared parameters.
         std::size_t arity() const { return params_.size(); }
 
-        /// True when the parameter at `index` declares a default value.
+        /// True when the parameter at `index` declares a default value
+        /// (either static or computed).
         bool HasDefault(std::size_t index) const
         {
-            return index < params_.size() && params_[index].has_default;
+            return index < params_.size()
+                && (params_[index].has_default || params_[index].has_computed_default);
         }
 
-        /// Default value of the parameter at `index`.
-        /// Throws std::out_of_range when `index` is out of range, and
-        /// std::logic_error when the parameter has no default.
-        REL_RUNTIME_API const Value& DefaultValue(std::size_t index) const;
+        /// True when the parameter at `index` has a computed default.
+        bool IsComputedDefault(std::size_t index) const
+        {
+            return index < params_.size() && params_[index].has_computed_default;
+        }
 
-        /// Invoke the implementation with the fully-resolved argument list
-        /// (defaults filled in, in declaration order).
+        /// Invoke the implementation.
         ///
-        /// Throws std::runtime_error when:
-        ///   - the argument count exceeds the declared arity,
-        ///   - the function has no implementation.
-        REL_RUNTIME_API Value Invoke(const std::vector<Value>& args) const;
+        /// `user_args` contains only the explicitly-provided key-value pairs.
+        /// Missing parameters are filled from static or computed defaults
+        /// (in declaration order) before calling impl_.  Throws when a
+        /// required parameter is missing.
+        REL_RUNTIME_API Value Invoke(const ArgMap& user_args) const;
 
     private:
         std::string                name_;

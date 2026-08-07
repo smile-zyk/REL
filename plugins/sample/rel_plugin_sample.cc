@@ -27,8 +27,8 @@ namespace
         return rel::Function(
             "sqr",
             std::vector<rel::FunctionParam>{ rel::Param("x") },
-            [](const std::vector<rel::Value>& a) -> rel::Value {
-                double x = as_double(a[0]);
+            [](const rel::Function::ArgMap& a) -> rel::Value {
+                double x = as_double(a.at("x"));
                 return rel::Value::Real(x * x);
             });
     }
@@ -43,10 +43,10 @@ namespace
                 rel::Param("b"),
                 rel::Param("c", rel::Value::Integer(10)),
             },
-            [](const std::vector<rel::Value>& a) -> rel::Value {
-                int sum = 0;
-                for (std::size_t i = 0; i < a.size(); ++i)
-                    sum += a[i].as_measurement().as_scalar<int>();
+            [](const rel::Function::ArgMap& a) -> rel::Value {
+                int sum = a.at("a").as_measurement().as_scalar<int>()
+                       + a.at("b").as_measurement().as_scalar<int>()
+                       + a.at("c").as_measurement().as_scalar<int>();
                 return rel::Value::Integer(sum);
             });
     }

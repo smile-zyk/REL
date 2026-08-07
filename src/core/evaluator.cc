@@ -631,29 +631,14 @@ rel::Value Evaluator::invoke_function(const Function& fn,
         throw std::runtime_error(oss.str());
     }
 
-    std::vector<rel::Value> resolved;
-    resolved.reserve(fn.arity());
-
+    Function::ArgMap user_args;
     for (std::size_t i = 0; i < fn.arity(); ++i)
     {
         if (i < provided && expr.args[i])
-        {
-            resolved.push_back(Evaluate(*expr.args[i]));
-        }
-        else if (fn.HasDefault(i))
-        {
-            resolved.push_back(fn.DefaultValue(i));
-        }
-        else
-        {
-            std::ostringstream oss;
-            oss << "missing argument '" << fn.params()[i].name << "' for function '"
-                << fn.name() << "'";
-            throw std::runtime_error(oss.str());
-        }
+            user_args[fn.params()[i].name] = Evaluate(*expr.args[i]);
     }
 
-    return fn.Invoke(resolved);
+    return fn.Invoke(user_args);
 }
 
 // =========================================================================

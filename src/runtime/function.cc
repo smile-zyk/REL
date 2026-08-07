@@ -11,29 +11,38 @@
 namespace rel
 {
 
-    const Value& Function::DefaultValue(std::size_t index) const
-    {
-        if (index >= params_.size())
-            throw std::out_of_range("Function::DefaultValue: parameter index out of range");
-        if (!params_[index].has_default)
-            throw std::logic_error("Function::DefaultValue: parameter has no default value");
-        return params_[index].default_value;
-    }
-
-    Value Function::Invoke(const std::vector<Value>& args) const
+    Value Function::Invoke(const ArgMap& user_args) const
     {
         if (!impl_)
             throw std::runtime_error("function '" + name_ + "' has no implementation");
 
-        if (args.size() > params_.size())
+        ArgMap resolved;
+        for (std::size_t i = 0; i < params_.size(); ++i)
         {
-            std::ostringstream oss;
-            oss << "function '" << name_ << "' expects at most " << params_.size()
-                << " argument(s), got " << args.size();
-            throw std::runtime_error(oss.str());
+            const std::string& pname = params_[i].name;
+            auto it = user_args.find(pname);
+            if (it != user_args.end())
+            {
+                resolved[pname] = it->second;
+            }
+            else if (params_[i].has_computed_default)
+            {
+                resolved[pname] = params_[i].computed_default(resolved);  // only depends on preceding params
+            }
+            else if (params_[i].has_default)
+            {
+                resolved[pname] = params_[i].default_value;
+            }
+            else
+            {
+                std::ostringstream oss;
+                oss << "missing argument '" << pname
+                    << "' for function '" << name_ << "'";
+                throw std::runtime_error(oss.str());
+            }
         }
 
-        return impl_(args);
+        return impl_(resolved);
     }
 
 }  // namespace rel

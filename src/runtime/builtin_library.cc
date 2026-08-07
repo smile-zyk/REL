@@ -51,16 +51,16 @@ namespace rel
 
         // ---- function factories --------------------------------------------
         //
-        //  Each make_xxx() builds the full Function object â€” name, parameter
-        //  list (including defaults), and implementation â€” in one place.
+        //  Each make_xxx() builds the full Function object ï¿?name, parameter
+        //  list (including defaults), and implementation ï¿?in one place.
 
-        /// Build datasets() â€” list every registered Dataset (global).
+        /// Build datasets() ï¿?list every registered Dataset (global).
         static Function make_datasets()
         {
             return Function(
                 "datasets",
                 std::vector<FunctionParam>(),
-                [](const std::vector<rel::Value>&) -> rel::Value {
+                [](const rel::Function::ArgMap&) -> rel::Value {
                     const std::vector<std::string> names = Environment::DatasetNames();
                     std::vector<std::string> rows;
                     rows.reserve(names.size());
@@ -70,13 +70,13 @@ namespace rel
                 });
         }
 
-        /// Build default_dataset() â€” the current default Dataset (global).
+        /// Build default_dataset() ï¿?the current default Dataset (global).
         static Function make_default_dataset()
         {
             return Function(
                 "default_dataset",
                 std::vector<FunctionParam>(),
-                [](const std::vector<rel::Value>&) -> rel::Value {
+                [](const rel::Function::ArgMap&) -> rel::Value {
                     std::vector<std::string> rows;
                     xdataset::Dataset* ds = Environment::DefaultDataset();
                     if (ds)
@@ -87,21 +87,21 @@ namespace rel
                 });
         }
 
-        /// Build variables() â€” return an empty list (user variables are per-Environment
+        /// Build variables() ï¿?return an empty list (user variables are per-Environment
         /// and not accessible from global builtins).
         static Function make_variables()
         {
             return Function(
                 "variables",
                 std::vector<FunctionParam>(),
-                [](const std::vector<rel::Value>&) -> rel::Value {
+                [](const rel::Function::ArgMap&) -> rel::Value {
                     return rel::Value::ArrayString({});
                 });
         }
 
         // ---- what(x) -------------------------------------------------------
 
-        /// Build what(x) â€” inspect a Value as 5 rows of ArrayString:
+        /// Build what(x) ï¿?inspect a Value as 5 rows of ArrayString:
         ///   Dependency / Kind / Dimension / Data Shape / Data Type.
         /// Rendering uses the shared rel::Format* helpers.
         static Function make_what()
@@ -109,8 +109,8 @@ namespace rel
             return Function(
                 "what",
                 std::vector<FunctionParam>{ Param("x") },
-                [](const std::vector<rel::Value>& args) -> rel::Value {
-                    const rel::Value& v = args[0];
+                [](const rel::Function::ArgMap& args) -> rel::Value {
+                    const rel::Value& v = args.at("x");
                     std::vector<std::string> rows;
                     rows.reserve(5);
 
@@ -140,7 +140,7 @@ namespace rel
 
         // ---- indep(da, selector) -------------------------------------------
 
-        /// Build indep(da, selector = 1) â€” extract an independent variable from
+        /// Build indep(da, selector = 1) ï¿?extract an independent variable from
         /// a DataArray.  `selector` is either an Integer (1-based index, default
         /// 1) or a String (independent variable name); it is forwarded to
         /// DataArray::indep.
@@ -152,9 +152,9 @@ namespace rel
                     Param("da"),
                     Param("selector", rel::Value::Integer(1)),
                 },
-                [](const std::vector<rel::Value>& args) -> rel::Value {
-                    const rel::Value& da_val = args[0];
-                    const rel::Value& sel_val = args[1];
+                [](const rel::Function::ArgMap& args) -> rel::Value {
+                    const rel::Value& da_val = args.at("da");
+                    const rel::Value& sel_val = args.at("selector");
 
                     if (!da_val.is_data_array())
                         throw std::runtime_error("indep: first argument must be a DataArray");
@@ -191,8 +191,8 @@ namespace rel
             return Function(
                 name,
                 std::vector<FunctionParam>{ Param("da") },
-                [name, want_max](const std::vector<rel::Value>& args) -> rel::Value {
-                    const rel::Value& v = args[0];
+                [name, want_max](const rel::Function::ArgMap& args) -> rel::Value {
+                    const rel::Value& v = args.at("da");
                     if (!v.is_data_array())
                         throw std::runtime_error(std::string(name) +
                                                  ": argument must be a DataArray");
@@ -216,7 +216,7 @@ namespace rel
 
         // ---- output(da, variable_name = "data") ----------------------------
 
-        /// Build output(da, variable_name = "data") â€” write a DataArray's
+        /// Build output(da, variable_name = "data") ï¿?write a DataArray's
         /// DataFrame view to "<variable_name>.csv" in the current directory.
         /// Returns a String Measurement carrying the absolute path written.
         static Function make_output()
@@ -227,12 +227,12 @@ namespace rel
                     Param("da"),
                     Param("variable_name", rel::Value::String("data")),
                 },
-                [](const std::vector<rel::Value>& args) -> rel::Value {
-                    const rel::Value& v = args[0];
+                [](const rel::Function::ArgMap& args) -> rel::Value {
+                    const rel::Value& v = args.at("da");
                     if (!v.is_data_array())
                         throw std::runtime_error("output: first argument must be a DataArray");
 
-                    const xdataset::Measurement& name_m = args[1].as_measurement();
+                    const xdataset::Measurement& name_m = args.at("variable_name").as_measurement();
                     if (name_m.data_type() != xdataset::DataType::kString)
                         throw std::runtime_error(
                             "output: second argument must be a String variable name");

@@ -23,10 +23,10 @@ namespace
                 rel::Param("y", rel::Value::Integer(10)),
                 rel::Param("z", rel::Value::Integer(100)),
             },
-            [](const std::vector<rel::Value>& args) -> rel::Value {
-                int sum = 0;
-                for (std::size_t i = 0; i < args.size(); ++i)
-                    sum += args[i].as_measurement().as_scalar<int>();
+            [](const rel::Function::ArgMap& args) -> rel::Value {
+                int sum = args.at("x").as_measurement().as_scalar<int>()
+                        + args.at("y").as_measurement().as_scalar<int>()
+                        + args.at("z").as_measurement().as_scalar<int>();
                 return rel::Value::Integer(sum);
             });
     }
@@ -63,10 +63,9 @@ TEST(FunctionTest, EmptyCallFillsAllDefaults)
     rel::Environment::RegisterFunction(rel::Function(
         "g",
         std::move(params),
-        [](const std::vector<rel::Value>& args) -> rel::Value {
-            int sum = 0;
-            for (std::size_t i = 0; i < args.size(); ++i)
-                sum += args[i].as_measurement().as_scalar<int>();
+        [](const rel::Function::ArgMap& args) -> rel::Value {
+            int sum = args.at("a").as_measurement().as_scalar<int>()
+                    + args.at("b").as_measurement().as_scalar<int>();
             return rel::Value::Integer(sum);
         }));
 
@@ -83,7 +82,7 @@ TEST(FunctionTest, RequiredParamEmptyCallThrows)
 }
 
 // =========================================================================
-//  Default argument slots (缺省参数槽)
+//  Default argument slots (缺省参数�?
 // =========================================================================
 
 TEST(FunctionTest, SkippedMiddleSlot)
@@ -177,9 +176,9 @@ TEST(FunctionTest, ConvenienceRegisterApi)
     rel::Environment::RegisterFunction(rel::Function(
         "muladd",
         std::move(params),
-        [](const std::vector<rel::Value>& args) -> rel::Value {
-            int a = args[0].as_measurement().as_scalar<int>();
-            int b = args[1].as_measurement().as_scalar<int>();
+        [](const rel::Function::ArgMap& args) -> rel::Value {
+            int a = args.at("a").as_measurement().as_scalar<int>();
+            int b = args.at("b").as_measurement().as_scalar<int>();
             return rel::Value::Integer(a * b);
         }));
 
@@ -200,12 +199,12 @@ TEST(FunctionTest, ReregisterOverwrites)
 
     rel::Environment::RegisterFunction(rel::Function(
         "g", std::vector<rel::FunctionParam>{}, 
-        [](const std::vector<rel::Value>&) -> rel::Value {
+        [](const rel::Function::ArgMap&) -> rel::Value {
             return rel::Value::Integer(1);
         }));
     rel::Environment::RegisterFunction(rel::Function(
         "g", std::vector<rel::FunctionParam>{},
-        [](const std::vector<rel::Value>&) -> rel::Value {
+        [](const rel::Function::ArgMap&) -> rel::Value {
             return rel::Value::Integer(2);
         }));
 

@@ -5,7 +5,7 @@
 // rel::operation::OperationXxx, which runs through the full
 // derive + broadcast + execute flow.
 //
-// Type promotion: Boolean â†’ Integer (0/1), Integer â†’ Real promotion
+// Type promotion: Boolean â†?Integer (0/1), Integer â†?Real promotion
 // is handled by DeriveDtypeMath in the pipeline.
 
 #include "function.h"
@@ -25,8 +25,8 @@ namespace rel
             return Function(
                 name,
                 std::vector<FunctionParam>{ Param("x") },
-                [name, fn](const std::vector<rel::Value>& args) -> rel::Value {
-                    return fn(args[0]);
+                [name, fn](const rel::Function::ArgMap& args) -> rel::Value {
+                    return fn(args.at("x"));
                 });
         }
 
@@ -36,8 +36,8 @@ namespace rel
             return Function(
                 name,
                 std::vector<FunctionParam>{ Param("x"), Param("y") },
-                [name, fn](const std::vector<rel::Value>& args) -> rel::Value {
-                    return fn(args[0], args[1]);
+                [name, fn](const rel::Function::ArgMap& args) -> rel::Value {
+                    return fn(args.at("x"), args.at("y"));
                 });
         }
 
