@@ -290,6 +290,80 @@ TEST(OperatorTest, MulWithUnit)
 }
 
 // =========================================================================
+//  Operator with units — display of compound (decomposed) units
+// =========================================================================
+
+TEST(OperatorTest, UnitDisplayAW)
+{
+    // A * W should display as "A*W", not bare SI exponents.
+    rel::Value v = Eval("1 A * 1 W");
+    EXPECT_TRUE(v.is_measurement());
+    std::string us = v.as_measurement().unit().to_string();
+    EXPECT_EQ(us, "A*W");
+}
+
+TEST(OperatorTest, UnitDisplayVPerA)
+{
+    // V / A  →  "Ohm"
+    rel::Value v = Eval("1 V / 1 A");
+    EXPECT_TRUE(v.is_measurement());
+    std::string us = v.as_measurement().unit().to_string();
+    EXPECT_EQ(us, "Ohm");
+}
+
+TEST(OperatorTest, UnitDisplayMeterPerSec)
+{
+    // meter / sec  →  "meter/sec"
+    rel::Value v = Eval("1 meter / 1 sec");
+    EXPECT_TRUE(v.is_measurement());
+    std::string us = v.as_measurement().unit().to_string();
+    EXPECT_EQ(us, "meter/sec");
+}
+
+TEST(OperatorTest, UnitDisplayOhmTimesA)
+{
+    // Ohm * A  →  "V"
+    rel::Value v = Eval("1 Ohm * 1 A");
+    EXPECT_TRUE(v.is_measurement());
+    std::string us = v.as_measurement().unit().to_string();
+    EXPECT_EQ(us, "V");
+}
+
+TEST(OperatorTest, UnitDisplayWS)
+{
+    // W * sec  →  "J"
+    rel::Value v = Eval("1 W * 1 sec");
+    EXPECT_TRUE(v.is_measurement());
+    std::string us = v.as_measurement().unit().to_string();
+    EXPECT_EQ(us, "J");
+}
+
+TEST(OperatorTest, UnitDisplayHzSecDimless)
+{
+    // Hz * sec  →  dimensionless
+    rel::Value v = Eval("1 Hz * 1 sec");
+    EXPECT_TRUE(v.is_measurement());
+    std::string us = v.as_measurement().unit().to_string();
+    EXPECT_TRUE(us.empty());
+}
+
+TEST(OperatorTest, UnitDisplayCompoundRoundTrip)
+{
+    // Compound unit expressions evaluate correctly and display as expected.
+    auto check = [](const char* expr, const char* expected_unit_str) {
+        rel::Value v = Eval(expr);
+        EXPECT_TRUE(v.is_measurement()) << expr;
+        std::string us = v.as_measurement().unit().to_string();
+        EXPECT_EQ(us, expected_unit_str) << expr;
+    };
+    check("1 A * 1 W",   "A*W");
+    check("1 W * 1 sec", "J");     // Joule
+    check("1 V / 1 A",   "Ohm");
+    check("1 Ohm * 1 A", "V");     // Ohm * A = V
+    check("1 meter / 1 sec", "meter/sec");
+}
+
+// =========================================================================
 //  Conditional (?:) and If
 // =========================================================================
 

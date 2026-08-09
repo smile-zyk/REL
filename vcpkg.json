@@ -2,8 +2,7 @@
 	"dependencies": [
 		"gtest",
 		"eigen3",
-		"llnl-units",
 		"boost-variant",
-		"nlohmann-json"
+		"rapidjson"
 	]
 }

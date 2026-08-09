@@ -2,7 +2,7 @@
 
 #include <string>
 #include <vector>
-#include <nlohmann/json.hpp>
+#include <rapidjson/document.h>
 
 namespace rel {
 
@@ -38,21 +38,10 @@ struct EnvironmentConfig {
 
     /// Load from a JSON file.
     static EnvironmentConfig Load(const std::string& config_path);
-};
 
-// nlohmann/json deserialization
-inline void from_json(const nlohmann::json& j, DatasetConfig& ds) {
-    j.at("name").get_to(ds.name);
-    j.at("format").get_to(ds.format);
-    j.at("path").get_to(ds.path);
-}
-inline void from_json(const nlohmann::json& j, EnvironmentConfig& cfg) {
-    if (j.contains("datasets"))
-        j.at("datasets").get_to(cfg.datasets);
-    if (j.contains("default_dataset"))
-        j.at("default_dataset").get_to(cfg.default_dataset);
-    if (j.contains("plugin"))
-        j.at("plugin").get_to(cfg.plugins);
-}
+private:
+    static DatasetConfig     ParseDataset(const rapidjson::Value& v);
+    static EnvironmentConfig Parse(const rapidjson::Document& doc);
+};
 
 }  // namespace rel

@@ -106,9 +106,6 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:rel_runtime>"
             "$<TARGET_FILE_DIR:rel>"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-mingw-dynamic/debug/bin/libunits.dll"
-            "$<TARGET_FILE_DIR:rel>"
     )
     if(XDATASET_ENABLE_HDF5 AND HDF5_ROOT)
         add_custom_command(TARGET rel POST_BUILD
