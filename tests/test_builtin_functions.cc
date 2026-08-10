@@ -818,3 +818,21 @@ TEST(DottedDependentTest, UnresolvableDottedVariableReportsError)
 
     EXPECT_THROW({ rel::Eval("SP.nonexistent.var", &env); }, std::runtime_error);
 }
+
+TEST(DottedDependentTest, BareDottedVariableResolvesViaUniqueLookup)
+{
+    // Id.i -- bare 2-segment dotted name resolves directly as a unique DataArray.
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+
+    auto ds = std::unique_ptr<xdataset::Dataset>(new xdataset::Dataset("sim"));
+    ds->AddBlock("SP", make_dotted_block_info());
+    rel::Environment::AddDataset(std::move(ds));
+    rel::Environment::SetDefaultDataset("sim");
+
+    rel::Value v = rel::Eval("SRC1.i", &env);
+    EXPECT_TRUE(v.is_data_array());
+
+    rel::Value v2 = rel::Eval("SRC1.v", &env);
+    EXPECT_TRUE(v2.is_data_array());
+}

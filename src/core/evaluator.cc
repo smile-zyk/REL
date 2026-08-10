@@ -227,122 +227,106 @@ rel::Value Evaluator::ResolveReference(
     if (segments.empty())
         return rel::Value();
 
-    // ---- 1 segment: variable lookup ---------------------------------
+    // Lambda: join segment names with a separator.
+    auto join = [](const std::vector<RefSegment>& s,
+                   std::size_t from, std::size_t to,
+                   const std::string& sep) -> std::string
+    {
+        std::ostringstream out;
+        for (std::size_t i = from; i < to; ++i)
+        {
+            if (i > from) out << sep;
+            out << s[i].name;
+        }
+        return out.str();
+    };
+
+    // =================================================================
+    //  Case 1 — single identifier: user var, constant, or unique DataArray
+    // =================================================================
     if (segments.size() == 1)
     {
         const std::string& name = segments[0].name;
 
-        // 1a) User variable / builtin constant
         const rel::Value* c = env_.LookupVariableOrConstant(name);
-        if (c)
-            return *c;
+        if (c) return *c;
 
-        // 1b) Unique lookup in default dataset
         xdataset::Dataset* ds = Environment::DefaultDataset();
         if (ds && ds->HasUniqueDataArray(name))
-        {
             return rel::Value(ds->GetDataArray(name));
-        }
 
-        throw std::runtime_error(
-            "undefined identifier '" + name + "'");
+        throw std::runtime_error("undefined identifier '" + name + "'");
     }
 
-    // ---- ≥2 segments DDot: dataset..variable (may contain dots) ----
-    if (segments.size() >= 2 && segments[1].sep == RefSeparator::DDot)
+    // =================================================================
+    //  Case 2 — dataset..variable (DDot; var name may contain dots)
+    // =================================================================
+    if (segments[1].sep == RefSeparator::DDot)
     {
         xdataset::Dataset* ds = Environment::FindDataset(segments[0].name);
         if (!ds)
-        {
-            throw std::runtime_error(
-                "unknown Dataset '" + segments[0].name + "'");
-        }
+            throw std::runtime_error("unknown Dataset '" + segments[0].name + "'");
 
-        // Join segments[1..end] with '.' as the variable name.
-        //  e.g. ds..SRC1.i  →  var = "SRC1.i"
-        std::ostringstream var_name;
-        for (std::size_t i = 1; i < segments.size(); ++i)
-        {
-            if (i > 1) var_name << ".";
-            var_name << segments[i].name;
-        }
-
-        return rel::Value(ds->GetDataArray(var_name.str()));
+        return rel::Value(ds->GetDataArray(join(segments, 1, segments.size(), ".")));
     }
 
-    // ---- ≥2 segments Dot: path navigation ---------------------------
+    // =================================================================
+    //  Case 3 — block-path navigation (Dot)
+    // =================================================================
+
+    // Determine the target Dataset and starting segment index.
+    xdataset::Dataset* ds = Environment::DefaultDataset();
+    std::size_t start = 0;
+
+    if (xdataset::Dataset* explicit_ds =
+            Environment::FindDataset(segments[0].name))
     {
-        // Determine which Dataset to use.
-        xdataset::Dataset* ds = Environment::DefaultDataset();
-        std::size_t start = 0;
-
-        xdataset::Dataset* explicit_ds =
-            Environment::FindDataset(segments[0].name);
-        if (explicit_ds)
-        {
-            ds = explicit_ds;
-            start = 1;
-        }
-
-        if (!ds)
-        {
-            throw std::runtime_error(
-                "no default Dataset set; cannot resolve '" +
-                segments[0].name + "'");
-        }
-
-        if (segments.size() < start + 2)
-        {
-            throw std::runtime_error(
-                "reference needs at least block.variable after path");
-        }
-
-        // Try each split point: segments[start..k-1] → block path,
-        // segments[k..end] → variable name (joined with '.').
-        // k = n-1: original behaviour (single-segment var, e.g. SP.Vout).
-        // k = n-2: fallback for dotted vars (e.g. SP.SRC1.i).
-        for (std::size_t k = segments.size() - 1;
-             k >= segments.size() - 2 && k >= start + 1; --k)
-        {
-            // Build block path (segments[start..k-1] joined with '/')
-            std::ostringstream block_path;
-            for (std::size_t i = start; i < k; ++i)
-            {
-                if (i > start) block_path << "/";
-                block_path << segments[i].name;
-            }
-
-            if (!ds->IsLeaf(block_path.str()))
-                continue;
-
-            // Build variable name (segments[k..end] joined with '.')
-            std::ostringstream var_name;
-            for (std::size_t i = k; i < segments.size(); ++i)
-            {
-                if (i > k) var_name << ".";
-                var_name << segments[i].name;
-            }
-
-            try
-            {
-                return rel::Value(
-                    ds->GetDataArray(block_path.str(), var_name.str()));
-            }
-            catch (const std::invalid_argument&) { /* try next split */ }
-        }
-
-        // All interpretations exhausted — report failure with the original
-        // dotted form the user wrote.
-        std::ostringstream err;
-        err << "cannot resolve '";
-        for (std::size_t i = start; i < segments.size(); ++i)
-        {
-            if (i > start) err << ".";
-            err << segments[i].name;
-        }
-        err << "'";
-        throw std::runtime_error(err.str());
+        ds = explicit_ds;
+        start = 1;
     }
+
+    if (!ds)
+    {
+        throw std::runtime_error(
+            "no default Dataset set; cannot resolve '" +
+            join(segments, start, segments.size(), ".") + "'");
+    }
+
+    const std::size_t n = segments.size();
+    if (n < start + 2)
+    {
+        throw std::runtime_error(
+            "reference needs at least block.variable after path");
+    }
+
+    // ---- strategy A: split at k → block=segs[start..k-1], var=segs[k..] ---
+    // k = n-1: single-segment var (SP.Vout)        — original behaviour
+    // k = n-2: two-segment  var (SP.SRC1.i)        — fallback for dotted dependents
+    for (std::size_t k = n - 1; k >= n - 2 && k >= start + 1; --k)
+    {
+        std::string block_path = join(segments, start, k, "/");
+        if (!ds->IsLeaf(block_path))
+            continue;
+
+        std::string var_name = join(segments, k, n, ".");
+        try
+        {
+            return rel::Value(ds->GetDataArray(block_path, var_name));
+        }
+        catch (const std::invalid_argument&) { /* try next split */ }
+    }
+
+    // ---- strategy B: bare "Name.var" → unique DataArray lookup ----
+    // e.g. "Id.i" where "Id" isn't a Block but "Id.i" is a unique DataArray
+    if (n == start + 2)
+    {
+        std::string joined = join(segments, start, n, ".");
+        if (ds->HasUniqueDataArray(joined))
+            return rel::Value(ds->GetDataArray(joined));
+    }
+
+    throw std::runtime_error(
+        "cannot resolve '" + join(segments, start, n, ".") + "'");
 }
 
 // =========================================================================
