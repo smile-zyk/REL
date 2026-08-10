@@ -3,5 +3,5 @@
     { "name": "LNA", "format": "hdf5",       "path": "LNA.h5" },
     { "name": "LQ",  "format": "touchstone", "path": "LQ.s2p" }
   ],
-  "default_dataset": "LNA"
+  "default_dataset": "LQ"
 }
