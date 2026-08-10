@@ -36,6 +36,26 @@ namespace
         return info;
     }
 
+    /// Block with dotted dependent names for fallback-resolution tests.
+    xdataset::BlockCreateInfo make_dotted_block_info()
+    {
+        xdataset::BlockCreateInfo info;
+        info.independent_specs.push_back(
+            xdataset::IndependentSpec{
+                "time",
+                xdataset::DataSeries::CreateScalar<double>(3),
+                xdataset::DimensionSpec::Regular(3)});
+        info.dependent_specs.push_back(
+            xdataset::DependentSpec{
+                "SRC1.i",
+                xdataset::DataSeries::CreateScalar<double>(3)});
+        info.dependent_specs.push_back(
+            xdataset::DependentSpec{
+                "SRC1.v",
+                xdataset::DataSeries::CreateScalar<double>(3)});
+        return info;
+    }
+
     /// Read the string rows out of a print builtin's result.
     std::vector<std::string> payload(const rel::Value& v)
     {
@@ -715,4 +735,86 @@ TEST(BuiltinFunctionTest, BuiltinsComposeInExpressions)
     std::vector<std::string> rows = payload(rel::Eval("what(info)", &env));
     ASSERT_EQ(rows.size(), 5u);
     EXPECT_EQ(rows[1], "Kind: Independent");
+}
+
+// =========================================================================
+//  Dotted dependent name resolution (e.g. SP.SRC1.i)
+// =========================================================================
+
+TEST(DottedDependentTest, SingleSegmentVariableName)
+{
+    // SP.Vout -- standard single-segment var, should still work.
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+
+    auto ds = std::unique_ptr<xdataset::Dataset>(new xdataset::Dataset("sim"));
+    ds->AddBlock("SP", make_block_info());
+    rel::Environment::AddDataset(std::move(ds));
+    rel::Environment::SetDefaultDataset("sim");
+
+    // This should resolve as block=SP, var=Vout (original behaviour).
+    rel::Value v = rel::Eval("SP.Vout", &env);
+    EXPECT_TRUE(v.is_data_array());
+}
+
+TEST(DottedDependentTest, DottedDependentVariableFallback)
+{
+    // SP.SRC1.i -- segments=[SP,SRC1,i].  Block "SP/SRC1" doesn't exist
+    // so we fall back to block=SP, var="SRC1.i".
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+
+    auto ds = std::unique_ptr<xdataset::Dataset>(new xdataset::Dataset("sim"));
+    ds->AddBlock("SP", make_dotted_block_info());
+    rel::Environment::AddDataset(std::move(ds));
+    rel::Environment::SetDefaultDataset("sim");
+
+    rel::Value vi = rel::Eval("SP.SRC1.i", &env);
+    EXPECT_TRUE(vi.is_data_array());
+
+    rel::Value vv = rel::Eval("SP.SRC1.v", &env);
+    EXPECT_TRUE(vv.is_data_array());
+}
+
+TEST(DottedDependentTest, IndependentStillWorksWithDottedDependents)
+{
+    // SP.time -- independent variable, single segment.
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+
+    auto ds = std::unique_ptr<xdataset::Dataset>(new xdataset::Dataset("sim"));
+    ds->AddBlock("SP", make_dotted_block_info());
+    rel::Environment::AddDataset(std::move(ds));
+    rel::Environment::SetDefaultDataset("sim");
+
+    rel::Value v = rel::Eval("SP.time", &env);
+    EXPECT_TRUE(v.is_data_array());
+}
+
+TEST(DottedDependentTest, DottedDependentViaDDot)
+{
+    // sim..SRC1.i -- global unique-lookup with dotted name
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+
+    auto ds = std::unique_ptr<xdataset::Dataset>(new xdataset::Dataset("sim"));
+    ds->AddBlock("SP", make_dotted_block_info());
+    rel::Environment::AddDataset(std::move(ds));
+    // Note: no default dataset set — we use explicit dataset name.
+
+    rel::Value v = rel::Eval("sim..SRC1.i", &env);
+    EXPECT_TRUE(v.is_data_array());
+}
+
+TEST(DottedDependentTest, UnresolvableDottedVariableReportsError)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+
+    auto ds = std::unique_ptr<xdataset::Dataset>(new xdataset::Dataset("sim"));
+    ds->AddBlock("SP", make_dotted_block_info());
+    rel::Environment::AddDataset(std::move(ds));
+    rel::Environment::SetDefaultDataset("sim");
+
+    EXPECT_THROW({ rel::Eval("SP.nonexistent.var", &env); }, std::runtime_error);
 }

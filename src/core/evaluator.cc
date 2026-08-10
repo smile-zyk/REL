@@ -248,8 +248,8 @@ rel::Value Evaluator::ResolveReference(
             "undefined identifier '" + name + "'");
     }
 
-    // ---- 2 segments DDot: dataset..unique_variable ------------------
-    if (segments.size() == 2 && segments[1].sep == RefSeparator::DDot)
+    // ---- ≥2 segments DDot: dataset..variable (may contain dots) ----
+    if (segments.size() >= 2 && segments[1].sep == RefSeparator::DDot)
     {
         xdataset::Dataset* ds = Environment::FindDataset(segments[0].name);
         if (!ds)
@@ -258,7 +258,16 @@ rel::Value Evaluator::ResolveReference(
                 "unknown Dataset '" + segments[0].name + "'");
         }
 
-        return rel::Value(ds->GetDataArray(segments[1].name));
+        // Join segments[1..end] with '.' as the variable name.
+        //  e.g. ds..SRC1.i  →  var = "SRC1.i"
+        std::ostringstream var_name;
+        for (std::size_t i = 1; i < segments.size(); ++i)
+        {
+            if (i > 1) var_name << ".";
+            var_name << segments[i].name;
+        }
+
+        return rel::Value(ds->GetDataArray(var_name.str()));
     }
 
     // ---- ≥2 segments Dot: path navigation ---------------------------
@@ -282,25 +291,57 @@ rel::Value Evaluator::ResolveReference(
                 segments[0].name + "'");
         }
 
-        // segments[start .. n-3]: group path (join with '/')
-        // segments[n-2]:         block name
-        // segments[n-1]:         variable name
         if (segments.size() < start + 2)
         {
             throw std::runtime_error(
                 "reference needs at least block.variable after path");
         }
 
-        std::ostringstream path;
-        for (std::size_t i = start; i + 2 < segments.size(); ++i)
+        // Try each split point: segments[start..k-1] → block path,
+        // segments[k..end] → variable name (joined with '.').
+        // k = n-1: original behaviour (single-segment var, e.g. SP.Vout).
+        // k = n-2: fallback for dotted vars (e.g. SP.SRC1.i).
+        for (std::size_t k = segments.size() - 1;
+             k >= segments.size() - 2 && k >= start + 1; --k)
         {
-            if (i > start) path << "/";
-            path << segments[i].name;
-        }
-        if (path.tellp() > 0) path << "/";
-        path << segments[segments.size() - 2].name;
+            // Build block path (segments[start..k-1] joined with '/')
+            std::ostringstream block_path;
+            for (std::size_t i = start; i < k; ++i)
+            {
+                if (i > start) block_path << "/";
+                block_path << segments[i].name;
+            }
 
-        return rel::Value(ds->GetDataArray(path.str(), segments.back().name));
+            if (!ds->IsLeaf(block_path.str()))
+                continue;
+
+            // Build variable name (segments[k..end] joined with '.')
+            std::ostringstream var_name;
+            for (std::size_t i = k; i < segments.size(); ++i)
+            {
+                if (i > k) var_name << ".";
+                var_name << segments[i].name;
+            }
+
+            try
+            {
+                return rel::Value(
+                    ds->GetDataArray(block_path.str(), var_name.str()));
+            }
+            catch (const std::invalid_argument&) { /* try next split */ }
+        }
+
+        // All interpretations exhausted — report failure with the original
+        // dotted form the user wrote.
+        std::ostringstream err;
+        err << "cannot resolve '";
+        for (std::size_t i = start; i < segments.size(); ++i)
+        {
+            if (i > start) err << ".";
+            err << segments[i].name;
+        }
+        err << "'";
+        throw std::runtime_error(err.str());
     }
 }
 
