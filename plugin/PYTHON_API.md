@@ -15,8 +15,15 @@
     Measurement         — 带单位的标量 / 向量 / 矩阵（值类型）
     DataSeries          — 一列 Measurement, numpy 互操作
     DataArray           — 多维数组 + 坐标轴
+      DimGroup          —   维度分组 (multi_index, flat_start, flat_end)
+      LeafRow           —   叶子行  (multi_index, dim_indices, row_flat)
     Value               — 统一入口, Measurement | DataArray 联合体
     Block               — 独立变量 + 因变量集合
+      BlockCreateInfo   —   添加 Block 时的构造参数 (independents + dependents)
+      IndependentSpec   —   自变量描述 (name, DataSeries, DimensionSpec)
+      DependentSpec     —   因变量描述 (name, DataSeries)
+    DimensionSpec       — 维度规格 (RegularDim / RaggedDim 的变体)
+    DataFrame           — Block 的逐行表格视图
     Dataset             — 树形数据集
     Param               — 函数参数描述符
     register_function() — 注册 Python 可调用对象
@@ -27,6 +34,8 @@
                                                 ├── .data() → DataSeries → np.asarray()
                                                 ├── .indep_data("freq") → DataSeries → np.asarray()
                                                 ├── .as_data_array() → DataArray → .at() / .select()
+                                                ├── .as_data_array() → .groups_at_dim(d) → DimGroup
+                                                │       └→ .leaves(start, end) → LeafRow → ds[row_flat]
                                                 └── .as_measurement() → Measurement → np.asarray()
 
     Value.real(3.14) → Value (Measurement-backed)
@@ -350,16 +359,128 @@ da.select({"freq": [0, 1, 2], "power": 3})
 
 **实现**：`at()` / `select()` 同时接受 `**kwargs` 或单个 `dict` 参数。
 
-### 4.7 变换与复制
+### 4.7 维度遍历 — 暴露 `for_each_group_at_dim` / `for_each_leaf_row`
+
+暴露 C++ 的 CSR 遍历原语，让 Python 插件可以实现任意聚合/变换逻辑
+（`min`, `max`, `mean`, `std`, 自定义 reduce 等）。
+
+#### 4.7.0 维度信息
+
+```python
+da.rank                            # int — 维度总数
+da.flat_size                       # int — 总叶子数 (flat cell count)
+da.group_count_at_dim(0)           # int — 第 0 维的分组数
+```
+
+#### 4.7.1 按维度分组 — `groups_at_dim(dim_idx)`
+
+对标 `MultiDimensionSpec::for_each_group_at_dim(dim_idx, visitor)`。
+返回 Python 生成器 `Iterator[DimGroup]`。
+
+```python
+for group in da.groups_at_dim(0):      # dim_idx: 0 = 最外层
+    group.multi_index                  # (0,) — 前缀坐标, 长度 = dim_idx + 1 = 1
+    group.flat_start                   # int — 组内首行 flat 索引 (含)
+    group.flat_end                     # int — 组内末行+1 flat 索引 (不含)
+    group.size                         # int — 组内叶子数 = flat_end - flat_start
+```
+
+| `dim_idx` | 分组粒度 | 例子 (3×4×5) |
+|-----------|---------|-------------|
+| 0 | 按 dim[0] 分组 | 3 组, 每组 20 个叶子 |
+| 1 | 按 dim[0]×dim[1] 前缀分组 | 12 组, 每组 5 个叶子 |
+| `rank - 1` | 退化: 每组 1 个叶子 | 60 组, 每 1 组 |
+
+#### 4.7.2 组内逐行迭代 — `leaves(start, end)`
+
+对标 `MultiDimensionSpec::for_each_leaf_row(visitor, start, end)`。
+返回 Python 生成器 `Iterator[LeafRow]`。
+
+```python
+for group in da.groups_at_dim(1):
+    for leaf in da.leaves(group.flat_start, group.flat_end):
+        leaf.multi_index               # (0, 0, 0) — 完整 N 维坐标 tuple
+        leaf.dim_indices               # (0, 0, 0) — 每维源行号 tuple
+        leaf.row_flat                  # int — flat 索引, 直传 ds[leaf.row_flat]
+```
+
+也支持直接用范围：
+
+```python
+for leaf in da.leaves(100, 200):       # 迭代 flat 索引 [100, 200)
+    ...
+```
+
+#### 4.7.3 完整示例：用 Python 实现最内层 reduce
+
+对标 C++ `DataArray::reduce_innermost()`，在 Python 中只需几行：
+
+```python
+def reduce_innermost(da, fn):
+    """沿最内层维度对每组叶子做 fn 聚合."""
+    rank = da.rank
+    ds = da.data
+
+    result = []
+    for g in da.groups_at_dim(rank - 2):        # 沿最内层分组
+        values = []
+        for leaf in da.leaves(g.flat_start, g.flat_end):
+            m = ds[leaf.row_flat]
+            values.append(np.asarray(m).item())  # 0-d → Python scalar
+        result.append(fn(values))
+    return result
+
+# 使用
+min_vals = reduce_innermost(da, min)             # 每组的 min
+max_vals = reduce_innermost(da, max)             # 每组的 max
+avg_vals = reduce_innermost(da, np.mean)         # 每组的 mean
+```
+
+#### 4.7.4 跨维度 reduce（广义聚合）
+
+```python
+def reduce_at_dim(da, dim_idx, fn):
+    """沿指定维度做聚合, 返回 List[List[float]]."""
+    ds = da.data
+    result = []
+    for g in da.groups_at_dim(dim_idx):
+        vals = []
+        for leaf in da.leaves(g.flat_start, g.flat_end):
+            vals.append(np.asarray(ds[leaf.row_flat]).item())
+        result.append(fn(vals))
+    return result
+
+# freq=100, power=5 → reduce 掉 power 维度
+means = reduce_at_dim(da, 0, np.mean)            # shape (100,)
+```
+
+#### 4.7.5 遍历全部叶子（不分组）
+
+```python
+for leaf in da.all_leaves():                     # 等价于 da.leaves(0, da.flat_size)
+    m = da.data[leaf.row_flat]
+    if np.asarray(m).item() > threshold:
+        print(f"exceeded at {leaf.multi_index}: {m}")
+```
+
+#### 4.7.6 性能考量
+
+| 操作 | 复杂度 | 说明 |
+|------|--------|------|
+| `groups_at_dim(d)` | O(组数) | 预计算 CSR 偏移, 比逐行推导快 |
+| `leaves(start, end)` | O(叶子数) | 每次 yield 跨 Python/C++ 边界, 允许 GIL 释放 |
+| 大量数据聚合 | — | 建议用 numpy 批处理; 遍历适合千万行以下场景 |
+
+### 4.8 变换与复制
 
 ```python
 da2 = da.clone()                     # 深拷贝
 ```
 
-### 4.8 不暴露
+### 4.9 不暴露
 
-- `DataArray::CreateIndependent / CreateDependent` — 构造路径只有文件加载
-- `min() / max()` — V2 (已在 C++ builtin library 中作为 REL 函数暴露)
+- `DataArray::CreateIndependent / CreateDependent` — 构造路径只有 Block 工厂
+- `min() / max()` — C++ 内置函数可用 Python 端 `reduce_innermost()` 实现 (见 §4.7.3)
 
 ---
 
@@ -479,35 +600,106 @@ str(v)                               # v.format()
 ```python
 block = dataset.GetBlock("simulation/SP1")
 
-block.name                           # "SP"
-block.dependents()                   # ["Vout", "Iout"]
-block.independents()                 # ["freq", "temp"]
+# 基本信息
+block.name                           # "SP" (短名, 不含父路径)
+block.name = "new_name"             # setter
 
-da = block.GetOrCreateDataArray("Vout")  # → DataArray
+# 变量枚举
+block.dependents()                   # ["Vout", "Iout"]  — 因变量名
+block.independents()                 # ["freq", "temp"]  — 自变量名
+
+# 变量描述
+spec = block.independent_spec("freq")
+spec.name                            # "freq"
+spec.data                            # DataSeries
+dim = spec.dimension                 # DimensionSpec (RegularDim / RaggedDim)
+
+spec = block.dependent_spec("Vout")
+spec.name                            # "Vout"
+spec.data                            # DataSeries
+
+# 数据获取 (lazy cached)
+da = block.GetOrCreateDataArray("Vout")  # → DataArray (组合了所有自变量维度)
+df = block.GetOrCreateDataFrame()        # → DataFrame (逐行遍历)
 ```
 
 ---
 
 ## 7. Dataset — 数据集树
 
-```python
-ds = rel.Dataset("noise")            # 构造空 Dataset (通常来自文件加载)
+Dataset 是树形结构: 根是 `InternalNode`, 叶是 `Block`, 通过 `/` 分隔的路径访问。
 
+### 7.1 构造
+
+```python
+# 空 Dataset
+empty = rel.Dataset()
+ds    = rel.Dataset("noise")          # 带名字
+
+# 通常来自文件加载 (Environment.LoadFromConfig)
+# Python 侧可通过 AddBlock 程序化构造
+```
+
+### 7.2 基本信息
+
+```python
 ds.name                              # "noise"
 ds.name = "new_noise"               # setter
+ds.block_count                       # int — 总 Block 数
+```
 
-ds.GetBlockNames()                   # ["simulation/SP1", "simulation/SP2"]
-ds.GetBlockNames("simulation")       # ["SP1", "SP2"]
+### 7.3 节点查询
 
-ds.GetDataArrayNames("simulation/SP1")  # ["freq", "temp", "Vout"]
+```python
+ds.IsLeaf("simulation/SP1")          # bool — 是否为 Block (叶节点)
+ds.Exists("simulation")              # bool — 路径是否存在 (任意节点)
+ds.HasUniqueDataArray("Vout")        # bool — DataArray 名全局唯一
+```
 
+### 7.4 枚举
+
+```python
+ds.GetBlockNames()                   # ["SP1", "SP2"]               — 直接子 Block 名
+ds.GetBlockNames("simulation")       # ["SP1", "SP2"]               — 指定 group 下的 Block
+ds.GetGroupNames()                   # ["simulation"]               — 直接子 group 名
+ds.GetGroupNames("simulation")       # ["nested"]                   — 指定 group 下的 group
+ds.GetAllBlockPaths()               # ["simulation/SP1/SP", ...]   — 全部 Block 路径 (递归)
+```
+
+### 7.5 Block 操作
+
+```python
+# 获取
+block = ds.GetBlock("simulation/SP1")  # → Block (读写)
+
+# 添加 (程序化构造 Dataset)
+block_info = rel.BlockCreateInfo(
+    independents=[
+        ("freq", freq_series, rel.RegularDim(100)),
+        ("power", power_series, rel.RegularDim(5)),
+    ],
+    dependents=[
+        ("Vout", vout_series),
+        ("Iout", iout_series),
+    ],
+)
+block = ds.AddBlock("simulation/SP1", block_info)
+
+# 移除
+ds.RemoveBlock("simulation/SP1")      # 移除单个 Block → 0 或 1
+ds.RemoveGroup("simulation")          # 递归移除整个 group → 移除的 Block 数
+```
+
+### 7.6 DataArray 访问
+
+```python
 # 完整路径
 da = ds.GetDataArray("simulation/SP1", "Vout")
-# 唯一名称快捷访问
+# 唯一名称快捷访问 (当名称在整个 Dataset 中唯一)
 da = ds.GetDataArray("Vout")
 
-ds.HasBlock("simulation/SP1")        # bool
-ds.HasUniqueDataArray("Vout")        # bool
+# 枚举某 Block 内的 DataArray 名
+ds.GetDataArrayNames("simulation/SP1")  # ["freq", "temp", "Vout"]
 ```
 
 ---
@@ -574,8 +766,10 @@ rel.Param("b", default=rel.Value.integer(10))  # 带默认值
 import numpy as np
 import rel
 
-# 加载
-dataset = load_dataset_somehow()     # 环境加载
+# 加载 (从 JSON 配置文件)
+env = rel.Environment()
+env.LoadFromConfig("test_env.json")
+dataset = env.DefaultDataset()
 da = dataset.GetDataArray("S21")
 
 # numpy 处理
@@ -641,6 +835,37 @@ def inspect(v):
         print(f"indep: {da.indep_names}")
 ```
 
+### 场景 F：程序化构造 Dataset
+
+```python
+import numpy as np
+import rel
+
+# 从 numpy array 构建 DataSeries
+freq_vals   = rel.DataSeries.from_array(np.linspace(1e9, 10e9, 100))
+power_vals  = rel.DataSeries.from_array(np.array([-30, -20, -10, 0, 10]))
+vout_data   = rel.DataSeries.from_array(np.random.randn(100, 5))
+
+# 构造 Block
+info = rel.BlockCreateInfo(
+    independents=[
+        ("freq",  freq_vals,  rel.RegularDim(100)),
+        ("power", power_vals, rel.RegularDim(5)),
+    ],
+    dependents=[
+        ("Vout", vout_data),
+    ],
+)
+
+ds = rel.Dataset("my_data")
+ds.AddBlock("simulation/SP1", info)
+
+# 验证
+da = ds.GetDataArray("simulation/SP1", "Vout")
+print(da.rank)     # 2
+print(da.flat_size) # 500
+```
+
 ---
 
 ## 11. 错误处理
@@ -661,6 +886,6 @@ C++ 异常自动映射：
 
 - `str(m)` / `bool(m)` 自动生效 (string / boolean Measurement)
 - `DataArray.transform()` 暴露 Python callback
-- `DataSeries` 的 `mean() / max() / std()` 等聚合
+- `DataSeries` 的 `mean() / max() / std()` 等聚合（Python 端已可通过遍历实现）
 - `rel.eval("sin(pi/2)")` 外部 Python 调用 REL 表达式
-- `Block` / `Dataset` 的添加和写入
+- `Block` / `Dataset` 写入 HDF5 / Touchstone 等格式

@@ -8,58 +8,51 @@
 
 ## 1. 设计目标
 
-1. **`rel_runtime.dll` 零外部依赖** — 只做数据和注册表，插件加载迁出
-2. **C++ 和 Python 共享统一 API 面** — 同一个 `rel_plugin_api.h`
-3. **Python 可选** — 不装 Python 也能用 C++ 插件
-4. **一份绑定源码，三份产物** — OBJECT library 编译一次，`rel.pyd` + `rel_python_plugin.dll` 共享
-5. **未来 `rel.dll` 友好** — 不拖 Python 依赖
+1. **`rel_runtime.dll` 默认零外部依赖** — 不开 `BUILD_PYTHON` 时只有 xdataset
+2. **一个编译选项控制 Python** — `option(BUILD_PYTHON)` 决定是否嵌入解释器 + pybind11 绑定
+3. **无额外产物** — 不产 `rel_plugin.dll` / `rel_python_plugin.dll`，全部在 `rel_runtime.dll` 内
+4. **不需要导出层** — 无需 `rel_plugin_api.h`、回调注入、ABI 兼容层
+5. **未来 `rel.dll` 友好** — 同样的 `BUILD_PYTHON` 选项继承
 
 ---
 
 ## 2. 产物全景
 
 ```
-                            rel_module.cc  (PYBIND11_MODULE(rel, m))
-                            xdataset_bindings.cc
-                            rel_bindings.cc
-                                    │
-                                    ▼
-                         rel_python_obj (OBJECT)
-                           只编译一次, 产出 .obj
-                                    │
-                   ┌────────────────┼────────────────┐
-                   ▼                ▼                ▼
-              rel.pyd       rel_plugin.dll    rel_python_plugin.dll
-         (外部 Python)    (C++ 插件加载器)    (Python 插件加载器)
+  rel_runtime.dll  ─────────────────────────────────────┐
+  │                                                     │
+  ├── value.cc, function.cc, environment.cc  ...        │
+  ├── rel_plugin.cc          (C++ 插件加载, 始终编译)     │
+  │                                                     │
+  └── [BUILD_PYTHON=ON]                                 │
+      ├── python/rel_module.cc       PYBIND11_MODULE     │
+      ├── python/xdataset_bindings.cc                    │
+      ├── python/rel_bindings.cc                         │
+      └── python/python_loader.cc    LoadPython / ExecPython
 ```
 
 ### 依赖关系
 
 ```
-                  xdataset.dll
-                       ↑
-                  rel_runtime.dll
-                    ↑         ↑
-                    │         │
-            rel_plugin.dll  rel.pyd
-               (C++)        (外部 import rel)
-                    ↑
-                    │
-          rel_python_plugin.dll
-          (Python embed)
+  BUILD_PYTHON=OFF:                BUILD_PYTHON=ON:
+
+    xdataset.dll                      xdataset.dll
+         ↑                                 ↑
+    rel_runtime.dll                  rel_runtime.dll
+         ↑                              ↑        ↑
+    rel_core (STATIC)              rel_core   pybind11::embed
+         ↑                              ↑
+       rel.exe                        rel.exe
 ```
 
 ### 职责表
 
 | 产物 | 类型 | 职责 | Python 依赖 |
 |------|------|------|:---:|
-| `rel_runtime.dll` | SHARED | Value, Environment, 函数注册表, `RegisterFunction()` | ❌ |
+| `rel_runtime.dll` | SHARED | Value, Environment, 注册表, C++ 插件加载, (可选) Python 嵌入 | `BUILD_PYTHON` 控制 |
 | `rel_core` | STATIC | Scanner, Parser, AST, Evaluator | ❌ |
-| **`rel_plugin.dll`** | SHARED | C++ DLL 加载, `rel::plugin::Load()` / `Unload()` | ❌ |
-| **`rel_python_plugin.dll`** | SHARED | 嵌入 Python 解释器, `InitPython()` / `LoadPython()` | ✅ embed |
-| **`rel.pyd`** | MODULE | 外部 `import rel` | ✅ module |
-| `rel.exe` | EXE | CLI 驱动，可选链接 plugin DLL | ❌ |
-| 未来 `rel.dll` | SHARED | 完整 REL API | ❌ |
+| `rel.exe` | EXE | CLI 驱动 | ❌ |
+| 未来 `rel.dll` | SHARED | 完整 REL API | `BUILD_PYTHON` 控制 |
 
 ---
 
@@ -67,35 +60,28 @@
 
 ```
 REL/
-├── CMakeLists.txt                   # 仅加 add_subdirectory(plugin)
+├── CMakeLists.txt                       # BUILD_PYTHON option, add_subdirectory(src)
 │
 ├── src/runtime/
-│   ├── environment.h/.cc            # 移除 LoadFunctionPlugin / UnloadFunctionPlugin
-│   ├── rel_plugin.h                 # C ABI 头, 保留(插件 DLL 需要)
-│   └── rel_plugin.cc               # 移出 → plugin/cpp/
+│   ├── environment.h/.cc                # 保留 LoadFunctionPlugin / UnloadFunctionPlugin
+│   ├── rel_plugin.h                     # C ABI 头
+│   ├── rel_plugin.cc                    # C++ DLL 插件加载 (不动)
+│   │
+│   └── python/                          # [BUILD_PYTHON=ON] 才编译
+│       ├── rel_module.cc                # PYBIND11_MODULE(rel, m) 入口
+│       ├── xdataset_bindings.cc         # Unit, Measurement, DataSeries, DataArray, Block, Dataset
+│       ├── rel_bindings.cc              # Value, Param, register_function
+│       └── python_loader.cc             # LoadPython, ExecPython (惰性初始化)
 │
-├── plugin/
-│   ├── CMakeLists.txt               # rel_plugin.dll + rel_python_plugin.dll + rel.pyd
-│   ├── rel_plugin_api.h             # 统一 API 头 (给 host #include)
-│   │
-│   ├── cpp/
-│   │   └── cpp_loader.cc            # 迁自 src/runtime/rel_plugin.cc
-│   │
-│   ├── python/
-│   │   ├── rel_module.cc            # PYBIND11_MODULE(rel, m) 入口
-│   │   ├── xdataset_bindings.cc     # Unit, Measurement, DataSeries, DataArray, Block, Dataset
-│   │   ├── rel_bindings.cc          # Value, Param, register_function
-│   │   └── python_loader.cc         # InitPython, LoadPython, ExecPython
-│   │
-│   ├── example/
-│   │   ├── rel_plugin_sample.cc     # 迁自 plugins/sample/
-│   │   └── example_functions.py     # 示例 Python 插件
-│   │
-│   ├── DESIGN.md                    # 编译架构 (本文档)
-│   └── PYTHON_API.md                # Python 接口设计
+├── plugin/                              # 仅文档 + 示例
+│   ├── BUILD.md                         # 本文档
+│   ├── PYTHON_API.md                    # Python 接口设计
+│   └── example/
+│       ├── rel_plugin_sample.cc         # C++ 插件示例
+│       └── example_functions.py         # Python 插件示例
 │
 └── tests/
-    └── test_plugin.cc               # 适配 rel::plugin::Load
+    └── test_plugin.cc                   # 测试 LoadFunctionPlugin / LoadPython
 ```
 
 ---
@@ -105,195 +91,178 @@ REL/
 ### 4.1 顶层 CMakeLists.txt
 
 ```cmake
+# ---- 编译选项 ----
+option(BUILD_PYTHON "Enable embedded Python + plugin support" OFF)
+
+if(BUILD_PYTHON)
+    find_package(Python3 COMPONENTS Interpreter Development.Embed REQUIRED)
+    find_package(pybind11 CONFIG REQUIRED)
+    # numpy include 路径
+endif()
+
 # ---- rel_runtime ----
-# 移除 src/runtime/rel_plugin.cc
-add_library(rel_runtime SHARED
+set(REL_RUNTIME_SOURCES
     src/runtime/value.cc
     src/runtime/function.cc
-    ...(其他不变)...
-    # 不再: src/runtime/rel_plugin.cc
+    src/runtime/environment.cc
+    src/runtime/rel_plugin.cc        # C++ 插件加载, 始终编译
+    ...(其他)...
 )
-# 移除 dlopen 依赖 (如果之前为 rel_plugin 加的)
-target_link_libraries(rel_runtime PUBLIC xdataset)
 
-# ---- 可选: Python 插件 ----
-option(BUILD_REL_PLUGIN "Build plugin DLLs (C++ + Python)" ON)
-option(BUILD_REL_PLUGIN_PYTHON "Enable Python plugin support" OFF)
-
-if(BUILD_REL_PLUGIN)
-    if(BUILD_REL_PLUGIN_PYTHON)
-        # 检测 pybind11 + numpy
-        find_package(Python3 COMPONENTS Interpreter Development.Module Development.Embed REQUIRED)
-        find_package(pybind11 CONFIG REQUIRED)
-        # numpy include 路径
-    endif()
-    add_subdirectory(plugin)
+if(BUILD_PYTHON)
+    list(APPEND REL_RUNTIME_SOURCES
+        src/runtime/python/rel_module.cc
+        src/runtime/python/xdataset_bindings.cc
+        src/runtime/python/rel_bindings.cc
+        src/runtime/python/python_loader.cc
+    )
 endif()
 
-# ---- rel.exe 不含 Python ----
+add_library(rel_runtime SHARED ${REL_RUNTIME_SOURCES})
+
+target_include_directories(rel_runtime PRIVATE
+    ${CMAKE_SOURCE_DIR}/third_party/xdataset/include/xdataset
+    ${CMAKE_SOURCE_DIR}/third_party/xdataset
+    ${NUMPY_INCLUDE_DIR}
+)
+
+target_link_libraries(rel_runtime PUBLIC
+    xdataset
+    $<$<BOOL:${BUILD_PYTHON}>:pybind11::embed>
+)
+
+target_compile_definitions(rel_runtime PRIVATE
+    $<$<BOOL:${BUILD_PYTHON}>:REL_HAS_PYTHON>
+)
+
+# ---- rel.exe ----
 add_executable(rel src/main.cc)
-target_link_libraries(rel PRIVATE rel_core)
-# 可选: 运行时动态加载 rel_plugin.dll / rel_python_plugin.dll
+target_link_libraries(rel PRIVATE rel_core rel_runtime)
 ```
 
-### 4.2 plugin/CMakeLists.txt
+### 4.2 构建变体
 
-```cmake
-# =========================================================================
-# ① OBJECT library — 绑定源码编译一次
-# =========================================================================
-# 仅在 BUILD_REL_PLUGIN_PYTHON=ON 时构建
-
-if(BUILD_REL_PLUGIN_PYTHON)
-    add_library(rel_python_obj OBJECT
-        python/rel_module.cc
-        python/xdataset_bindings.cc
-        python/rel_bindings.cc
-    )
-    target_include_directories(rel_python_obj PRIVATE
-        ${CMAKE_SOURCE_DIR}/src/runtime
-        ${CMAKE_SOURCE_DIR}/third_party/xdataset/include/xdataset
-        ${CMAKE_SOURCE_DIR}/third_party/xdataset
-        ${NUMPY_INCLUDE_DIR}
-    )
-    target_link_libraries(rel_python_obj PUBLIC pybind11::headers)
-endif()
-
-# =========================================================================
-# ② rel_plugin.dll — C++ 插件加载器
-# =========================================================================
-
-add_library(rel_plugin SHARED
-    cpp/cpp_loader.cc           # 迁自 src/runtime/rel_plugin.cc
-)
-target_include_directories(rel_plugin PUBLIC
-    ${CMAKE_SOURCE_DIR}/src/runtime
-)
-target_link_libraries(rel_plugin PUBLIC rel_runtime)
-# 无 Python 依赖
-
-# =========================================================================
-# ③ rel_python_plugin.dll — Python 插件加载器
-# =========================================================================
-
-if(BUILD_REL_PLUGIN_PYTHON)
-    add_library(rel_python_plugin SHARED
-        python/python_loader.cc
-        $<TARGET_OBJECTS:rel_python_obj>
-    )
-    target_include_directories(rel_python_plugin PUBLIC
-        ${CMAKE_SOURCE_DIR}/src/runtime
-    )
-    target_link_libraries(rel_python_plugin PUBLIC
-        rel_plugin           # 复用函数追踪等公共设施
-        pybind11::embed      # 嵌入 Python 解释器
-    )
-endif()
-
-# =========================================================================
-# ④ rel.pyd — 外部 Python 可用
-# =========================================================================
-
-if(BUILD_REL_PLUGIN_PYTHON)
-    pybind11_add_module(rel_pyd MODULE
-        $<TARGET_OBJECTS:rel_python_obj>
-    )
-    target_link_libraries(rel_pyd PRIVATE rel_runtime)
-    set_target_properties(rel_pyd PROPERTIES
-        OUTPUT_NAME rel
-        PREFIX ""
-        SUFFIX ".pyd"
-    )
-    # 拷贝依赖 DLL 到 .pyd 同目录
-    add_custom_command(TARGET rel_pyd POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_FILE:xdataset>
-            $<TARGET_FILE_DIR:rel_pyd>
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_FILE:rel_runtime>
-            $<TARGET_FILE_DIR:rel_pyd>
-    )
-endif()
-```
-
-### 4.3 构建变体
-
-| CMake 选项 | 产物 |
+| CMake 选项 | `rel_runtime.dll` 包含 |
 |---|---|
-| `BUILD_REL_PLUGIN=OFF` | 无插件 DLL（只 `rel_runtime.dll` + `rel.exe`） |
-| `BUILD_REL_PLUGIN=ON, PYTHON=OFF` | `rel_plugin.dll` 只有 C++ 能力 |
-| `BUILD_REL_PLUGIN=ON, PYTHON=ON` | `rel_plugin.dll` + `rel_python_plugin.dll` + `rel.pyd` |
+| `BUILD_PYTHON=OFF` (默认) | C++ 插件加载，无 Python |
+| `BUILD_PYTHON=ON` | C++ 插件加载 + Python 嵌入 + pybind11 绑定 |
 
 ---
 
-## 5. 统一 API (`rel_plugin_api.h`)
+## 5. API — `Environment` 直接暴露
+
+不再需要 `rel_plugin_api.h`。`Environment` 原生支持：
 
 ```cpp
-#ifndef REL_PLUGIN_API_H_
-#define REL_PLUGIN_API_H_
+// src/runtime/environment.h
 
 namespace rel {
-namespace plugin {
 
-// =========================================================================
-//  C++ DLL 插件 (rel_plugin.dll)
-// =========================================================================
+class Environment {
+public:
+    // ---- C++ 插件 (始终可用) ----
 
-/// Load a C++ plugin DLL.  Returns opaque handle or nullptr.
-void* Load(const char* path);
+    /// Load a C++ plugin DLL, register its functions into this Environment.
+    void* LoadFunctionPlugin(const char* path);
 
-/// Unload a C++ plugin.  Unregisters functions, releases library.
-void  Unload(void* plugin);
+    /// Unload a C++ plugin, unregister its functions.
+    void  UnloadFunctionPlugin(void* handle);
 
-// =========================================================================
-//  Python 插件 (rel_python_plugin.dll) — 仅当链接时可用
-// =========================================================================
+    // ---- Python 插件 (BUILD_PYTHON=ON 时可用, 否则抛 runtime_error) ----
 
-/// Initialize embedded Python + register "rel" builtin module.
-bool  InitPython();
+    /// Execute a .py script in an independent context.
+    /// Each script gets its own globals dict — plugins cannot pollute
+    /// each other or the host's __main__.
+    /// Automatically initializes the Python interpreter on first call.
+    bool  LoadPython(const char* path);
 
-/// Execute a .py file.  Functions registered via rel.register_function()
-/// land in the global registry immediately.
-bool  LoadPython(const char* path);
+    /// Execute a Python string directly, likewise in an isolated context.
+    bool  ExecPython(const char* code);
 
-/// Execute a Python string directly.
-bool  ExecPython(const char* code);
+    /// True when the Python interpreter has been initialized.
+    bool  IsPythonAvailable() const;
+};
 
-/// True when InitPython() succeeded.
-bool  IsPythonAvailable();
-
-/// Shut down the interpreter (optional).
-void  ShutdownPython();
-
-} // namespace plugin
 } // namespace rel
-
-#endif
 ```
 
 ### 使用场景
 
 ```cpp
-// 只用 C++ 插件:
-#include "rel_plugin_api.h"
-// 链接: rel_plugin.dll
+rel::Environment env;
 
-void* h = rel::plugin::Load("my_funcs.dll");
-rel::plugin::Unload(h);
+// C++ 插件 (BUILD_PYTHON=OFF/ON 都能用):
+void* h = env.LoadFunctionPlugin("my_funcs.dll");
 
-// C++ + Python:
-#include "rel_plugin_api.h"
-// 链接: rel_plugin.dll + rel_python_plugin.dll
+// Python 插件 (BUILD_PYTHON=ON, 首次调用自动初始化解释器):
+env.LoadPython("my_funcs.py");
+// 脚本中的 rel.register_function("snr", ...)
+//   → 函数直接注册到 env 的注册表
 
-rel::plugin::InitPython();
-rel::plugin::Load("my_funcs.dll");
-rel::plugin::LoadPython("my_funcs.py");
-rel::plugin::ShutdownPython();
-
-// 只用外部 Python:
-// 不需要这个头, 不需要链接任何 plugin DLL
-// python -c "import rel"
+env.UnloadFunctionPlugin(h);
 ```
+
+### 惰性初始化
+
+用户**不需要**显式调用 `InitPython()`。`LoadPython()` / `ExecPython()` 首次被调用时自动：
+
+```cpp
+// python_loader.cc (内部实现, pybind11 API)
+
+#include <pybind11/embed.h>
+
+static bool EnsureInterpreter() {
+    if (Py_IsInitialized()) {
+        // 宿主已经初始化了 Python（如 Maya / Blender / QGIS）
+        // 只注册 "rel" 模块, 不改变现有解释器状态
+        return true;
+    }
+
+    // 宿主没有 Python → 全隔离初始化
+    pybind11::scoped_interpreter guard{};
+    // scoped_interpreter 内部使用 PyConfig, 不读 PYTHONPATH / site-packages
+
+    // 注册 "rel" 为 builtin module
+    PYBIND11_EMBEDDED_MODULE(rel, m) {
+        // xdataset_bindings.cc 和 rel_bindings.cc 中的绑定
+    }
+
+    return true;
+}
+
+bool Environment::LoadPython(const char* path) {
+    if (!EnsureInterpreter()) return false;
+
+    pybind11::gil_scoped_acquire gil;
+
+    // 每个插件文件一个独立的 globals dict — 互不污染
+    pybind11::dict script_globals;
+    script_globals["__builtins__"] = pybind11::module_::import("builtins");
+
+    // 注入当前 Environment
+    pybind11::module_ rel_mod = pybind11::module_::import("rel");
+    rel_mod.attr("current_env") = pybind11::cast(this, pybind11::return_value_policy::reference);
+
+    pybind11::eval_file(path, script_globals);
+    return true;
+}
+```
+
+> **插件之间完全隔离**：`a.py` 的 `x = 1` 不会出现在 `b.py` 中。`register_function()` 是唯一的跨插件通信渠道——它写入 `Environment` 的注册表，不依赖 Python 命名空间。
+
+### `LoadFromConfig` 中的 plugin 字段
+
+因为 `LoadFunctionPlugin` 就在 `rel_runtime.dll` 内，`LoadFromConfig` 直接调用即可，**不需要回调注入**。
+
+```json
+{
+    "plugins": [
+        "my_funcs.dll",
+        "my_funcs.py"
+    ]
+}
+```
+→ `LoadFunctionPlugin("my_funcs.dll")` + `LoadPython("my_funcs.py")`，都是 `Environment` 的内置方法。
 
 ---
 
@@ -301,48 +270,59 @@ rel::plugin::ShutdownPython();
 
 | 步骤 | 内容 | 影响 |
 |------|------|------|
-| 1 | 创建 `plugin/` 目录结构 | 新文件 |
-| 2 | `rel_plugin.cc` → `plugin/cpp/cpp_loader.cc` | 代码搬迁 |
-| 3 | `Environment` 移除 `LoadFunctionPlugin` / `UnloadFunctionPlugin` | 破坏性: 调用方需适配 |
-| 4 | `rel_plugin_sample` → `plugin/example/` | 搬迁 |
-| 5 | `test_plugin.cc` 适配 `rel::plugin::Load()` | 测试适配 |
-| 6 | `Environment::LoadFromConfig()` 中 `"plugin"` 回调 | 见 §7 |
-| 7 | 实现 Python 绑定 (`plugin/python/*.cc`) | 新代码 |
-| 8 | 实现 `rel_python_plugin.dll` | 新目标 |
-| 9 | 实现 `rel.pyd` | 新目标 |
-| 10 | `rel.exe` 支持 `--py` / `--plugin` | CLI 扩展 |
+| 1 | 创建 `src/runtime/python/` 目录 | 新文件 |
+| 2 | `rel_plugin.cc` 不动，`Environment` 保留现有 API | 无破坏 |
+| 3 | 实现 Python 绑定 (`src/runtime/python/*.cc`) | 新代码 |
+| 4 | 顶层 CMakeLists 加 `BUILD_PYTHON` option + 条件编译 | CMake 改动 |
+| 5 | `test_plugin.cc` 加 Python 测试 (`BUILD_PYTHON=ON`) | 新测试 |
+| 6 | `rel.exe` 支持 `--py` flag | CLI 扩展 |
+
+对比之前的 9-10 步方案，现在只需 6 步，且**无破坏性变更**。
 
 ---
 
 ## 7. 开放问题
 
-### 7.1 LoadFromConfig 中的 plugin 字段
+### 7.1 双层隔离：进程级 + 脚本级
 
-当前 `Environment::LoadFromConfig()` 直接调用 `LoadFunctionPlugin()`(在 `rel_runtime.dll` 内)。
-迁移后 `LoadFunctionPlugin` 不再存在于 `rel_runtime.dll`。
+**第一层 — 进程级隔离**（自动，用户无感）：
 
-**方案**：通过回调注入。
+`LoadPython()` / `ExecPython()` 首次调用时通过 pybind11 自动初始化 CPython。
+`pybind11::scoped_interpreter` 底层对应 `Py_Initialize()`，一个进程只能调一次。
+
+| 场景 | 行为 |
+|------|------|
+| 宿主未初始化 Python（`rel.exe`） | pybind11 创建隔离解释器，不读 `PYTHONPATH` / `site-packages` |
+| 宿主已初始化 Python（嵌入 Maya/Blender 等） | 复用现有解释器，只注册 `rel` 模块，不改宿主状态 |
+
+**第二层 — 脚本级隔离**（每个 `.py` 独立 `globals` dict）：
 
 ```cpp
-// rel_plugin_api.h
-using PluginLoader = void* (*)(const char* path);
-void SetPluginLoader(PluginLoader loader);
-
-// host 初始化时注册
-rel::plugin::SetPluginLoader(&rel::plugin::Load);
+// 每个脚本独立上下文, 不共享 __main__
+pybind11::dict script_globals;
+script_globals["__builtins__"] = pybind11::module_::import("builtins");
+pybind11::eval_file("my_funcs.py", script_globals);
+// a.py 的 x = 1 不会出现在 b.py 中
 ```
 
-### 7.2 外部 Python `import rel` 的能力边界
+| 隔离维度 | 效果 |
+|------|------|
+| 插件之间 | `a.py` 和 `b.py` 不共享任何变量，完全隔离 |
+| 宿主 `__main__` | 不受影响，宿主已有的全局变量不暴露给插件，也不被插件修改 |
+| `register_function()` | 唯一跨插件通信渠道 — 写入 `Environment` 注册表，不依赖 Python 命名空间 |
 
-外部 Python 没有正在运行的 `Environment`，因此：
-- ✅ 构造/操作 `Measurement`, `DataArray`, `Dataset`
-- ✅ 读写 HDF5 / Touchstone 文件
-- ❌ 调用 REL 表达式求值（没有 Evaluator）
-- ❌ 访问内置函数（没有初始化）
+`rel` 模块通过 `PYBIND11_EMBEDDED_MODULE(rel, m) { ... }` 注册为 builtin module，
+pybind11 2.11+ 原生支持，Python 脚本中 `import rel` 直接可用。
 
-V2 可加入 `rel.eval("sin(pi/2)")` 轻量求值入口。
+> **子解释器** (`Py_NewInterpreter`) 提供更强的模块级隔离，但 pybind11 扩展模块跨子解释器共享受限，当前不推荐，等 Python 3.12+ PEP 684 生态成熟后再评估。
 
-### 7.3 MinGW vs MSVC ABI
+### 7.2 Python 版本耦合
 
-当前项目使用 MinGW g++。`.pyd` 和 `rel_python_plugin.dll` 必须用 MinGW Python
-(`C:/msys64/mingw64/bin/python.exe`)。若用 MSVC 编译则与官方 CPython ABI 一致。
+`BUILD_PYTHON=ON` 时 `rel_runtime.dll` 链接 `pybind11::embed`，必须与系统 Python ABI 一致。
+解决方案：默认 `BUILD_PYTHON=OFF`，由下游集成方显式开启并自行对接 Python。
+
+### 7.3 外部 `import rel` 不可用
+
+嵌入模式不产 `.pyd`，无法在独立 Python 进程中 `import rel`。如需此能力，V2 可：
+- 单独产出 `rel.pyd` 共享同一套绑定源码
+- 或通过 `rel_runtime.dll` 启动子进程传递序列化数据
