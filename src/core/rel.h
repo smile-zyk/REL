@@ -1,6 +1,6 @@
 #pragma once
 
-#include "function.h"  // FunctionParam / NativeFunction
+#include "function/function.h"  // FunctionParam / NativeFunction
 #include "value.h"          // rel::Value
 
 #include <sstream>

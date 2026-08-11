@@ -375,15 +375,27 @@ TEST(BuiltinFunctionTest, MinMaxOfRealSweep)
     EXPECT_DOUBLE_EQ(mx.as_data_array().data().scalar_at<double>(0), 2.5);
 }
 
-TEST(BuiltinFunctionTest, MinMaxRequireDataArray)
+TEST(BuiltinFunctionTest, MinMaxOnMeasurement)
 {
     rel::Environment env;
     rel::Environment::InitBuiltinFunctions();
 
-    // Scalar Measurement is not a DataArray.
-    EXPECT_THROW(rel::Eval("min(1)", &env), std::runtime_error);
-    EXPECT_THROW(rel::Eval("max(1)", &env), std::runtime_error);
-    EXPECT_THROW(rel::Eval("min({1, 2})", &env), std::runtime_error);
+    // min/max now work on scalar Measurement-backed Values (via unified Value API).
+    rel::Value mn1 = rel::Eval("min(1)", &env);
+    ASSERT_TRUE(mn1.is_data_array());
+    EXPECT_EQ(mn1.as_data_array().data().scalar_at<int>(0), 1);
+
+    rel::Value mx1 = rel::Eval("max(1)", &env);
+    ASSERT_TRUE(mx1.is_data_array());
+    EXPECT_EQ(mx1.as_data_array().data().scalar_at<int>(0), 1);
+
+    rel::Value mn2 = rel::Eval("min(3.5)", &env);
+    ASSERT_TRUE(mn2.is_data_array());
+    EXPECT_DOUBLE_EQ(mn2.as_data_array().data().scalar_at<double>(0), 3.5);
+
+    rel::Value mx2 = rel::Eval("max(3.5)", &env);
+    ASSERT_TRUE(mx2.is_data_array());
+    EXPECT_DOUBLE_EQ(mx2.as_data_array().data().scalar_at<double>(0), 3.5);
 }
 
 TEST(BuiltinFunctionTest, MinMaxOfDatasetVariable)

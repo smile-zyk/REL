@@ -110,28 +110,89 @@ DataSeries Value::data() const {
     if (is_measurement()) {
         const Measurement& m = as_measurement();
         DataSeries ds(m.data_type(), m.shape());
+        ds.set_unit(m.unit());
         ds.append(m);
         return ds;
     }
     return as_data_array().data();
 }
 
-const DataSeries& Value::data_ref() const {
-    if (is_measurement())
-        throw std::runtime_error("Value::data_ref(): Measurement-backed Value has no DataSeries");
-    return as_data_array().data();
-}
-
-const DataSeries& Value::indep_data(Index index) const {
-    if (is_measurement())
-        throw std::runtime_error("Value::indep_data: Measurement-backed Value has no independent data");
+DataSeries Value::indep_data(Index index) const {
+    if (is_measurement()) {
+        if (index == 1)
+            return DataSeries::CreateScalar<int>(1, Unit(), 0);
+        throw std::out_of_range("Measurement only has indep index 1");
+    }
     return as_data_array().indep_data(index);
 }
 
-const DataSeries& Value::indep_data(const std::string& name) const {
+DataSeries Value::indep_data(const std::string& name) const {
     if (is_measurement())
-        throw std::runtime_error("Value::indep_data: Measurement-backed Value has no independent data");
+        throw std::runtime_error("Measurement cannot call indep_data");
     return as_data_array().indep_data(name);
+}
+
+Value Value::indep(Index index) const {
+    if (is_measurement())
+        throw std::runtime_error("Measurement cannot call indep");
+    return Value(as_data_array().indep(index));
+}
+
+Value Value::indep(const std::string& name) const {
+    if (is_measurement())
+        throw std::runtime_error("Measurement cannot call indep");
+    return Value(as_data_array().indep(name));
+}
+
+// ---- leaf / group iteration --------------------------------------------------
+
+void Value::for_each_indep_group(
+    Index indep_index,
+    const MultiDimensionSpec::DimGroupVisitor& visitor) const
+{
+    if (is_measurement()) {
+        if (indep_index == 1) {
+            MultiDimensionSpec::DimGroup g;
+            g.flat_start = 0;
+            g.flat_end   = 1;
+            g.multi_index = {0};
+            visitor(g);
+            return;
+        }
+        throw std::out_of_range("Measurement only has indep index 1");
+    }
+    as_data_array().for_each_indep_group(indep_index, visitor);
+}
+
+void Value::for_each_leaf_row(
+    const MultiDimensionSpec::LeafRowVisitor& visitor) const
+{
+    if (is_measurement()) {
+        MultiDimensionSpec::LeafRow leaf;
+        leaf.row_flat = 0;
+        leaf.multi_index = {0};
+        leaf.dimension_row_indices = {0};
+        visitor(leaf);
+        return;
+    }
+    as_data_array().for_each_leaf_row(visitor);
+}
+
+void Value::for_each_leaf_row(
+    const MultiDimensionSpec::LeafRowVisitor& visitor,
+    Index start_flat_row, Index end_flat_row) const
+{
+    if (is_measurement()) {
+        if (start_flat_row <= 0 && end_flat_row > 0) {
+            MultiDimensionSpec::LeafRow leaf;
+            leaf.row_flat = 0;
+            leaf.multi_index = {0};
+            leaf.dimension_row_indices = {0};
+            visitor(leaf);
+        }
+        return;
+    }
+    as_data_array().for_each_leaf_row(visitor, start_flat_row, end_flat_row);
 }
 
 // ---- setters ----------------------------------------------------------------
@@ -158,7 +219,7 @@ void Value::set_data(DataSeries new_self) {
 void Value::set_data(Index row, Measurement value) {
     if (is_measurement()) {
         if (row != 0)
-            throw std::out_of_range("Measurement-backed Value only has row 0");
+            throw std::out_of_range("Measurement only has row 0");
         storage_ = std::move(value);
         return;
     }
@@ -167,31 +228,31 @@ void Value::set_data(Index row, Measurement value) {
 
 void Value::set_indep_data(DataSeries new_series) {
     if (is_measurement())
-        throw std::runtime_error("Value::set_indep_data: Measurement-backed Value has no independent data");
+        throw std::runtime_error("Measurement cannot call set_indep_data");
     as_data_array().set_indep_data(std::move(new_series));
 }
 
 void Value::set_indep_data(Index indep_index, DataSeries new_series) {
     if (is_measurement())
-        throw std::runtime_error("Value::set_indep_data: Measurement-backed Value has no independent data");
+        throw std::runtime_error("Measurement cannot call set_indep_data");
     as_data_array().set_indep_data(indep_index, std::move(new_series));
 }
 
 void Value::set_indep_data(const std::string& indep_name, DataSeries new_series) {
     if (is_measurement())
-        throw std::runtime_error("Value::set_indep_data: Measurement-backed Value has no independent data");
+        throw std::runtime_error("Measurement cannot call set_indep_data");
     as_data_array().set_indep_data(indep_name, std::move(new_series));
 }
 
 void Value::set_indep_data(Index indep_index, Index row, Measurement value) {
     if (is_measurement())
-        throw std::runtime_error("Value::set_indep_data: Measurement-backed Value has no independent data");
+        throw std::runtime_error("Measurement cannot call set_indep_data");
     as_data_array().set_indep_data(indep_index, row, std::move(value));
 }
 
 void Value::set_indep_data(const std::string& indep_name, Index row, Measurement value) {
     if (is_measurement())
-        throw std::runtime_error("Value::set_indep_data: Measurement-backed Value has no independent data");
+        throw std::runtime_error("Measurement cannot call set_indep_data");
     as_data_array().set_indep_data(indep_name, row, std::move(value));
 }
 

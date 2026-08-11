@@ -1,5 +1,5 @@
 // =============================================================================
-//  REL -- Internal operation helpers (shared by operator.cc & math_functions.cc)
+//  REL -- Internal operation helpers (shared by operator.cc & math_operation.cc)
 // =============================================================================
 //
 //  This is a private header -- NOT part of the public API.  It contains:
@@ -34,6 +34,13 @@ Unit     DeriveUnitFirst(const std::vector<Unit>& units);
 Unit     DeriveUnitMul(const std::vector<Unit>& units);
 Unit     DeriveUnitDiv(const std::vector<Unit>& units);
 Unit     DeriveUnitDimless(const std::vector<Unit>& units);
+
+// Simple constant-return derive callbacks
+inline DataType DeriveDtypeForceReal(const std::vector<DataType>&) { return DataType::kReal; }
+inline DataType DeriveDtypeForceInt(const std::vector<DataType>&)  { return DataType::kInteger; }
+inline DataType DeriveDtypeComplexOrReal(const std::vector<DataType>& dtypes)
+    { return (dtypes[0] == DataType::kComplex) ? DataType::kComplex : DataType::kReal; }
+inline Unit DeriveUnitForceDimless(const std::vector<Unit>&) { return Unit(); }
 
 // =========================================================================
 //  ExecBinaryLoop -- core flat-buffer loop for binary ops

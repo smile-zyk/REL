@@ -141,17 +141,46 @@ public:
     /// from the Measurement.  DataArray: returns a copy of the underlying series.
     DataSeries data() const;
 
-    /// Zero-copy reference to self data.  Only valid for DataArray-backed
-    /// Values.  Throws std::runtime_error for Measurement-backed Values.
-    const DataSeries& data_ref() const;
+    /// Independent variable data by 1-based index (innermost-first).
+    /// Measurement-backed: returns a single-row DataSeries with int 0
+    /// (the index of the single value).
+    /// DataArray-backed: delegates to DataArray::indep_data().
+    DataSeries indep_data(Index index) const;
 
-    /// Read-only independent variable data by 1-based index.
-    /// Throws std::runtime_error for Measurement-backed Values.
-    const DataSeries& indep_data(Index index) const;
+    /// Independent variable data by name.
+    /// Measurement-backed: throws runtime_error.
+    /// DataArray-backed: delegates to DataArray::indep_data().
+    DataSeries indep_data(const std::string& name) const;
 
-    /// Read-only independent variable data by name.
-    /// Throws std::runtime_error for Measurement-backed Values.
-    const DataSeries& indep_data(const std::string& name) const;
+    /// Extract an independent variable as a Value (Independent DataArray).
+    /// Indep index is 1-based, innermost-first (1 = innermost).
+    /// Measurement-backed: throws runtime_error.
+    /// DataArray-backed: delegates to DataArray::indep().
+    Value indep(Index index = 1) const;
+
+    /// Extract an independent variable by name.
+    Value indep(const std::string& name) const;
+
+    // ---- leaf / group iteration ---------------------------------------
+
+    /// Visit groups at a given independent dimension level.
+    /// Indep index is 1-based, innermost-first.
+    /// Measurement-backed: single group spanning the single row when index==1.
+    /// DataArray-backed: delegates to DataArray::for_each_indep_group().
+    void for_each_indep_group(
+        Index indep_index,
+        const MultiDimensionSpec::DimGroupVisitor& visitor) const;
+
+    /// Visit every leaf row in row-major order.
+    /// Measurement-backed: single leaf row.
+    /// DataArray-backed: delegates to DataArray::for_each_leaf_row().
+    void for_each_leaf_row(
+        const MultiDimensionSpec::LeafRowVisitor& visitor) const;
+
+    /// Visit leaf rows in [start_flat_row, end_flat_row).
+    void for_each_leaf_row(
+        const MultiDimensionSpec::LeafRowVisitor& visitor,
+        Index start_flat_row, Index end_flat_row) const;
 
     // ---- setters (mutate in place) -------------------------------------
 

@@ -6,7 +6,7 @@
 // link) plus the xdataset library for rel::Value.
 
 #include "rel_plugin.h"
-#include "function.h"
+#include "function/function_library.h"
 
 #include <vector>
 

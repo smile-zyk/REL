@@ -324,11 +324,6 @@ namespace rel
                 return res;
             }
 
-            static DataType DeriveDtypeForceInt(const std::vector<DataType>& /*dtypes*/)
-            {
-                return DataType::kInteger;
-            }
-
             static DataType DeriveDtypeMerge(const std::vector<DataType>& dtypes)
             {
                 if (dtypes.empty())

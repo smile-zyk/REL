@@ -11,7 +11,7 @@
 #include "rel_plugin.h"
 
 #include "environment.h"
-#include "function.h"
+#include "function/function.h"
 
 #include <string>
 #include <vector>

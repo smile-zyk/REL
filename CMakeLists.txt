@@ -37,20 +37,20 @@ add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
 #    eval/environment*   Environment, dataset/variable/function registries
 #    eval/rel_plugin     dynamic library loader
 #    eval/builtin/*      builtin function libraries
-#    eval/function.h     Function / FunctionLibrary (header-only)
+#    eval/function/     Function / FunctionLibrary (header-only)
 
 add_library(rel_runtime SHARED
     src/runtime/value.cc
-    src/runtime/function.cc
+    src/runtime/function/function.cc
+    src/runtime/function/math_library.cc
+    src/runtime/function/builtin_library.cc
     src/runtime/operation/operator.cc
     src/runtime/operation/pipeline.cc
     src/runtime/operation/operation_helpers.cc
-    src/runtime/operation/math_functions.cc
+    src/runtime/operation/math_operation.cc
     src/runtime/environment.cc
     src/runtime/environment_config.cc
     src/runtime/rel_plugin.cc
-    src/runtime/builtin_library.cc
-    src/runtime/math_library.cc
 )
 target_compile_definitions(rel_runtime PRIVATE REL_RUNTIME_BUILD_DLL)
 target_include_directories(rel_runtime PUBLIC src/runtime)
@@ -143,7 +143,7 @@ add_executable(rel_test
     tests/test_evaluator_op.cc
     tests/test_evaluator_func.cc
     tests/test_builtin_functions.cc
-    tests/test_math_functions.cc
+    tests/test_math_operation.cc
     tests/test_plugin.cc
     tests/value_test.cc
     tests/operation_test.cc

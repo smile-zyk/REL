@@ -411,8 +411,7 @@ for leaf in da.leaves(100, 200):       # 迭代 flat 索引 [100, 200)
     ...
 ```
 
-#### 4.7.3 完整示例：用 Python 实现最内层 reduce
-
+#### 4.7.3 示例
 对标 C++ `DataArray::reduce_innermost()`，在 Python 中只需几行：
 
 ```python
@@ -435,26 +434,7 @@ min_vals = reduce_innermost(da, min)             # 每组的 min
 max_vals = reduce_innermost(da, max)             # 每组的 max
 avg_vals = reduce_innermost(da, np.mean)         # 每组的 mean
 ```
-
-#### 4.7.4 跨维度 reduce（广义聚合）
-
-```python
-def reduce_at_dim(da, dim_idx, fn):
-    """沿指定维度做聚合, 返回 List[List[float]]."""
-    ds = da.data
-    result = []
-    for g in da.groups_at_dim(dim_idx):
-        vals = []
-        for leaf in da.leaves(g.flat_start, g.flat_end):
-            vals.append(np.asarray(ds[leaf.row_flat]).item())
-        result.append(fn(vals))
-    return result
-
-# freq=100, power=5 → reduce 掉 power 维度
-means = reduce_at_dim(da, 0, np.mean)            # shape (100,)
-```
-
-#### 4.7.5 遍历全部叶子（不分组）
+- 遍历全部叶子（不分组）
 
 ```python
 for leaf in da.all_leaves():                     # 等价于 da.leaves(0, da.flat_size)

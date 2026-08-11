@@ -8,16 +8,12 @@
 #include "value.h"  // rel::Value
 #include "dataset.h"
 #include "environment_config.h"
-#include "function.h"
+#include "function/function_library.h"
 
 namespace rel {
 
 // Opaque handle to a loaded function plugin.
 struct LoadedPlugin;
-
-// Builtin function libraries (defined in src/eval/builtin/).
-extern FunctionLibrary kBuiltinLibrary;
-extern FunctionLibrary kMathLibrary;
 
 // =========================================================================
 //  Environment — flat variable table + global shared context

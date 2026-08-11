@@ -2,6 +2,8 @@
 
 #include "dataset.h"
 #include "dataset_io.h"
+#include "function/builtin_library.h"
+#include "function/math_library.h"
 #include "touchstone_io.h"
 
 #include <stdexcept>
@@ -67,6 +69,8 @@ void Environment::InitBuiltinConstants()
     builtin_constants_["u0"]        = rel::Value::Real(12.5664e-07);
     builtin_constants_["tinyReal"]  = rel::Value::Real(2.2e-308);
     builtin_constants_["hugeReal"]  = rel::Value::Real(3.4e+38);
+    builtin_constants_["i"]  = rel::Value::Complex(std::complex<double>(0,1));
+    builtin_constants_["j"]  = rel::Value::Complex(std::complex<double>(0,1));
 }
 
 const rel::Value* Environment::FindConstant(const std::string& name)
@@ -92,8 +96,8 @@ std::vector<std::string> Environment::ConstantNames()
 
 void Environment::InitBuiltinFunctions()
 {
-    RegisterLibrary(kBuiltinLibrary);
-    RegisterLibrary(kMathLibrary);
+    RegisterLibrary(MakeBuiltinLibrary());
+    RegisterLibrary(MakeMathLibrary());
 }
 
 void Environment::RegisterFunction(Function fn)
