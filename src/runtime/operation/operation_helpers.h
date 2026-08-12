@@ -29,18 +29,27 @@ DataShape DeriveShapeBroadcast(const std::vector<DataShape>& operand_shapes);
 Index    DeriveRowsBroadcast(const std::vector<Index>& rows);
 
 DataType DeriveDtypePromote(const std::vector<DataType>& dtypes);
-Unit     DeriveUnitSameDim(const std::vector<Unit>& units);
-Unit     DeriveUnitFirst(const std::vector<Unit>& units);
+DataType DeriveDtypePromoteReal(const std::vector<DataType>& dtypes);
+DataType DeriveDtypePromoteNoComplex(const std::vector<DataType>& dtypes);
+DataType DeriveDtypePromoteWithString(const std::vector<DataType>& dtypes);
+DataType DeriveDtypeRequireInt(const std::vector<DataType>& dtypes);
+DataType DeriveDtypeForceReal(const std::vector<DataType>& dtypes);
+DataType DeriveDtypeForceRealNoComplex(const std::vector<DataType>& dtypes);
+DataType DeriveDtypeForceIntNoComplex(const std::vector<DataType>& dtypes);
+
+Unit     DeriveUnitPromoteDimension(const std::vector<Unit>& units);
+Unit     DeriveUnitMod(const std::vector<Unit>& units);
+Unit     DeriveUnitDimlessRight(const std::vector<Unit>& units);
 Unit     DeriveUnitMul(const std::vector<Unit>& units);
 Unit     DeriveUnitDiv(const std::vector<Unit>& units);
 Unit     DeriveUnitDimless(const std::vector<Unit>& units);
 
 // Simple constant-return derive callbacks
-inline DataType DeriveDtypeForceReal(const std::vector<DataType>&) { return DataType::kReal; }
-inline DataType DeriveDtypeForceInt(const std::vector<DataType>&)  { return DataType::kInteger; }
+inline DataType DeriveDtypeAlwaysInt(const std::vector<DataType>&)  { return DataType::kInteger; }
 inline DataType DeriveDtypeComplexOrReal(const std::vector<DataType>& dtypes)
     { return (dtypes[0] == DataType::kComplex) ? DataType::kComplex : DataType::kReal; }
 inline Unit DeriveUnitForceDimless(const std::vector<Unit>&) { return Unit(); }
+inline Unit DeriveUnitSquare(const std::vector<Unit>& u) { return u[0].pow(2); }
 
 // =========================================================================
 //  ExecBinaryLoop -- core flat-buffer loop for binary ops

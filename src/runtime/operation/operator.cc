@@ -27,7 +27,6 @@
 #include "operation/operation_helpers.h"
 #include "operation/pipeline.h"
 
-
 #include <Eigen/LU>
 
 #include <cmath>
@@ -181,24 +180,24 @@ namespace rel
             static DataShape DeriveShapeMatrix(const std::vector<DataShape>& operand_shapes)
             {
                 if (operand_shapes.empty())
-                    throw std::invalid_argument("matrix: empty input");
+                    throw std::invalid_argument("empty input");
                 const Index N = static_cast<Index>(operand_shapes.size());
                 const DataKind k0 = operand_shapes[0].kind();
                 const DataShape& s0 = operand_shapes[0];
                 for (size_t i = 1; i < operand_shapes.size(); ++i)
                 {
                     if (operand_shapes[i].kind() != k0)
-                        throw std::invalid_argument("matrix: kind mismatch at index " +
+                        throw std::invalid_argument("kind mismatch at index " +
                                                     std::to_string(i));
                     if (operand_shapes[i] != s0)
-                        throw std::invalid_argument("matrix: shape mismatch at index " +
+                        throw std::invalid_argument("shape mismatch at index " +
                                                     std::to_string(i));
                 }
                 if (k0 == DataKind::kScalar)
                     return DataShape::Vector(N);
                 if (k0 == DataKind::kVector)
                     return DataShape::Matrix(N, s0[0]);
-                throw std::invalid_argument("matrix: cannot concat matrices");
+                throw std::invalid_argument("cannot concat matrices");
             }
 
             static DataShape DeriveShapeMul(const std::vector<DataShape>& operand_shapes)
@@ -248,168 +247,27 @@ namespace rel
                 return total;
             }
 
-            // -- Dtype: Div, Mod, Pow, Bitwise, Cmp, ForceInt, Merge ----------------------
-
-            static DataType DeriveDtypeDiv(const std::vector<DataType>& dtypes)
-            {
-                DataType res = DeriveDtypePromote(dtypes);
-                if (res == DataType::kInteger)
-                    res = DataType::kReal;
-                return res;
-            }
-
-            static DataType DeriveDtypeMod(const std::vector<DataType>& dtypes)
-            {
-                bool has_real = false;
-                for (size_t i = 0; i < dtypes.size(); ++i)
-                {
-                    DataType dt = dtypes[i];
-                    if (dt == DataType::kBoolean)
-                        dt = DataType::kInteger;
-                    if (dt == DataType::kReal)
-                    {
-                        has_real = true;
-                        continue;
-                    }
-                    if (dt == DataType::kInteger)
-                        continue;
-                    throw std::invalid_argument("mod: unsupported type " +
-                                                std::to_string(static_cast<int>(dt)));
-                }
-                return has_real ? DataType::kReal : DataType::kInteger;
-            }
-
-            static DataType DeriveDtypePow(const std::vector<DataType>& dtypes)
-            {
-                DataType res = DeriveDtypePromote(dtypes);
-                if (res == DataType::kInteger)
-                    res = DataType::kReal;
-                return res;
-            }
-
-            static DataType DeriveDtypeBitwise(const std::vector<DataType>& dtypes)
-            {
-                for (size_t i = 0; i < dtypes.size(); ++i)
-                {
-                    DataType dt = dtypes[i];
-                    if (dt == DataType::kBoolean)
-                        continue;
-                    if (dt == DataType::kInteger)
-                        continue;
-                    throw std::invalid_argument("bitwise: int operand required, got type " +
-                                                std::to_string(static_cast<int>(dt)));
-                }
-                return DataType::kInteger;
-            }
-
-            static DataType DeriveDtypeCmp(const std::vector<DataType>& dtypes)
-            {
-                DataType res = DataType::kInteger;
-                for (size_t i = 0; i < dtypes.size(); ++i)
-                {
-                    DataType dt = dtypes[i];
-                    if (dt == DataType::kBoolean)
-                        dt = DataType::kInteger;
-                    if (dt == DataType::kString)
-                    {
-                        res = DataType::kString;
-                        break;
-                    }
-                    if (dt == DataType::kComplex && res != DataType::kString)
-                        res = DataType::kComplex;
-                    else if (dt == DataType::kReal && res != DataType::kComplex &&
-                             res != DataType::kString)
-                        res = DataType::kReal;
-                }
-                return res;
-            }
-
-            static DataType DeriveDtypeMerge(const std::vector<DataType>& dtypes)
-            {
-                if (dtypes.empty())
-                    return DataType::kInteger;
-                bool all_string = true, any_string = false;
-                DataType res = DataType::kInteger;
-                for (size_t i = 0; i < dtypes.size(); ++i)
-                {
-                    DataType dt = dtypes[i];
-                    if (dt == DataType::kBoolean)
-                        dt = DataType::kInteger;
-                    if (dt == DataType::kString)
-                    {
-                        any_string = true;
-                        continue;
-                    }
-                    all_string = false;
-                    if (dt == DataType::kComplex)
-                        res = DataType::kComplex;
-                    else if (dt == DataType::kReal && res != DataType::kComplex)
-                        res = DataType::kReal;
-                }
-                if (any_string && !all_string)
-                    throw std::invalid_argument(
-                        "concat/sweep: cannot mix string with numeric types");
-                return all_string ? DataType::kString : res;
-            }
-
-            // -- Conditional / If ----------------------------------------------------------
+            // -- Conditional / If ---------------------------------------------------------
 
             static DataType DeriveDtypeConditional(const std::vector<DataType>& dtypes)
             {
-                bool all_string = true, any_string = false;
-                DataType res = DataType::kInteger;
-                for (size_t i = 1; i < dtypes.size(); ++i)
-                {
-                    DataType dt = dtypes[i];
-                    if (dt == DataType::kBoolean)
-                        dt = DataType::kInteger;
-                    if (dt == DataType::kString)
-                    {
-                        any_string = true;
-                        continue;
-                    }
-                    all_string = false;
-                    if (dt == DataType::kComplex)
-                        res = DataType::kComplex;
-                    else if (dt == DataType::kReal && res != DataType::kComplex)
-                        res = DataType::kReal;
-                }
-                if (any_string && !all_string)
-                    throw std::invalid_argument(
-                        "conditional: cannot mix string with numeric types");
-                return all_string ? DataType::kString : res;
+                return DeriveDtypePromoteWithString({dtypes[1], dtypes[2]});
             }
 
             static Unit DeriveUnitConditional(const std::vector<Unit>& units)
             {
-                return DeriveUnitSameDim({units[1], units[2]});
+                return DeriveUnitPromoteDimension({units[1], units[2]});
             }
 
             static DataType DeriveDtypeIf(const std::vector<DataType>& dtypes)
             {
-                bool all_string = true, any_string = false;
-                DataType res = DataType::kInteger;
+                std::vector<DataType> vals;
                 for (size_t i = 1; i < dtypes.size(); ++i)
                 {
-                    if (i % 2 == 0 && i != dtypes.size() - 1)
-                        continue;
-                    DataType dt = dtypes[i];
-                    if (dt == DataType::kBoolean)
-                        dt = DataType::kInteger;
-                    if (dt == DataType::kString)
-                    {
-                        any_string = true;
-                        continue;
-                    }
-                    all_string = false;
-                    if (dt == DataType::kComplex)
-                        res = DataType::kComplex;
-                    else if (dt == DataType::kReal && res != DataType::kComplex)
-                        res = DataType::kReal;
+                    if (i % 2 == 0 && i != dtypes.size() - 1) continue;
+                    vals.push_back(dtypes[i]);
                 }
-                if (any_string && !all_string)
-                    throw std::invalid_argument("if: cannot mix string with numeric types");
-                return all_string ? DataType::kString : res;
+                return DeriveDtypePromoteWithString(vals);
             }
 
             static Unit DeriveUnitIf(const std::vector<Unit>& units)
@@ -418,7 +276,7 @@ namespace rel
                 for (size_t i = 1; i < units.size(); ++i)
                     if (i % 2 == 1 || i == units.size() - 1)
                         val_units.push_back(units[i]);
-                return DeriveUnitSameDim(val_units);
+                return DeriveUnitPromoteDimension(val_units);
             }
 
         } // anonymous namespace
@@ -548,7 +406,7 @@ namespace rel
                 return std::abs(a) >= std::abs(b) ? 1 : 0;
             }
 
-            // String cmp ï¿½?non-template to avoid copy overhead
+            // String cmp ï¿?non-template to avoid copy overhead
             inline int str_cmp_eq(const std::string& a, const std::string& b)
             {
                 return a == b ? 1 : 0;
@@ -692,7 +550,7 @@ namespace rel
                         info, ops, op_add<std::complex<double>>);
                 case DataType::kReal: return ExecBinaryArithT<double>(info, ops, op_add<double>);
                 case DataType::kInteger: return ExecBinaryArithT<int>(info, ops, op_add<int>);
-                default: throw std::invalid_argument("unsupported dtype for arithmetic");
+                default: throw std::invalid_argument("unsupported dtype");
             }
         }
 
@@ -705,7 +563,7 @@ namespace rel
                         info, ops, op_sub<std::complex<double>>);
                 case DataType::kReal: return ExecBinaryArithT<double>(info, ops, op_sub<double>);
                 case DataType::kInteger: return ExecBinaryArithT<int>(info, ops, op_sub<int>);
-                default: throw std::invalid_argument("unsupported dtype for arithmetic");
+                default: throw std::invalid_argument("unsupported dtype");
             }
         }
 
@@ -748,20 +606,28 @@ namespace rel
                         info, ops, op_mod<std::complex<double>>);
                 case DataType::kReal: return ExecBinaryArithT<double>(info, ops, op_mod<double>);
                 case DataType::kInteger: return ExecBinaryArithT<int>(info, ops, op_mod<int>);
-                default: throw std::invalid_argument("unsupported dtype for arithmetic");
+                default: throw std::invalid_argument("unsupported dtype");
             }
         }
 
         Value ExecutePow(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            switch (info.dtype)
+            ExecContextInfo mod_info = info;
+            if (ops[1].data_shape().kind() == DataKind::kScalar &&
+                ops[1].data_type() == DataType::kInteger && ops[1].rows() == 1)
+            {
+                auto rhs_flat = ops[1].flat_data<int>();
+                mod_info.unit = info.unit.pow(rhs_flat.ptr[0]);
+            }
+            switch (mod_info.dtype)
             {
                 case DataType::kComplex:
                     return ExecBinaryArithT<std::complex<double>>(
-                        info, ops, op_pow<std::complex<double>>);
-                case DataType::kReal: return ExecBinaryArithT<double>(info, ops, op_pow<double>);
-                case DataType::kInteger: return ExecBinaryArithT<int>(info, ops, op_pow<int>);
-                default: throw std::invalid_argument("unsupported dtype for arithmetic");
+                        mod_info, ops, op_pow<std::complex<double>>);
+                case DataType::kReal:
+                    return ExecBinaryArithT<double>(mod_info, ops, op_pow<double>);
+                case DataType::kInteger: return ExecBinaryArithT<int>(mod_info, ops, op_pow<int>);
+                default: throw std::invalid_argument("unsupported dtype");
             }
         }
 
@@ -844,7 +710,7 @@ namespace rel
             ShapeBroadcastPlan shape_plan = ShapeBroadcastPlan::Make(op_shapes, info.shape);
             RowBroadcastPlan row_plan = RowBroadcastPlan::Compute(row_counts);
 
-            // Build flat string arrays (no flat_data ï¿½?strings handled separately)
+            // Build flat string arrays (no flat_data ï¿?strings handled separately)
             Index l_stride = static_cast<Index>(l_shape.element_count());
             Index r_stride = static_cast<Index>(r_shape.element_count());
             Index result_rows = info.rows;
@@ -964,7 +830,7 @@ namespace rel
                 case DataType::kString:
                     if (ops[0].data_type() != DataType::kString ||
                         ops[1].data_type() != DataType::kString)
-                        throw std::invalid_argument("comparison: cannot mix string with numeric");
+                        throw std::invalid_argument("cannot mix string with numeric");
                     return ExecBinaryCmpString(info, ops, str_cmp_eq);
                 case DataType::kComplex:
                     return ExecBinaryCmpT<std::complex<double>>(
@@ -981,7 +847,7 @@ namespace rel
                 case DataType::kString:
                     if (ops[0].data_type() != DataType::kString ||
                         ops[1].data_type() != DataType::kString)
-                        throw std::invalid_argument("comparison: cannot mix string with numeric");
+                        throw std::invalid_argument("cannot mix string with numeric");
                     return ExecBinaryCmpString(info, ops, str_cmp_ne);
                 case DataType::kComplex:
                     return ExecBinaryCmpT<std::complex<double>>(
@@ -998,7 +864,7 @@ namespace rel
                 case DataType::kString:
                     if (ops[0].data_type() != DataType::kString ||
                         ops[1].data_type() != DataType::kString)
-                        throw std::invalid_argument("comparison: cannot mix string with numeric");
+                        throw std::invalid_argument("cannot mix string with numeric");
                     return ExecBinaryCmpString(info, ops, str_cmp_lt);
                 case DataType::kComplex:
                     return ExecBinaryCmpT<std::complex<double>>(
@@ -1015,7 +881,7 @@ namespace rel
                 case DataType::kString:
                     if (ops[0].data_type() != DataType::kString ||
                         ops[1].data_type() != DataType::kString)
-                        throw std::invalid_argument("comparison: cannot mix string with numeric");
+                        throw std::invalid_argument("cannot mix string with numeric");
                     return ExecBinaryCmpString(info, ops, str_cmp_gt);
                 case DataType::kComplex:
                     return ExecBinaryCmpT<std::complex<double>>(
@@ -1032,7 +898,7 @@ namespace rel
                 case DataType::kString:
                     if (ops[0].data_type() != DataType::kString ||
                         ops[1].data_type() != DataType::kString)
-                        throw std::invalid_argument("comparison: cannot mix string with numeric");
+                        throw std::invalid_argument("cannot mix string with numeric");
                     return ExecBinaryCmpString(info, ops, str_cmp_le);
                 case DataType::kComplex:
                     return ExecBinaryCmpT<std::complex<double>>(
@@ -1049,7 +915,7 @@ namespace rel
                 case DataType::kString:
                     if (ops[0].data_type() != DataType::kString ||
                         ops[1].data_type() != DataType::kString)
-                        throw std::invalid_argument("comparison: cannot mix string with numeric");
+                        throw std::invalid_argument("cannot mix string with numeric");
                     return ExecBinaryCmpString(info, ops, str_cmp_ge);
                 case DataType::kComplex:
                     return ExecBinaryCmpT<std::complex<double>>(
@@ -1140,7 +1006,7 @@ namespace rel
         //  ExecuteMatrix ({} generator) - stack operands with row broadcast
         // =========================================================================
         //
-        //  Output: all Measurement ï¿½?Measurement, otherwise DataArray.
+        //  Output: all Measurement ï¿?Measurement, otherwise DataArray.
 
         template <typename T>
         static Value ExecMatrixT(const ExecContextInfo& info, const std::vector<Value>& ops)
@@ -1361,7 +1227,7 @@ namespace rel
         Value ExecuteMatrix(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
             if (ops.empty())
-                throw std::invalid_argument("matrix: empty input");
+                throw std::invalid_argument("empty input");
 
             if (info.dtype == DataType::kString)
                 return ExecMatrixString(info, ops);
@@ -1371,7 +1237,7 @@ namespace rel
                 case DataType::kComplex: return ExecMatrixT<std::complex<double>>(info, ops);
                 case DataType::kReal: return ExecMatrixT<double>(info, ops);
                 case DataType::kInteger: return ExecMatrixT<int>(info, ops);
-                default: throw std::invalid_argument("matrix: unsupported dtype");
+                default: throw std::invalid_argument("unsupported dtype");
             }
         }
 
@@ -1380,7 +1246,7 @@ namespace rel
         // =========================================================================
         //
         //  RowBroadcastPlan handles row broadcast. ShapeBroadcastPlan handles cell
-        //  broadcast (Scalar ï¿½?Vector etc.).
+        //  broadcast (Scalar ï¿?Vector etc.).
 
         template <typename T>
         static Value ExecSweepT(const ExecContextInfo& info, const std::vector<Value>& ops)
@@ -1555,7 +1421,7 @@ namespace rel
         Value ExecuteSweep(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
             if (ops.empty())
-                throw std::invalid_argument("sweep: empty input");
+                throw std::invalid_argument("empty input");
 
             if (info.dtype == DataType::kString)
                 return ExecSweepString(info, ops);
@@ -1565,7 +1431,7 @@ namespace rel
                 case DataType::kComplex: return ExecSweepT<std::complex<double>>(info, ops);
                 case DataType::kReal: return ExecSweepT<double>(info, ops);
                 case DataType::kInteger: return ExecSweepT<int>(info, ops);
-                default: throw std::invalid_argument("sweep: unsupported dtype");
+                default: throw std::invalid_argument("unsupported dtype");
             }
         }
 
@@ -1581,7 +1447,7 @@ namespace rel
                     return ExecUnaryT<std::complex<double>>(info, ops, op_negate);
                 case DataType::kReal: return ExecUnaryT<double>(info, ops, op_negate);
                 case DataType::kInteger: return ExecUnaryT<int>(info, ops, op_negate);
-                default: throw std::invalid_argument("unsupported dtype for negation");
+                default: throw std::invalid_argument("unsupported dtype");
             }
         }
 
@@ -1591,8 +1457,8 @@ namespace rel
 
         Value ExecuteUnaryNot(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            // Logical NOT: first convert to int via as_logical() (non-zeroï¿½?),
-            // then apply NOT.  Scalar Meas ï¿½?upgrade to Boolean.
+            // Logical NOT: first convert to int via as_logical() (non-zeroï¿?),
+            // then apply NOT.  Scalar Meas ï¿?upgrade to Boolean.
 
             Value v;
             if (ops[0].is_measurement())
@@ -1787,7 +1653,7 @@ namespace rel
                     case DataType::kReal:
                         return ExecBinaryArithT<double>(info, ops, op_mul<double>);
                     case DataType::kInteger: return ExecBinaryArithT<int>(info, ops, op_mul<int>);
-                    default: throw std::invalid_argument("unsupported dtype for mul");
+                    default: throw std::invalid_argument("unsupported dtype");
                 }
             }
 
@@ -1797,7 +1663,7 @@ namespace rel
                 case DataType::kComplex: return ExecBinaryMatMulT<std::complex<double>>(info, ops);
                 case DataType::kReal: return ExecBinaryMatMulT<double>(info, ops);
                 case DataType::kInteger: return ExecBinaryMatMulT<int>(info, ops);
-                default: throw std::invalid_argument("unsupported dtype for matmul");
+                default: throw std::invalid_argument("unsupported dtype");
             }
         }
 
@@ -1848,7 +1714,7 @@ namespace rel
                     case DataType::kReal:
                         return ExecBinaryArithT<double>(info, ops, op_div<double>);
                     case DataType::kInteger: return ExecBinaryArithT<int>(info, ops, op_div<int>);
-                    default: throw std::invalid_argument("unsupported dtype for div");
+                    default: throw std::invalid_argument("unsupported dtype");
                 }
             }
 
@@ -1858,7 +1724,7 @@ namespace rel
             {
                 case DataType::kComplex: return ExecBinaryDivT<std::complex<double>>(info, ops);
                 case DataType::kReal: return ExecBinaryDivT<double>(info, ops);
-                default: throw std::invalid_argument("unsupported dtype for div");
+                default: throw std::invalid_argument("unsupported dtype");
             }
         }
 
@@ -2035,7 +1901,7 @@ namespace rel
 
             if (c_meas && t_meas && f_meas)
             {
-                // Measurement output ï¿½?use string tensors or scalar directly
+                // Measurement output ï¿?use string tensors or scalar directly
                 DataKind dk = info.shape.kind();
                 if (dk == DataKind::kScalar)
                 {
@@ -2643,7 +2509,7 @@ namespace rel
             // Validate: must be odd and at least 3
             if (n < 3 || n % 2 == 0)
                 throw std::invalid_argument(
-                    "if: requires odd number of operands >= 3 (2n+1), got " + std::to_string(n));
+                    "requires odd number of operands >= 3 (2n+1), got " + std::to_string(n));
 
             // --- convert all conditions to logical int (0/1) ---
             auto make_logical = [](const Value& v) -> Value
@@ -2701,20 +2567,23 @@ namespace rel
         // ---- binary arithmetic -----------------------------------------------------
 
         const OpTraits kOpAdd = {2,
+                                 "Add",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
                                  DeriveDtypePromote,
-                                 DeriveUnitSameDim,
+                                 DeriveUnitPromoteDimension,
                                  ExecuteAdd};
 
         const OpTraits kOpSub = {2,
+                                 "Sub",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
                                  DeriveDtypePromote,
-                                 DeriveUnitSameDim,
+                                 DeriveUnitPromoteDimension,
                                  ExecuteSub};
 
         const OpTraits kOpMul = {2,
+                                 "Mul",
                                  DeriveShapeMul,
                                  DeriveRowsBroadcast,
                                  DeriveDtypePromote,
@@ -2722,174 +2591,201 @@ namespace rel
                                  ExecuteBinaryMul};
 
         const OpTraits kOpDiv = {2,
+                                 "Div",
                                  DeriveShapeDiv,
                                  DeriveRowsBroadcast,
-                                 DeriveDtypeDiv,
+                                 DeriveDtypePromoteReal,
                                  DeriveUnitDiv,
                                  ExecuteBinaryDiv};
 
         const OpTraits kOpMod = {2,
+                                 "Mod",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
-                                 DeriveDtypeMod,
-                                 DeriveUnitSameDim,
+                                 DeriveDtypePromoteNoComplex,
+                                 DeriveUnitMod,
                                  ExecuteMod};
 
         const OpTraits kOpPow = {2,
+                                 "Pow",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
-                                 DeriveDtypePow,
-                                 DeriveUnitFirst,
+                                 DeriveDtypePromoteReal,
+                                 DeriveUnitDimlessRight,
                                  ExecutePow};
 
         // ---- binary comparison -----------------------------------------------------
 
         const OpTraits kOpEq = {2,
-                                DeriveShapeBroadcast,
+                                 "Eq",
+                                 DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
-                                DeriveDtypeCmp,
+                                DeriveDtypePromoteWithString,
                                 DeriveUnitDimless,
                                 ExecuteEq};
 
         const OpTraits kOpNeq = {2,
+                                 "Neq",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
-                                 DeriveDtypeCmp,
+                                 DeriveDtypePromoteWithString,
                                  DeriveUnitDimless,
                                  ExecuteNeq};
 
         const OpTraits kOpLt = {2,
-                                DeriveShapeBroadcast,
+                                 "Lt",
+                                 DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
-                                DeriveDtypeCmp,
+                                DeriveDtypePromoteWithString,
                                 DeriveUnitDimless,
                                 ExecuteLt};
 
         const OpTraits kOpGt = {2,
-                                DeriveShapeBroadcast,
+                                 "Gt",
+                                 DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
-                                DeriveDtypeCmp,
+                                DeriveDtypePromoteWithString,
                                 DeriveUnitDimless,
                                 ExecuteGt};
 
         const OpTraits kOpLe = {2,
-                                DeriveShapeBroadcast,
+                                 "Le",
+                                 DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
-                                DeriveDtypeCmp,
+                                DeriveDtypePromoteWithString,
                                 DeriveUnitDimless,
                                 ExecuteLe};
 
         const OpTraits kOpGe = {2,
-                                DeriveShapeBroadcast,
+                                 "Ge",
+                                 DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
-                                DeriveDtypeCmp,
+                                DeriveDtypePromoteWithString,
                                 DeriveUnitDimless,
                                 ExecuteGe};
 
         // ---- binary logical --------------------------------------------------------
 
         const OpTraits kOpAnd = {2,
+                                 "And",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
-                                 DeriveDtypeForceInt,
+                                 DeriveDtypeAlwaysInt,
                                  DeriveUnitDimless,
                                  ExecuteAnd};
 
         const OpTraits kOpOr = {2,
-                                DeriveShapeBroadcast,
+                                 "Or",
+                                 DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
-                                DeriveDtypeForceInt,
+                                DeriveDtypeAlwaysInt,
                                 DeriveUnitDimless,
                                 ExecuteOr};
 
         // ---- binary bitwise ----------------------------------------------------
 
         const OpTraits kOpBitAnd = {2,
-                                    DeriveShapeBroadcast,
+                                 "BitAnd",
+                                 DeriveShapeBroadcast,
                                     DeriveRowsBroadcast,
-                                    DeriveDtypeBitwise,
-                                    DeriveUnitDimless,
+                                    DeriveDtypeRequireInt,
+                                    DeriveUnitPromoteDimension,
                                     ExecuteBitAnd};
 
         const OpTraits kOpBitOr = {2,
-                                   DeriveShapeBroadcast,
+                                 "BitOr",
+                                 DeriveShapeBroadcast,
                                    DeriveRowsBroadcast,
-                                   DeriveDtypeBitwise,
-                                   DeriveUnitDimless,
+                                   DeriveDtypeRequireInt,
+                                   DeriveUnitPromoteDimension,
                                    ExecuteBitOr};
 
         const OpTraits kOpBitXor = {2,
-                                    DeriveShapeBroadcast,
+                                 "BitXor",
+                                 DeriveShapeBroadcast,
                                     DeriveRowsBroadcast,
-                                    DeriveDtypeBitwise,
-                                    DeriveUnitDimless,
+                                    DeriveDtypeRequireInt,
+                                    DeriveUnitPromoteDimension,
                                     ExecuteBitXor};
 
         // ---- binary shift ------------------------------------------------------
 
         const OpTraits kOpShl = {2,
+                                 "Shl",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
-                                 DeriveDtypeBitwise,
-                                 DeriveUnitDimless,
+                                 DeriveDtypeRequireInt,
+                                 DeriveUnitDimlessRight,
                                  ExecuteShl};
 
         const OpTraits kOpShr = {2,
+                                 "Shr",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
-                                 DeriveDtypeBitwise,
-                                 DeriveUnitDimless,
+                                 DeriveDtypeRequireInt,
+                                 DeriveUnitDimlessRight,
                                  ExecuteShr};
 
         // ---- unary ----------------------------------------------------------------
 
         const OpTraits kOpNegate = {1,
-                                    DeriveShapeBroadcast,
+                                 "Negate",
+                                 DeriveShapeBroadcast,
                                     DeriveRowsBroadcast,
                                     DeriveDtypePromote,
-                                    DeriveUnitFirst,
+                                    DeriveUnitPromoteDimension,
                                     ExecuteUnaryNegate};
 
         const OpTraits kOpNot = {1,
+                                 "Not",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
-                                 DeriveDtypeForceInt,
+                                 DeriveDtypeAlwaysInt,
                                  DeriveUnitDimless,
                                  ExecuteUnaryNot};
 
         const OpTraits kOpBitNot = {1,
-                                    DeriveShapeBroadcast,
+                                 "BitNot",
+                                 DeriveShapeBroadcast,
                                     DeriveRowsBroadcast,
-                                    DeriveDtypeBitwise,
-                                    DeriveUnitDimless,
+                                    DeriveDtypeRequireInt,
+                                    DeriveUnitPromoteDimension,
                                     ExecuteUnaryBitNot};
 
         // ---- ternary ---------------------------------------------------------------
 
         const OpTraits kOpConditional = {3,
+                                         "Conditional",
                                          DeriveShapeBroadcast,
                                          DeriveRowsBroadcast,
                                          DeriveDtypeConditional,
                                          DeriveUnitConditional,
                                          ExecuteConditional};
 
-        const OpTraits kOpIf = {
-            -1, DeriveShapeBroadcast, DeriveRowsBroadcast, DeriveDtypeIf, DeriveUnitIf, ExecuteIf};
+        const OpTraits kOpIf = {-1,
+                                "If",
+                                DeriveShapeBroadcast,
+                                DeriveRowsBroadcast,
+                                DeriveDtypeIf,
+                                DeriveUnitIf,
+                                ExecuteIf};
 
         // ---- variadic --------------------------------------------------------------
 
         const OpTraits kOpSweep = {-1,
-                                   DeriveShapeBroadcast,
+                                 "Sweep",
+                                 DeriveShapeBroadcast,
                                    DeriveRowsSum,
-                                   DeriveDtypeMerge,
-                                   DeriveUnitSameDim,
+                                   DeriveDtypePromoteWithString,
+                                   DeriveUnitPromoteDimension,
                                    ExecuteSweep};
 
         const OpTraits kOpMatrix = {-1,
-                                    DeriveShapeMatrix,
+                                 "Matrix",
+                                 DeriveShapeMatrix,
                                     DeriveRowsBroadcast,
-                                    DeriveDtypeMerge,
-                                    DeriveUnitSameDim,
+                                    DeriveDtypePromoteWithString,
+                                    DeriveUnitPromoteDimension,
                                     ExecuteMatrix};
 
         // =========================================================================

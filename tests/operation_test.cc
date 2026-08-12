@@ -215,7 +215,7 @@ TEST(OperationDivTest, MeasMeasScalarScalar)
 TEST(OperationDivTest, ScalarDivByZeroThrows)
 {
     EXPECT_THROW(OperationDiv(Value::Real(1.0), Value::Real(0.0)),
-                 std::invalid_argument);
+                 std::runtime_error);
 }
 
 TEST(OperationDivTest, MeasMeasVectorDivMatrix)
@@ -249,7 +249,7 @@ TEST(OperationModTest, MeasMeasDoubleScalarScalar)
 TEST(OperationModTest, ScalarModByZeroThrows)
 {
     EXPECT_THROW(OperationMod(Value::Integer(10), Value::Integer(0)),
-                 std::invalid_argument);
+                 std::runtime_error);
 }
 
 // =========================================================================
@@ -426,7 +426,7 @@ TEST(OperationLtTest, ComplexAbs)
 
 TEST(OperationGtTest, ComplexAbs)
 {
-    // |5+0i| = 5  >  |3+4i| = 5  â†’ false (equal abs)
+    // |5+0i| = 5  >  |3+4i| = 5  â†?false (equal abs)
     Value v1 = Value::Complex(std::complex<double>(5.0, 0.0));
     Value v2 = Value::Complex(std::complex<double>(3.0, 4.0));
     Value result = OperationGt(v1, v2);
@@ -505,12 +505,12 @@ TEST(OperationLtTest, IntAndDouble)
 
 TEST(OperationLtTest, ComplexAndReal)
 {
-    // real 5.0 becomes (5,0), |3+4i|=5, |5+0i|=5 â†’ not less
+    // real 5.0 becomes (5,0), |3+4i|=5, |5+0i|=5 â†?not less
     Value v1 = Value::Complex(std::complex<double>(3.0, 4.0));
     Value v2 = Value::Real(5.0);
     Value result = OperationLt(v1, v2);
     ASSERT_TRUE(result.is_measurement());
-    EXPECT_EQ(result.as_measurement().as_scalar<bool>(), false);  // 5 < 5 â†’ false
+    EXPECT_EQ(result.as_measurement().as_scalar<bool>(), false);  // 5 < 5 â†?false
 }
 
 // ---- Cmp: row broadcast (Array x Array) ---------------------------------
@@ -539,8 +539,8 @@ TEST(OperationLtTest, ArrayArrayBroadcastRows)
     ASSERT_TRUE(result.is_data_array());
     const auto& arr = result.as_data_array().data();
     EXPECT_EQ(arr.size(), 2u);
-    EXPECT_EQ(arr.scalar_at<int>(0), 0);  // 3 < 1 â†’ 0
-    EXPECT_EQ(arr.scalar_at<int>(1), 1);  // 3 < 5 â†’ 1
+    EXPECT_EQ(arr.scalar_at<int>(0), 0);  // 3 < 1 â†?0
+    EXPECT_EQ(arr.scalar_at<int>(1), 1);  // 3 < 5 â†?1
 }
 
 // ---- Cmp: cell broadcast (Vector broadcast in Meas) ---------------------
@@ -617,7 +617,7 @@ TEST(OperationOrTest, BoolOperands)
     EXPECT_EQ(result.as_measurement().as_scalar<bool>(), true);
 }
 
-// ---- Logic: real/complex operands (as_logical: non-zeroâ†’1) --------------
+// ---- Logic: real/complex operands (as_logical: non-zeroâ†?) --------------
 
 TEST(OperationAndTest, RealOperands)
 {
@@ -639,7 +639,7 @@ TEST(OperationOrTest, RealOperands)
 
 TEST(OperationAndTest, ComplexOperands)
 {
-    // (1+0i) non-zero â†’ 1, (0+0i) zero â†’ 0
+    // (1+0i) non-zero â†?1, (0+0i) zero â†?0
     Value v1 = Value::Complex(std::complex<double>(1.0, 0.0));
     Value v2 = Value::Complex(std::complex<double>(0.0, 0.0));
     Value result = OperationAnd(v1, v2);
@@ -649,7 +649,7 @@ TEST(OperationAndTest, ComplexOperands)
 
 TEST(OperationOrTest, ComplexOperands)
 {
-    // (0+5i) non-zero â†’ 1
+    // (0+5i) non-zero â†?1
     Value v1 = Value::Complex(std::complex<double>(0.0, 5.0));
     Value v2 = Value::Complex(std::complex<double>(0.0, 0.0));
     Value result = OperationOr(v1, v2);
@@ -683,7 +683,7 @@ TEST(OperationNotTest, RealOperand)
 
 TEST(OperationNotTest, ComplexOperand)
 {
-    // (0+5i) non-zero â†’ !1 = 0
+    // (0+5i) non-zero â†?!1 = 0
     Value result = OperationNot(Value::Complex(std::complex<double>(0.0, 5.0)));
     ASSERT_TRUE(result.is_measurement());
     EXPECT_EQ(result.as_measurement().as_scalar<bool>(), false);
@@ -782,12 +782,12 @@ TEST(OperationMatrixTest, IncompatibleUnitsThrows)
     Unit uv = Unit::parse("V");
     Unit ua = Unit::parse("A");
     EXPECT_THROW(OperationMatrix({Value::Real(1.0, uv), Value::Real(2.0, ua)}),
-                 std::invalid_argument);
+                 std::runtime_error);
 }
 
 TEST(OperationMatrixTest, EmptyThrows)
 {
-    EXPECT_THROW(OperationMatrix({}), std::invalid_argument);
+    EXPECT_THROW(OperationMatrix({}), std::runtime_error);
 }
 
 TEST(OperationMatrixTest, DataArraysSameKindSameShape)
@@ -868,7 +868,7 @@ TEST(OperationSweepTest, IntAndRealPromote)
 
 TEST(OperationSweepTest, EmptyThrows)
 {
-    EXPECT_THROW(OperationSweep({}), std::invalid_argument);
+    EXPECT_THROW(OperationSweep({}), std::runtime_error);
 }
 
 TEST(OperationSweepTest, IncompatibleUnitsThrows)
@@ -876,7 +876,7 @@ TEST(OperationSweepTest, IncompatibleUnitsThrows)
     Unit uv = Unit::parse("V");
     Unit ua = Unit::parse("A");
     EXPECT_THROW(OperationSweep({Value::Real(1.0, uv), Value::Real(2.0, ua)}),
-                 std::invalid_argument);
+                 std::runtime_error);
 }
 
 // =========================================================================
@@ -907,7 +907,7 @@ TEST(OperationConditionalTest, ScalarFalsePath)
 
 TEST(OperationConditionalTest, ScalarNegativeCondition)
 {
-    // non-zero (negative) â†’ true path
+    // non-zero (negative) â†?true path
     Value cond = Value::Integer(-3);
     Value t = Value::Integer(100);
     Value f = Value::Integer(200);
@@ -985,9 +985,9 @@ TEST(OperationConditionalTest, VectorElementWise)
     Value result = OperationConditional(cond, t, f);
     ASSERT_TRUE(result.is_measurement());
     auto vec = result.as_measurement().as_vector<double>();
-    EXPECT_DOUBLE_EQ(vec(0), 100.0);  // 1 â†’ true
-    EXPECT_DOUBLE_EQ(vec(1), -2.0);   // 0 â†’ false
-    EXPECT_DOUBLE_EQ(vec(2), 300.0);  // 2 â†’ true
+    EXPECT_DOUBLE_EQ(vec(0), 100.0);  // 1 â†?true
+    EXPECT_DOUBLE_EQ(vec(1), -2.0);   // 0 â†?false
+    EXPECT_DOUBLE_EQ(vec(2), 300.0);  // 2 â†?true
 }
 
 // ---- Matrix condition (scalar tf broadcast) ------------------------------
@@ -1040,13 +1040,13 @@ TEST(OperationConditionalTest, ComplexOperands)
     EXPECT_DOUBLE_EQ(c.imag(), 2.0);
 }
 
-// ---- Type promotion (int + real â†’ real) ----------------------------------
+// ---- Type promotion (int + real â†?real) ----------------------------------
 
 TEST(OperationConditionalTest, TypePromotion)
 {
     Value cond = Value::Integer(1);
     Value t = Value::Integer(1);     // int
-    Value f = Value::Real(2.5);      // real â†’ promotes to real
+    Value f = Value::Real(2.5);      // real â†?promotes to real
     Value result = OperationConditional(cond, t, f);
     ASSERT_TRUE(result.is_measurement());
     // Should promote to double
@@ -1074,7 +1074,7 @@ TEST(OperationConditionalTest, UnitMismatchThrows)
     Value cond = Value::Integer(1);
     Value t = Value::Real(10.0, uv);
     Value f = Value::Real(20.0, ua);
-    EXPECT_THROW(OperationConditional(cond, t, f), std::invalid_argument);
+    EXPECT_THROW(OperationConditional(cond, t, f), std::runtime_error);
 }
 
 // ---- String operands -----------------------------------------------------
@@ -1120,7 +1120,7 @@ TEST(OperationConditionalTest, StringMixedNumericThrows)
     Value cond = Value::Integer(1);
     Value t = Value::String("s");
     Value f = Value::Integer(42);
-    EXPECT_THROW(OperationConditional(cond, t, f), std::invalid_argument);
+    EXPECT_THROW(OperationConditional(cond, t, f), std::runtime_error);
 }
 
 // =========================================================================
@@ -1354,7 +1354,7 @@ TEST(OperationIfTest, UnitMismatchThrows)
     Value c2 = Value::Integer(0);
     Value v2 = Value::Real(20.0, ua);
     Value el = Value::Real(99.0, uv);
-    EXPECT_THROW(OperationIf({c1, v1, c2, v2, el}), std::invalid_argument);
+    EXPECT_THROW(OperationIf({c1, v1, c2, v2, el}), std::runtime_error);
 }
 
 TEST(OperationIfTest, EvenArityThrows)
@@ -1362,18 +1362,18 @@ TEST(OperationIfTest, EvenArityThrows)
     Value a = Value::Integer(1);
     Value b = Value::Integer(2);
     // 2 operands is even, should throw
-    EXPECT_THROW(OperationIf({a, b}), std::invalid_argument);
+    EXPECT_THROW(OperationIf({a, b}), std::runtime_error);
 }
 
 TEST(OperationIfTest, SingleOperandThrows)
 {
     Value a = Value::Integer(1);
-    EXPECT_THROW(OperationIf({a}), std::invalid_argument);
+    EXPECT_THROW(OperationIf({a}), std::runtime_error);
 }
 
 TEST(OperationIfTest, EmptyThrows)
 {
-    EXPECT_THROW(OperationIf({}), std::invalid_argument);
+    EXPECT_THROW(OperationIf({}), std::runtime_error);
 }
 
 // --- String path ---
@@ -1441,7 +1441,7 @@ TEST(OperationIfTest, StringMixedNumericThrows)
     Value c2 = Value::Integer(0);
     Value v2 = Value::Integer(42);  // numeric!
     Value el = Value::String("else");
-    EXPECT_THROW(OperationIf({c1, v1, c2, v2, el}), std::invalid_argument);
+    EXPECT_THROW(OperationIf({c1, v1, c2, v2, el}), std::runtime_error);
 }
 
 // --- DataArray path ---

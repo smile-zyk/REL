@@ -114,7 +114,7 @@ namespace rel
         }
 
         // =========================================================================
-        //  DeriveDtypePromote
+        //  DeriveDtypePromote  (conditional: Int only→Int, Real→Real, Complex→Complex)
         // =========================================================================
 
         DataType DeriveDtypePromote(const std::vector<DataType>& dtypes)
@@ -122,24 +122,158 @@ namespace rel
             DataType res = DataType::kInteger;
             for (size_t i = 0; i < dtypes.size(); ++i)
             {
-                DataType dt = dtypes[i];
-                if (dt == DataType::kString)
-                    throw std::invalid_argument("arithmetic: string operand not allowed");
-                if (dt == DataType::kBoolean)
-                    dt = DataType::kInteger;
+                DataType dt = (dtypes[i] == DataType::kBoolean) ? DataType::kInteger : dtypes[i];
+                if (dt == DataType::kInteger)
+                    continue;
+                if (dt == DataType::kReal)
+                    { if (res != DataType::kComplex) res = DataType::kReal; continue; }
                 if (dt == DataType::kComplex)
-                    res = DataType::kComplex;
-                else if (dt == DataType::kReal && res != DataType::kComplex)
-                    res = DataType::kReal;
+                    { res = DataType::kComplex; continue; }
+                throw std::runtime_error(std::string("unsupported type: ")
+                    + DataTypeToString(dt) + ", expected Real, Integer, or Complex");
             }
             return res;
         }
 
         // =========================================================================
-        //  DeriveUnitSameDim
+        //  DeriveDtypePromoteReal  (like Promote but Int �?Real always)
         // =========================================================================
 
-        Unit DeriveUnitSameDim(const std::vector<Unit>& units)
+        DataType DeriveDtypePromoteReal(const std::vector<DataType>& dtypes)
+        {
+            DataType res = DataType::kReal;
+            for (size_t i = 0; i < dtypes.size(); ++i)
+            {
+                DataType dt = (dtypes[i] == DataType::kBoolean) ? DataType::kInteger : dtypes[i];
+                if (dt == DataType::kInteger)
+                    continue;
+                if (dt == DataType::kReal)
+                    { if (res != DataType::kComplex) res = DataType::kReal; continue; }
+                if (dt == DataType::kComplex)
+                    { res = DataType::kComplex; continue; }
+                throw std::runtime_error(std::string("unsupported type: ")
+                    + DataTypeToString(dt) + ", expected Real, Integer, or Complex");
+            }
+            return res;
+        }
+
+        // =========================================================================
+        //  DeriveDtypePromoteNoComplex  (like Promote but reject Complex)
+        // =========================================================================
+
+        DataType DeriveDtypePromoteNoComplex(const std::vector<DataType>& dtypes)
+        {
+            DataType res = DataType::kInteger;
+            for (size_t i = 0; i < dtypes.size(); ++i)
+            {
+                DataType dt = (dtypes[i] == DataType::kBoolean) ? DataType::kInteger : dtypes[i];
+                if (dt == DataType::kInteger)
+                    continue;
+                if (dt == DataType::kReal && res != DataType::kComplex)
+                    { res = DataType::kReal; continue; }
+                throw std::runtime_error(std::string("unsupported type: ")
+                    + DataTypeToString(dt) + ", expected Real or Integer");
+            }
+            return res;
+        }
+
+        // =========================================================================
+        //  DeriveDtypePromoteWithString  (like Promote but all-String �?String; mix �?error)
+        // =========================================================================
+
+        DataType DeriveDtypePromoteWithString(const std::vector<DataType>& dtypes)
+        {
+            bool all_string = true;
+            for (size_t i = 0; i < dtypes.size(); ++i)
+            {
+                DataType dt = (dtypes[i] == DataType::kBoolean) ? DataType::kInteger : dtypes[i];
+                if (dt != DataType::kString) { all_string = false; break; }
+            }
+            if (all_string)
+                return DataType::kString;
+
+            for (size_t i = 0; i < dtypes.size(); ++i)
+            {
+                DataType dt = (dtypes[i] == DataType::kBoolean) ? DataType::kInteger : dtypes[i];
+                if (dt == DataType::kString)
+                    throw std::invalid_argument("cannot mix string with numeric types");
+            }
+            return DeriveDtypePromote(dtypes);
+        }
+
+        // =========================================================================
+        //  DeriveDtypeRequireInt  (only Bool/Int �?Int; reject anything else)
+        // =========================================================================
+
+        DataType DeriveDtypeRequireInt(const std::vector<DataType>& dtypes)
+        {
+            for (size_t i = 0; i < dtypes.size(); ++i)
+            {
+                DataType dt = dtypes[i];
+                if (dt == DataType::kBoolean || dt == DataType::kInteger)
+                    continue;
+                throw std::runtime_error(std::string("int operand required, got type ")
+                    + DataTypeToString(dt));
+            }
+            return DataType::kInteger;
+        }
+
+        // =========================================================================
+        //  DeriveDtypeForceReal  (all numeric �?Real, with validation)
+        // =========================================================================
+
+        DataType DeriveDtypeForceReal(const std::vector<DataType>& dtypes)
+        {
+            for (size_t i = 0; i < dtypes.size(); ++i)
+            {
+                DataType dt = (dtypes[i] == DataType::kBoolean) ? DataType::kInteger : dtypes[i];
+                if (dt == DataType::kInteger || dt == DataType::kReal || dt == DataType::kComplex)
+                    continue;
+                throw std::runtime_error(std::string("unsupported type: ")
+                    + DataTypeToString(dt) + ", expected Real, Integer, or Complex");
+            }
+            return DataType::kReal;
+        }
+
+        // =========================================================================
+        //  DeriveDtypeForceRealNoComplex  (Int/Real �?Real, reject Complex)
+        // =========================================================================
+
+        DataType DeriveDtypeForceRealNoComplex(const std::vector<DataType>& dtypes)
+        {
+            for (size_t i = 0; i < dtypes.size(); ++i)
+            {
+                DataType dt = (dtypes[i] == DataType::kBoolean) ? DataType::kInteger : dtypes[i];
+                if (dt == DataType::kInteger || dt == DataType::kReal)
+                    continue;
+                throw std::runtime_error(std::string("unsupported type: ")
+                    + DataTypeToString(dt) + ", expected Real or Integer");
+            }
+            return DataType::kReal;
+        }
+
+        // =========================================================================
+        //  DeriveDtypeForceIntNoComplex  (Int/Real → Int, reject Complex)
+        // =========================================================================
+
+        DataType DeriveDtypeForceIntNoComplex(const std::vector<DataType>& dtypes)
+        {
+            for (size_t i = 0; i < dtypes.size(); ++i)
+            {
+                DataType dt = (dtypes[i] == DataType::kBoolean) ? DataType::kInteger : dtypes[i];
+                if (dt == DataType::kInteger || dt == DataType::kReal)
+                    continue;
+                throw std::runtime_error(std::string("unsupported type: ")
+                    + DataTypeToString(dt) + ", expected Real or Integer");
+            }
+            return DataType::kInteger;
+        }
+
+        // =========================================================================
+        //  DeriveUnitPromoteDimension
+        // =========================================================================
+
+        Unit DeriveUnitPromoteDimension(const std::vector<Unit>& units)
         {
             if (units.empty())
                 return Unit();
@@ -160,9 +294,25 @@ namespace rel
             return res;
         }
 
-        Unit DeriveUnitFirst(const std::vector<Unit>& units)
+        // =========================================================================
+        //  DeriveUnitMod  (SameDim check, result always left unit)
+        // =========================================================================
+
+        Unit DeriveUnitMod(const std::vector<Unit>& units)
         {
+            DeriveUnitPromoteDimension(units);  // throws on mismatch
             return units[0];
+        }
+
+        // =========================================================================
+        //  DeriveUnitDimlessRight  (left unit passthrough, right must be dimless)
+        // =========================================================================
+
+        Unit DeriveUnitDimlessRight(const std::vector<Unit>& units)
+        {
+            if (!units[1].has_dimension())
+                return units[0];
+            throw std::invalid_argument("right operand must be dimensionless");
         }
 
         Unit DeriveUnitMul(const std::vector<Unit>& units)

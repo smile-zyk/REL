@@ -562,10 +562,7 @@ namespace rel
 
         std::ostringstream oss;
         oss << message;
-        if (token.type != TokenType::END_OF_INPUT)
-        {
-            oss << "; found " << to_string(token);
-        }
+        oss << "; found " << to_string(token);
         err.message = oss.str();
         errors_.push_back(err);
     }

@@ -310,11 +310,11 @@ namespace
         rel::Environment env;
         rel::Environment::InitBuiltinFunctions();
 
-        EXPECT_NEAR(rel::Eval("sgn(0)", &env).as_measurement().as_scalar<double>(),  0.0, 1e-12);
-        EXPECT_NEAR(rel::Eval("sgn(7)", &env).as_measurement().as_scalar<double>(),  1.0, 1e-12);
-        EXPECT_NEAR(rel::Eval("sgn(-3)", &env).as_measurement().as_scalar<double>(), -1.0, 1e-12);
-        EXPECT_NEAR(rel::Eval("sgn(0.01)", &env).as_measurement().as_scalar<double>(), 1.0, 1e-12);
-        EXPECT_NEAR(rel::Eval("sgn(-0.01)", &env).as_measurement().as_scalar<double>(), -1.0, 1e-12);
+        EXPECT_EQ(rel::Eval("sgn(0)", &env).as_measurement().as_scalar<int>(),  0);
+        EXPECT_EQ(rel::Eval("sgn(7)", &env).as_measurement().as_scalar<int>(),  1);
+        EXPECT_EQ(rel::Eval("sgn(-3)", &env).as_measurement().as_scalar<int>(), -1);
+        EXPECT_EQ(rel::Eval("sgn(0.01)", &env).as_measurement().as_scalar<int>(), 1);
+        EXPECT_EQ(rel::Eval("sgn(-0.01)", &env).as_measurement().as_scalar<int>(), -1);
     }
 
     // =========================================================================
@@ -718,8 +718,8 @@ namespace
         rel::Environment env;
         rel::Environment::InitBuiltinFunctions();
 
-        EXPECT_NEAR(rel::Eval("sgn(abs(-5))", &env).as_measurement().as_scalar<double>(), 1.0, 1e-12);
-        EXPECT_NEAR(rel::Eval("sgn(abs(3))", &env).as_measurement().as_scalar<double>(), 1.0, 1e-12);
+        EXPECT_EQ(rel::Eval("sgn(abs(-5))", &env).as_measurement().as_scalar<int>(), 1);
+        EXPECT_EQ(rel::Eval("sgn(abs(3))", &env).as_measurement().as_scalar<int>(), 1);
     }
 
 } // namespace

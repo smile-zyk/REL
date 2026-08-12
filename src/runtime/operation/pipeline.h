@@ -4,6 +4,7 @@
 #include "rel_runtime_api.h"
 #include "value.h"
 
+#include <string>
 #include <vector>
 
 namespace rel {
@@ -64,6 +65,7 @@ typedef Value    (*ExecuteFunc)(const ExecContextInfo& info,
 
 struct OpTraits {
     xdataset::Index           arity;
+    std::string               name;
     DeriveShapeFunc derive_shape;
     DeriveRowsFunc  derive_rows;
     DeriveDtypeFunc derive_dtype;

@@ -129,7 +129,7 @@ Value Operate(const std::vector<Value>& operands, const OpTraits& traits) {
         Index n = static_cast<Index>(operands.size());
         if (n != traits.arity) {
             throw std::invalid_argument(
-                std::string("arity mismatch: expected ") +
+                traits.name + ": arity mismatch: expected " +
                 std::to_string(traits.arity) + " operand(s), got " +
                 std::to_string(n));
         }
@@ -152,18 +152,22 @@ Value Operate(const std::vector<Value>& operands, const OpTraits& traits) {
         units.push_back(canonical_ops[i].unit());
     }
 
-    DataShape shape = traits.derive_shape(operand_shapes);
-    Index     rows  = traits.derive_rows(row_counts);
-    DataType  dtype = traits.derive_dtype(dtypes);
-    Unit      unit  = traits.derive_unit(units);
+    try {
+        DataShape shape = traits.derive_shape(operand_shapes);
+        Index     rows  = traits.derive_rows(row_counts);
+        DataType  dtype = traits.derive_dtype(dtypes);
+        Unit      unit  = traits.derive_unit(units);
 
-    ExecContextInfo info;
-    info.rows  = rows;
-    info.shape = shape;
-    info.dtype = dtype;
-    info.unit  = unit;
+        ExecContextInfo info;
+        info.rows  = rows;
+        info.shape = shape;
+        info.dtype = dtype;
+        info.unit  = unit;
 
-    return traits.execute(info, canonical_ops);
+        return traits.execute(info, canonical_ops);
+    } catch (const std::exception& e) {
+        throw std::runtime_error(traits.name + ": " + e.what());
+    }
 }
 
 }  // namespace operation

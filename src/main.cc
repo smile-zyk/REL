@@ -12,7 +12,7 @@
 #include "scanner.h"
 
 #ifdef _WIN32
-// No readline on Windows yet — fall back to std::getline.
+// No readline on Windows yet �?fall back to std::getline.
 #elif __APPLE__
 #include <editline/readline.h>
 #else
@@ -135,8 +135,7 @@ namespace
         rel::ScanResult scanResult = scanner.Scan();
         if (!scanResult.Ok())
         {
-            for (const auto& err : scanResult.errors)
-                std::cerr << err.to_string() << '\n';
+            std::cerr << scanResult.errors[0].to_string() << '\n';
             return 1;
         }
 
@@ -145,8 +144,7 @@ namespace
 
         if (!result.Ok())
         {
-            for (const auto& err : result.errors)
-                std::cerr << err.to_string() << '\n';
+            std::cerr << result.errors[0].to_string() << '\n';
             return 1;
         }
 
@@ -187,8 +185,7 @@ namespace
         rel::ScanResult scanResult = scanner.Scan();
         if (!scanResult.Ok())
         {
-            for (const auto& err : scanResult.errors)
-                std::cerr << err.to_string() << '\n';
+            std::cerr << scanResult.errors[0].to_string() << '\n';
             return 1;
         }
 
@@ -197,8 +194,7 @@ namespace
 
         if (!result.Ok())
         {
-            for (const auto& err : result.errors)
-                std::cerr << err.to_string() << '\n';
+            std::cerr << result.errors[0].to_string() << '\n';
             return 1;
         }
 

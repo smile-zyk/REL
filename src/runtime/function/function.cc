@@ -42,7 +42,16 @@ namespace rel
             }
         }
 
-        return impl_(resolved);
+        try
+        {
+            return impl_(resolved);
+        }
+        catch (const std::exception& e)
+        {
+            std::ostringstream oss;
+            oss << "error invoking function '" << name_ << "':\n" << e.what();
+            throw std::runtime_error(oss.str());
+        }
     }
 
 }  // namespace rel

@@ -174,7 +174,7 @@ TEST(BuiltinFunctionTest, WhatScalarReal)
     std::vector<std::string> rows = payload(rel::Eval("what(3.5)", &env));
     ASSERT_EQ(rows.size(), 5u);
     EXPECT_EQ(rows[3], "Data Shape: Scalar");
-    EXPECT_EQ(rows[4], "Data Type: Double");
+    EXPECT_EQ(rows[4], "Data Type: Real");
 }
 
 TEST(BuiltinFunctionTest, WhatString)
@@ -252,7 +252,7 @@ TEST(BuiltinFunctionTest, WhatDatasetVariable)
     EXPECT_EQ(rows[1], "Kind: Dependent");
     EXPECT_EQ(rows[2], "Dimension: [2]");
     EXPECT_EQ(rows[3], "Data Shape: Scalar");
-    EXPECT_EQ(rows[4], "Data Type: Double");
+    EXPECT_EQ(rows[4], "Data Type: Real");
 }
 
 // =========================================================================
