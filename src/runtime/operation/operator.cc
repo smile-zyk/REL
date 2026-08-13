@@ -406,7 +406,7 @@ namespace rel
                 return std::abs(a) >= std::abs(b) ? 1 : 0;
             }
 
-            // String cmp ï¿?non-template to avoid copy overhead
+            // String cmp ï¿½?non-template to avoid copy overhead
             inline int str_cmp_eq(const std::string& a, const std::string& b)
             {
                 return a == b ? 1 : 0;
@@ -710,7 +710,7 @@ namespace rel
             ShapeBroadcastPlan shape_plan = ShapeBroadcastPlan::Make(op_shapes, info.shape);
             RowBroadcastPlan row_plan = RowBroadcastPlan::Compute(row_counts);
 
-            // Build flat string arrays (no flat_data ï¿?strings handled separately)
+            // Build flat string arrays (no flat_data ï¿½?strings handled separately)
             Index l_stride = static_cast<Index>(l_shape.element_count());
             Index r_stride = static_cast<Index>(r_shape.element_count());
             Index result_rows = info.rows;
@@ -1006,7 +1006,7 @@ namespace rel
         //  ExecuteMatrix ({} generator) - stack operands with row broadcast
         // =========================================================================
         //
-        //  Output: all Measurement ï¿?Measurement, otherwise DataArray.
+        //  Output: all Measurement ï¿½?Measurement, otherwise DataArray.
 
         template <typename T>
         static Value ExecMatrixT(const ExecContextInfo& info, const std::vector<Value>& ops)
@@ -1246,7 +1246,7 @@ namespace rel
         // =========================================================================
         //
         //  RowBroadcastPlan handles row broadcast. ShapeBroadcastPlan handles cell
-        //  broadcast (Scalar ï¿?Vector etc.).
+        //  broadcast (Scalar ï¿½?Vector etc.).
 
         template <typename T>
         static Value ExecSweepT(const ExecContextInfo& info, const std::vector<Value>& ops)
@@ -1457,8 +1457,8 @@ namespace rel
 
         Value ExecuteUnaryNot(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            // Logical NOT: first convert to int via as_logical() (non-zeroï¿?),
-            // then apply NOT.  Scalar Meas ï¿?upgrade to Boolean.
+            // Logical NOT: first convert to int via as_logical() (non-zeroï¿½?),
+            // then apply NOT.  Scalar Meas ï¿½?upgrade to Boolean.
 
             Value v;
             if (ops[0].is_measurement())
@@ -1901,7 +1901,7 @@ namespace rel
 
             if (c_meas && t_meas && f_meas)
             {
-                // Measurement output ï¿?use string tensors or scalar directly
+                // Measurement output ï¿½?use string tensors or scalar directly
                 DataKind dk = info.shape.kind();
                 if (dk == DataKind::kScalar)
                 {
@@ -2567,7 +2567,7 @@ namespace rel
         // ---- binary arithmetic -----------------------------------------------------
 
         const OpTraits kOpAdd = {2,
-                                 "Add",
+                                 "add",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
                                  DeriveDtypePromote,
@@ -2575,7 +2575,7 @@ namespace rel
                                  ExecuteAdd};
 
         const OpTraits kOpSub = {2,
-                                 "Sub",
+                                 "sub",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
                                  DeriveDtypePromote,
@@ -2583,7 +2583,7 @@ namespace rel
                                  ExecuteSub};
 
         const OpTraits kOpMul = {2,
-                                 "Mul",
+                                 "mul",
                                  DeriveShapeMul,
                                  DeriveRowsBroadcast,
                                  DeriveDtypePromote,
@@ -2591,7 +2591,7 @@ namespace rel
                                  ExecuteBinaryMul};
 
         const OpTraits kOpDiv = {2,
-                                 "Div",
+                                 "div",
                                  DeriveShapeDiv,
                                  DeriveRowsBroadcast,
                                  DeriveDtypePromoteReal,
@@ -2599,7 +2599,7 @@ namespace rel
                                  ExecuteBinaryDiv};
 
         const OpTraits kOpMod = {2,
-                                 "Mod",
+                                 "mod",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
                                  DeriveDtypePromoteNoComplex,
@@ -2607,7 +2607,7 @@ namespace rel
                                  ExecuteMod};
 
         const OpTraits kOpPow = {2,
-                                 "Pow",
+                                 "pow",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
                                  DeriveDtypePromoteReal,
@@ -2617,7 +2617,7 @@ namespace rel
         // ---- binary comparison -----------------------------------------------------
 
         const OpTraits kOpEq = {2,
-                                 "Eq",
+                                 "eq",
                                  DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
                                 DeriveDtypePromoteWithString,
@@ -2625,7 +2625,7 @@ namespace rel
                                 ExecuteEq};
 
         const OpTraits kOpNeq = {2,
-                                 "Neq",
+                                 "neq",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
                                  DeriveDtypePromoteWithString,
@@ -2633,7 +2633,7 @@ namespace rel
                                  ExecuteNeq};
 
         const OpTraits kOpLt = {2,
-                                 "Lt",
+                                 "lt",
                                  DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
                                 DeriveDtypePromoteWithString,
@@ -2641,7 +2641,7 @@ namespace rel
                                 ExecuteLt};
 
         const OpTraits kOpGt = {2,
-                                 "Gt",
+                                 "gt",
                                  DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
                                 DeriveDtypePromoteWithString,
@@ -2649,7 +2649,7 @@ namespace rel
                                 ExecuteGt};
 
         const OpTraits kOpLe = {2,
-                                 "Le",
+                                 "le",
                                  DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
                                 DeriveDtypePromoteWithString,
@@ -2657,7 +2657,7 @@ namespace rel
                                 ExecuteLe};
 
         const OpTraits kOpGe = {2,
-                                 "Ge",
+                                 "ge",
                                  DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
                                 DeriveDtypePromoteWithString,
@@ -2667,7 +2667,7 @@ namespace rel
         // ---- binary logical --------------------------------------------------------
 
         const OpTraits kOpAnd = {2,
-                                 "And",
+                                 "and",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
                                  DeriveDtypeAlwaysInt,
@@ -2675,7 +2675,7 @@ namespace rel
                                  ExecuteAnd};
 
         const OpTraits kOpOr = {2,
-                                 "Or",
+                                 "or",
                                  DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
                                 DeriveDtypeAlwaysInt,
@@ -2685,7 +2685,7 @@ namespace rel
         // ---- binary bitwise ----------------------------------------------------
 
         const OpTraits kOpBitAnd = {2,
-                                 "BitAnd",
+                                 "bitAnd",
                                  DeriveShapeBroadcast,
                                     DeriveRowsBroadcast,
                                     DeriveDtypeRequireInt,
@@ -2693,7 +2693,7 @@ namespace rel
                                     ExecuteBitAnd};
 
         const OpTraits kOpBitOr = {2,
-                                 "BitOr",
+                                 "bitOr",
                                  DeriveShapeBroadcast,
                                    DeriveRowsBroadcast,
                                    DeriveDtypeRequireInt,
@@ -2701,7 +2701,7 @@ namespace rel
                                    ExecuteBitOr};
 
         const OpTraits kOpBitXor = {2,
-                                 "BitXor",
+                                 "bitXor",
                                  DeriveShapeBroadcast,
                                     DeriveRowsBroadcast,
                                     DeriveDtypeRequireInt,
@@ -2711,7 +2711,7 @@ namespace rel
         // ---- binary shift ------------------------------------------------------
 
         const OpTraits kOpShl = {2,
-                                 "Shl",
+                                 "shl",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
                                  DeriveDtypeRequireInt,
@@ -2719,7 +2719,7 @@ namespace rel
                                  ExecuteShl};
 
         const OpTraits kOpShr = {2,
-                                 "Shr",
+                                 "shr",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
                                  DeriveDtypeRequireInt,
@@ -2729,7 +2729,7 @@ namespace rel
         // ---- unary ----------------------------------------------------------------
 
         const OpTraits kOpNegate = {1,
-                                 "Negate",
+                                 "negate",
                                  DeriveShapeBroadcast,
                                     DeriveRowsBroadcast,
                                     DeriveDtypePromote,
@@ -2737,7 +2737,7 @@ namespace rel
                                     ExecuteUnaryNegate};
 
         const OpTraits kOpNot = {1,
-                                 "Not",
+                                 "not",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
                                  DeriveDtypeAlwaysInt,
@@ -2745,7 +2745,7 @@ namespace rel
                                  ExecuteUnaryNot};
 
         const OpTraits kOpBitNot = {1,
-                                 "BitNot",
+                                 "bitNot",
                                  DeriveShapeBroadcast,
                                     DeriveRowsBroadcast,
                                     DeriveDtypeRequireInt,
@@ -2755,7 +2755,7 @@ namespace rel
         // ---- ternary ---------------------------------------------------------------
 
         const OpTraits kOpConditional = {3,
-                                         "Conditional",
+                                         "conditional",
                                          DeriveShapeBroadcast,
                                          DeriveRowsBroadcast,
                                          DeriveDtypeConditional,
@@ -2763,7 +2763,7 @@ namespace rel
                                          ExecuteConditional};
 
         const OpTraits kOpIf = {-1,
-                                "If",
+                                "if",
                                 DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
                                 DeriveDtypeIf,
@@ -2773,7 +2773,7 @@ namespace rel
         // ---- variadic --------------------------------------------------------------
 
         const OpTraits kOpSweep = {-1,
-                                 "Sweep",
+                                 "sweep",
                                  DeriveShapeBroadcast,
                                    DeriveRowsSum,
                                    DeriveDtypePromoteWithString,
@@ -2781,7 +2781,7 @@ namespace rel
                                    ExecuteSweep};
 
         const OpTraits kOpMatrix = {-1,
-                                 "Matrix",
+                                 "matrix",
                                  DeriveShapeMatrix,
                                     DeriveRowsBroadcast,
                                     DeriveDtypePromoteWithString,
