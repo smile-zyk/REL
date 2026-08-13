@@ -25,7 +25,8 @@
     DimensionSpec       — 维度规格 (RegularDim / RaggedDim 的变体)
     DataFrame           — Block 的逐行表格视图
     Dataset             — 树形数据集
-    Param               — 函数参数描述符
+    Param               — 函数参数描述符 (必需 / 静态默认)
+    ComputedParam       — 计算默认值的参数描述符
     register_function() — 注册 Python 可调用对象
 
 调用链:
@@ -727,13 +728,220 @@ def my_python_fn(args: dict) -> auto:
 
 用户写 `return a + b` 即可, 不必 `return rel.Value.real(a + b)`。
 
+### 8.4 内建函数自动暴露
+
+**机制：单一事实源 `Environment::functions_` + PEP 562 懒加载桥接（`__getattr__`）。**
+
+`builtin_library` 与 `math_library` 的全部函数（`sin`、`cos`、`db`、`dbm`、
+`what`、`indep`、`output`、`min`/`max`/`sum`/`mean` 等）在 C++ 侧已经注册在
+全局静态表 `Environment::functions_` 中。Python 侧**不逐个绑定**，而是：
+
+1. `rel` 模块定义 `__getattr__(name)`（PEP 562，Python 3.7+）。
+2. 首次访问 `rel.sin` 时普通属性查找失败 → 触发 `__getattr__("sin")`
+   → `Environment::FindFunction("sin")`。
+3. 命中则把 `Function` 包成 Python 可调用对象并**缓存**，后续直接命中缓存。
+4. 未命中（既非函数也非常量）→ 抛 `AttributeError`。
+
+**调用约定**（与 REL 一致）：位置参数按声明顺序映射到参数名，关键字参数按名
+映射，省略的参数由 `Function::Invoke` 用默认值/计算默认值补齐。
+
+```python
+rel.sin(x)                       # → rel.Value (与 REL 中 sin(x) 一致)
+rel.db(r, 50, 75)                # 位置参数
+rel.db(r=r, z1=50, z2=75)        # 关键字参数
+rel.db(r)                        # z1/z2 用默认值 50 Ohm 补齐
+rel.what(da)                     # builtin 库
+rel.indep(da, "freq")            # 默认参数 selector=Integer(1)
+```
+
+**入参 / 返回值转换**：入参按 §8.3 的对称规则自动转 `Value`（`rel.Value` /
+`rel.Measurement` / `rel.DataArray` 直通；`float→Real`、`int→Integer`、
+`str→String`、`bool→Boolean`）；返回值是 `rel.Value`，与 `register_function`
+回调一致，可继续 `np.asarray(...)` / `.data()` 等。
+
+**为什么是"自然自动注册"**：
+
+| 要点 | 说明 |
+|------|------|
+| 单一事实源 | `Function` 已含 `name` + `params()` + `impl()`，`Invoke(ArgMap)` 是通用入口；桥接只做"收集显式参数 → 调 `Invoke`" |
+| 懒加载 | `__getattr__` 在访问时解析，**后注册的函数也能被发现**——内建（启动时 `InitBuiltinFunctions()`）、C++ 插件（`LoadFunctionPlugin`）、Python `register_function` 全部适用，无需任何额外注册步骤 |
+| 无命名冲突 | `__getattr__` 仅在普通属性查找失败时触发，`rel.Value` / `rel.Param` / `rel.register_function` 等真实属性优先 |
+| 生命周期安全 | 内建函数常驻 `rel_runtime.dll`，包装时复制 `Function`（含 `std::function` 闭包）不悬挂 |
+
+**实时性语义**（`__getattr__` 只在属性查找**失败**时触发，缓存只覆盖**已访问**过的名字）：
+
+| 情形 | 是否实时 | 说明 |
+|------|:---:|------|
+| 注册**全新**函数名 | ✅ | 首次访问必"未命中" → `__getattr__` → `FindFunction`，任意时刻注册都能发现 |
+| **覆盖**已缓存函数（同名重注册新签名） | ⚠️ 陈旧 | 命中缓存，不再走注册表；热更新需显式失效缓存 |
+| **注销**已缓存函数 | ⚠️ 陈旧 | 缓存副本仍可调用（且可能悬挂，见下） |
+
+#### 8.4.1 Stale（陈旧）的根因：Python 属性查找顺序
+
+`__getattr__` 仅在普通属性查找**失败**时触发。一旦把 callable 写进模块 `m`：
+
+```python
+rel.sin      # 第 1 次：m 里没有 "sin" → __getattr__ → 包装 v1 → m.attr("sin") = v1
+rel.sin      # 第 2 次：m.__dict__ 直接命中 v1，__getattr__ 不再触发
+```
+
+此后 C++ 侧 `RegisterFunction(新 sin)` 覆盖 map 里的 `Function`，但 Python 的
+`m.__dict__["sin"]` 仍是旧 `v1` —— **Python 对象字典 ≠ C++ 注册表**，二者从此分叉。
+
+#### 8.4.2 Dangling（悬挂）的根因：`std::function` 复制语义
+
+`std::function` 被复制时复制的是**可调用对象（含捕获数据）**，但函数体机器码
+不在 `std::function` 里，而在编译出那个 lambda 的 DLL/EXE 的 `.text` 段。
+
+```mermaid
+flowchart LR
+    subgraph map["Environment::functions_"]
+        F["\"plugin_fn\" → Function 副本 #1"]
+    end
+    subgraph cache["Python 缓存"]
+        C["Function 副本 #2"]
+    end
+    subgraph dll["plugin.dll (.text)"]
+        CODE["lambda 机器码"]
+    end
+    F -.->|"impl_ 代码指针"| CODE
+    C -.->|"复制后仍指向同一段代码"| CODE
+```
+
+复制 `Function` 只复制数据、不复制代码，所以每份副本的 `std::function` 调用的
+都是插件 DLL 里的同一段机器码。精确悬挂序列：
+
+```cpp
+// 1. Python 首次访问，__getattr__ 缓存 Function 副本 #2（impl_ 代码指针 → plugin.dll）
+
+// 2. 卸载插件
+UnloadFunctionPlugin(plugin);
+//    → UnregisterFunction: map 里副本 #1 被 erase
+//    → FreeLibrary:       plugin.dll 代码段移出进程地址空间
+
+// 3. 再调用 → 副本 #2 跳转到已卸载地址 → 段错误/UB
+rel.plugin_fn(...)
+```
+
+`Environment` 原本靠"先 erase、后 FreeLibrary"的顺序保证安全（卸载时 map 里
+已无指向插件代码的 `Function`）；Python 缓存的副本 #2 是**第三份拷贝**，绕开了保护。
+
+#### 8.4.3 解法取舍
+
+| 方案 | 核心 | stale | dangling | 代价 |
+|------|------|:---:|:---:|------|
+| **1. 只缓存内建** | 插件函数每次 `FindFunction` 现取，不复制缓存 | ✅ | ✅ | 插件函数每次多一次 map 查找；`is` 身份不保证 |
+| **2. 副本持住 `LoadedPlugin`** | 缓存副本同时持插件引用，DLL 不卸载 | ❌ 仍需失效缓存 | ✅ | `LoadedPlugin` 改引用计数；仍要单独处理覆盖 |
+
+**推荐方案 1**：用"不缓存"同时消掉 stale 与 dangling —— `FindFunction` 永远返回
+注册表**当前**状态，覆盖自然拿到最新；卸载后返回 `nullptr` 自然抛 `AttributeError`
+而非调野指针。代价仅一次 map 查找 + 函数 `is` 身份不保证（对函数通常无关紧要）。
+
+实现要点：`Environment::InitBuiltinFunctions()` 时把内建函数名记入
+`builtin_function_names_` 集合；`__getattr__` 仅当名字命中该集合才缓存，其余
+（C++ 插件 / `register_function`）走 `FindFunction` 现取——每次包装新 callable，
+或包装一个"每次现查 `FindFunction`"的转发代理。
+
+**实现位置**（`src/runtime/python/`）：
+
+| 文件 | 内容 |
+|------|------|
+| `rel_bindings.cc` | `Function` → Python callable 桥接类（`__call__(*args, **kwargs)`：参数名映射 + 缺省补全 + `Invoke`） |
+| `rel_module.cc` | `rel.__getattr__(name)`：`FindFunction` → 包装 + 缓存；顺带 `FindConstant`（`rel.PI` / `rel.e` / `rel.c0` / `rel.i` 等） |
+
+**示例**：
+
+```python
+import numpy as np
+import rel
+
+x = rel.Value.real(0.5)
+y = rel.sin(x)                    # 懒加载 → Environment::FindFunction("sin")
+print(np.asarray(y))              # 0.4794...
+
+da = dataset.GetDataArray("S21")
+rel.what(da)                      # 与 REL 中的 what(da) 完全一致
+rel.db(da, 50, 50)                # db(r, z1=50, z2=50)
+```
+
+**与 §8.1 `register_function` 的关系**：`register_function` 是把 Python 可调用
+对象**写入**注册表（Python→C++）；`__getattr__` 是把注册表里的 C++ `Function`
+**读出**为 Python 可调用对象（C++→Python）。二者共用同一 `Function`/`Value`
+机制，互为镜像。
+
+**内建常量（可选扩展）**：同一 `__getattr__` 依次查找 函数 → 常量，即可让
+`rel.PI`、`rel.c0`、`rel.i` 等自然可用。
+
+**插件互调（跨插件函数调用）**：`__getattr__` 桥接只解决了 **Python 侧**调用任意
+函数的能力；**DLL（C++）插件**调用其他函数还需 `RelPluginApi` 增加 `find_function`
+回调 + `Function::Invoke` inline 化（见 `BUILD.md` §6）。二者合流后四向互调全部
+打通：内建 / DLL / Python 两两可调，最终都落到 `Environment::FindFunction` +
+`Function::Invoke`，与 REL 表达式求值同一条路径。
+
 ---
 
 ## 9. Param — 函数参数描述符
 
+### 9.1 三种参数形态
+
 ```python
-rel.Param("a")                       # 必需参数
-rel.Param("b", default=rel.Value.integer(10))  # 带默认值
+# 必需参数
+rel.Param("a")
+
+# 带静态默认值
+rel.Param("b", default=rel.Value.integer(10))
+
+# 带计算默认值 (ComputedParam)
+rel.ComputedParam("c", lambda args: rel.Value.real(...))
+```
+
+| 形态 | 工厂 | 省略时 |
+|------|------|--------|
+| 必需参数 | `rel.Param("a")` | 调用报错 `missing argument 'a'` |
+| 静态默认值 | `rel.Param("b", default=...)` | 用固定 `Value` 填充 |
+| 计算默认值 | `rel.ComputedParam("c", fn)` | 解析时调用 `fn` 计算填充 |
+
+### 9.2 ComputedParam — 计算默认值
+
+对标 C++ `ComputedParam(name, fn)`。默认值不是静态常量，而是在调用解析时
+从**已解析的前置参数**动态计算得出（`Function::Invoke` 按声明顺序解析参数，
+计算默认值只能引用位置在它之前的参数）。
+
+```python
+rel.ComputedParam("name", fn)
+```
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `name` | `str` | 参数名 |
+| `fn` | `callable` | 计算默认值的回调 |
+
+回调签名（与 §8.2 相同，返回值转换规则见 §8.3）：
+
+```python
+def default_fn(args: dict) -> auto:
+    """
+    args: dict[str, Value] — 已解析的前置参数 (声明顺序在 name 之前)
+    returns: 自动转换为 Value (见 8.3)
+    """
+    return ...
+```
+
+**约束**：`fn` 只能读取声明顺序在 `name` **之前**的参数，不能引用自身或后续参数。
+
+示例：
+
+```python
+def double_a(args):
+    x = np.asarray(args["a"])        # → ndarray
+    return x * 2                     # ndarray → 自动转 Value (见 §8.3)
+
+rel.register_function("scaled", [
+    rel.Param("a"),
+    rel.ComputedParam("b", double_a),
+], my_python_fn)
+
+# 调用 scaled(5) 时，b 解析为 10
 ```
 
 ---

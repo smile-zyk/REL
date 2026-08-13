@@ -68,9 +68,9 @@ REL/
 │   ├── rel_plugin.cc                    # C++ DLL 插件加载 (不动)
 │   │
 │   └── python/                          # [BUILD_PYTHON=ON] 才编译
-│       ├── rel_module.cc                # PYBIND11_MODULE(rel, m) 入口
+│       ├── rel_module.cc                # PYBIND11_MODULE(rel, m) 入口 + __getattr__ 内建函数懒加载
 │       ├── xdataset_bindings.cc         # Unit, Measurement, DataSeries, DataArray, Block, Dataset
-│       ├── rel_bindings.cc              # Value, Param, register_function
+│       ├── rel_bindings.cc              # Value, Param, ComputedParam, register_function, Function→callable 桥接
 │       └── python_loader.cc             # LoadPython, ExecPython (惰性初始化)
 │
 ├── plugin/                              # 仅文档 + 示例
@@ -266,24 +266,127 @@ bool Environment::LoadPython(const char* path) {
 
 ---
 
-## 6. 迁移清单
+## 6. 跨插件函数调用（插件 ABI v4）
+
+### 6.1 问题：插件无法调用其他函数
+
+函数注册表是全局静态的（`Environment::functions_`），内建、DLL 插件、Python
+插件注册的函数都在同一张表里。但：
+
+- `Environment::FindFunction` / `Function::Invoke` 都在 `rel_runtime.dll` 内；
+- DLL 插件只链接 `xdataset`（不链接 `rel_runtime`），拿不到这两个符号；
+- `RelPluginApi` 只有 `register_library`（单向：插件→宿主），没有反向的
+  "查找/调用"服务。
+
+结果：**插件函数实现里无法调用其他函数**（内建、其他 DLL 插件、Python 插件），
+而 REL 表达式里 `foo(bar(x))` 可以自然组合。这造成宿主与插件的能力不对等。
+
+### 6.2 方案：Invoke 变 inline + `find_function` 回调
+
+两个改动，让插件作者写调用代码的方式与 `Evaluator::try_function_call` 完全一致：
+
+**（1）`Function::Invoke` 变为 header-only（inline）**
+
+`Invoke` 只依赖 `name_` / `params_` / `impl_`（均为 `function.h` 内字段），不碰
+`Environment`。把 `function.cc` 的实现移入 `function.h` 末尾（inline），并去掉
+`REL_RUNTIME_API` 导出。插件已 include header-only 的 `function.h`，于是可直接
+调用 `Invoke`，无需链接 `rel_runtime`。
+
+**（2）`RelPluginApi` 新增 `find_function` 回调**
+
+```c
+/// Host-provided: look up a registered function by name.
+/// Returns a pointer valid until the next host registry mutation, or nullptr
+/// when not found. Caller must copy the Function before invoking (Invoke may
+/// re-register and rehash the map, invalidating the pointer).
+typedef const void* (*RelFindFunctionFn)(void* host_context, const char* name);
+
+typedef struct RelPluginApi {
+    int api_version;                        // REL_PLUGIN_API_VERSION = 4
+    RelRegisterLibraryFn register_library;
+    RelFindFunctionFn   find_function;      // 新增
+} RelPluginApi;
+```
+
+host 侧（`rel_plugin.cc`）：
+
+```cpp
+const void* host_find_function(void* ctx, const char* name) {
+    return static_cast<const void*>(Environment::FindFunction(name));
+}
+```
+
+### 6.3 插件用法
+
+```cpp
+extern "C" REL_PLUGIN_API int rel_plugin_main(const RelPluginApi* api, void* ctx) {
+    auto find_fn = [api, ctx](const char* name) -> const rel::Function* {
+        return static_cast<const rel::Function*>(api->find_function(ctx, name));
+    };
+
+    rel::FunctionLibrary lib("my_plugin");
+    lib.Add(rel::Function("twice_sin",
+        { rel::Param("x") },
+        [find_fn](const rel::Function::ArgMap& a) -> rel::Value {
+            const rel::Function* fn = find_fn("sin");   // 内建 / 其他 DLL / Python
+            if (!fn) throw std::runtime_error("sin not found");
+            rel::Function copy = *fn;                    // 拷贝后再 Invoke（防 rehash 失效）
+            rel::Value s = copy.Invoke(a);               // 与 Evaluator 相同的调用路径
+            double x = s.as_measurement().as_scalar<double>();
+            return rel::Value::Real(2 * x);
+        }));
+
+    api->register_library(ctx, &lib);
+    return 0;
+}
+```
+
+四个方向全部打通：
+
+| 调用方 \ 被调方 | 内建 | DLL 插件 | Python 插件 |
+|------|:---:|:---:|:---:|
+| 内建 | ✅ | ✅ | ✅ |
+| DLL 插件 | ✅ `find_function` | ✅ `find_function` | ✅ `find_function`（impl 是桥接 lambda，获取 GIL 调 Python） |
+| Python 插件 | ✅ `rel.sin(...)` | ✅ `rel.sqr(...)` | ✅ `rel.my_fn(...)` |
+
+（Python 插件通过 `PYTHON_API.md` §8.4 的 `__getattr__` 桥接调用，最终同样落到
+`Environment::FindFunction` + `Invoke`。）
+
+### 6.4 注意事项
+
+- **ABI 版本**：`RelPluginApi` 结构体布局变化，`REL_PLUGIN_API_VERSION` 3 → 4，
+  旧插件（v3）需重新编译。
+- **指针生命周期**：`find_function` 返回的指针在 `Invoke` 期间可能因 rehash 失效，
+  **必须先拷贝 `Function` 再 `Invoke`**（与 `Evaluator::try_function_call` 相同）。
+- **GIL 重入**：DLL 插件函数若在 Python 调用链中被调用，再经 `find_function`
+  调用 Python 注册的函数时会重入 Python（桥接 lambda 内 `gil_scoped_acquire`）。
+  同一线程重入 GIL 是安全的，但桥接需用可重入 acquire 避免死锁。
+- **`function.cc` 清空**：`Invoke` 是 `function.cc` 唯一成员实现，inline 化后该
+  文件可删除或清空。
+
+---
+
+## 7. 迁移清单
 
 | 步骤 | 内容 | 影响 |
 |------|------|------|
 | 1 | 创建 `src/runtime/python/` 目录 | 新文件 |
-| 2 | `rel_plugin.cc` 不动，`Environment` 保留现有 API | 无破坏 |
-| 3 | 实现 Python 绑定 (`src/runtime/python/*.cc`) | 新代码 |
-| 4 | 顶层 CMakeLists 加 `BUILD_PYTHON` option + 条件编译 | CMake 改动 |
-| 5 | `test_plugin.cc` 加 Python 测试 (`BUILD_PYTHON=ON`) | 新测试 |
-| 6 | `rel.exe` 支持 `--py` flag | CLI 扩展 |
+| 2 | `function.cc` 的 `Invoke` 移入 `function.h`（inline），去掉 `REL_RUNTIME_API` 导出 | 移除导出符号，`function.cc` 清空/删除 |
+| 3 | `rel_plugin.h` 加 `RelFindFunctionFn`，`REL_PLUGIN_API_VERSION` 3 → 4 | **ABI 破坏**，旧插件（v3）需重新编译 |
+| 4 | `rel_plugin.cc` 加 `host_find_function` 回调实现 | 小改动 |
+| 5 | 实现 Python 绑定 (`src/runtime/python/*.cc`)，含 `__getattr__` 内建函数懒加载 | 新代码 |
+| 6 | 顶层 CMakeLists 加 `BUILD_PYTHON` option + 条件编译 | CMake 改动 |
+| 7 | `test_plugin.cc` 加跨插件调用测试 + Python 测试 (`BUILD_PYTHON=ON`) | 新测试 |
+| 8 | `rel.exe` 支持 `--py` flag | CLI 扩展 |
 
-对比之前的 9-10 步方案，现在只需 6 步，且**无破坏性变更**。
+对比之前的 9-10 步方案，核心 Python 绑定部分仍无破坏性变更；唯一破坏点在第 3 步的
+插件 ABI 版本号（3 → 4），仅影响已编译的旧版 DLL 插件，需重新编译。
 
 ---
 
-## 7. 开放问题
+## 8. 开放问题
 
-### 7.1 双层隔离：进程级 + 脚本级
+### 8.1 双层隔离：进程级 + 脚本级
 
 **第一层 — 进程级隔离**（自动，用户无感）：
 
@@ -316,12 +419,12 @@ pybind11 2.11+ 原生支持，Python 脚本中 `import rel` 直接可用。
 
 > **子解释器** (`Py_NewInterpreter`) 提供更强的模块级隔离，但 pybind11 扩展模块跨子解释器共享受限，当前不推荐，等 Python 3.12+ PEP 684 生态成熟后再评估。
 
-### 7.2 Python 版本耦合
+### 8.2 Python 版本耦合
 
 `BUILD_PYTHON=ON` 时 `rel_runtime.dll` 链接 `pybind11::embed`，必须与系统 Python ABI 一致。
 解决方案：默认 `BUILD_PYTHON=OFF`，由下游集成方显式开启并自行对接 Python。
 
-### 7.3 外部 `import rel` 不可用
+### 8.3 外部 `import rel` 不可用
 
 嵌入模式不产 `.pyd`，无法在独立 Python 进程中 `import rel`。如需此能力，V2 可：
 - 单独产出 `rel.pyd` 共享同一套绑定源码
