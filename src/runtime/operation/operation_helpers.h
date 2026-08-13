@@ -36,6 +36,7 @@ DataType DeriveDtypeRequireInt(const std::vector<DataType>& dtypes);
 DataType DeriveDtypeForceReal(const std::vector<DataType>& dtypes);
 DataType DeriveDtypeForceRealNoComplex(const std::vector<DataType>& dtypes);
 DataType DeriveDtypeForceIntNoComplex(const std::vector<DataType>& dtypes);
+DataType DeriveDtypeComplexToReal(const std::vector<DataType>& dtypes);
 
 Unit     DeriveUnitPromoteDimension(const std::vector<Unit>& units);
 Unit     DeriveUnitMod(const std::vector<Unit>& units);

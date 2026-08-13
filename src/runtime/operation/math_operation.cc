@@ -139,150 +139,95 @@ namespace rel
                 return x * x;
             }
 
-            template <typename T>
-            static inline int op_ceil(T x)
-            {
-                return static_cast<int>(std::ceil(x));
-            }
-            template <typename T>
-            static inline int op_floor(T x)
-            {
-                return static_cast<int>(std::floor(x));
-            }
-            template <typename T>
-            static inline int op_round(T x)
-            {
-                return static_cast<int>(std::round(x));
-            }
-
-            template <typename T>
-            static inline T op_deg(T x)
-            {
-                return x * T(180.0 / M_PI);
-            }
-            template <typename T>
-            static inline T op_rad(T x)
-            {
-                return x * T(M_PI / 180.0);
-            }
-
             // --- T -> double ------------------------------------------------------
             template <typename T>
             static inline double op_abs(T x)
             {
                 return std::abs(x);
             }
-            template <typename T>
-            static inline double op_real(T x)
-            {
-                return std::real(x);
-            }
-            template <typename T>
-            static inline double op_imag(T x)
-            {
-                return std::imag(x);
-            }
-            template <typename T>
-            static inline double op_phase(T x);
-            template <>
-            inline double op_phase<double>(double x)
-            {
-                return (x >= 0.0) ? 0.0 : M_PI;
-            }
-            template <>
-            inline double op_phase<C>(C x)
-            {
-                return std::arg(x);
-            }
-
-            template <typename T>
-            static inline T op_conj(T x)
-            {
-                return std::conj(x);
-            }
-
-            template <typename T>
-            static inline T op_sgn(T x);
-            template <>
-            inline double op_sgn<double>(double x)
-            {
-                return (x > 0.0) ? 1.0 : (x < 0.0) ? -1.0 : 0.0;
-            }
-            template <>
-            inline C op_sgn<C>(C x)
-            {
-                double n = std::abs(x);
-                return (n == 0.0) ? C(0.0, 0.0) : x / n;
-            }
-
-            // --- int / float ------------------------------------------------
-            template <typename T>
-            static inline int op_int(T x)
-            {
-                return static_cast<int>(x);
-            }
-            template <typename T>
-            static inline double op_float(T x)
-            {
-                return static_cast<double>(x);
-            }
 
             // --- sinc / step ------------------------------------------------------
             template <typename T>
             static inline T op_sinc(T x)
             {
-                return (std::abs(x) < T(1e-15)) ? T(1.0) : std::sin(x) / x;
+                const T px = T(M_PI) * x;
+                return (std::abs(x) < T(1e-15)) ? T(1.0) : std::sin(px) / px;
             }
             template <>
             inline C op_sinc<C>(C x)
             {
                 double a = std::abs(x);
-                return (a < 1e-15) ? C(1.0, 0.0) : std::sin(x) / x;
-            }
-            template <typename T>
-            static inline double op_step(T x)
-            {
-                double r = std::real(x);
-                return (r > 0.0) ? 1.0 : (r < 0.0) ? 0.0 : 0.5;
-            }
-            template <>
-            inline double op_step<C>(C x)
-            {
-                return (std::real(x) > 0.0) ? 1.0 : (std::real(x) < 0.0) ? 0.0 : 0.5;
+                if (a < 1e-15)
+                    return C(1.0, 0.0);
+                const C px = M_PI * x;
+                return std::sin(px) / px;
             }
 
-            // --- db / dbm / dbmtow / wtodbm ---------------------------------------
+            // --- db / dbm ---------------------------------------------------------
             template <typename T>
-            static inline double op_dbmtow(T x)
+            static inline double op_db(double r_mag, T z1, T z2)
             {
-                return std::pow(10.0, std::real(x) / 10.0) * 0.001;
+                double z_out = (std::abs(z2) * std::abs(z2)) / std::real(z2);
+                double z_in = (std::abs(z1) * std::abs(z1)) / std::real(z1);
+                return 20.0 * std::log10(r_mag) - 10.0 * std::log10(z_out / z_in);
             }
-            template <typename T>
-            static inline double op_wtodbm_real(T x)
+            static inline double op_dbm(double v_mag, C z)
             {
-                return 10.0 * std::log10(std::real(x) * 1000.0);
-            }
-            static inline C op_wtodbm_c(C x)
-            {
-                return C(10.0 * std::log10(std::abs(x) * 1000.0), std::arg(x));
+                return 20.0 * std::log10(v_mag) - 10.0 * std::log10(std::abs(z) / 50.0) + 10.0;
             }
 
-            static inline double op_db(double r_abs, double z1, double z2)
+            template <typename T>
+            static inline T op_dbmtow(T x)
             {
-                double z_out = (z2 * z2) / z2;
-                double z_in = (z1 * z1) / z1;
-                return 20.0 * std::log10(r_abs) - 10.0 * std::log10(z_out / z_in);
+                return std::pow(T(10.0), x / T(10.0)) * T(0.001);
             }
-            static inline double op_dbm(double v_abs, double z)
+
+            template <typename T>
+            static inline T op_wtodbm(T x)
             {
-                return 20.0 * std::log10(v_abs) - 10.0 * std::log10(z / 50.0) + 10.0;
+                return T(10.0) * std::log10(x * T(1000.0));
+            }
+
+            // --- dbm / W unit derives ---------------------------------------------
+            static inline Unit DeriveUnitDbmtow(const std::vector<Unit>& units)
+            {
+                if (units[0].has_dimension())
+                    throw std::invalid_argument("input must be dimensionless");
+                return Unit::parse("W");
+            }
+            static inline Unit DeriveUnitWtodbm(const std::vector<Unit>& units)
+            {
+                if (!units[0].has_dimension() || !units[0].same_dimension(Unit::parse("W")))
+                    throw std::invalid_argument("input unit must be W");
+                return Unit();
+            }
+            static inline Unit DeriveUnitDb(const std::vector<Unit>& units)
+            {
+                if (units[0].has_dimension())
+                    throw std::invalid_argument("r must be dimensionless");
+                Unit ohm = Unit::parse("Ohm");
+                for (size_t i = 1; i < units.size(); ++i)
+                {
+                    if (units[i].has_dimension() && !units[i].same_dimension(ohm))
+                        throw std::invalid_argument(
+                            "z1 and z2 must be dimensionless or in Ohm");
+                }
+                if (!units[1].same_dimension(units[2]))
+                    throw std::invalid_argument("z1 and z2 must have the same unit");
+                return Unit();
+            }
+            static inline Unit DeriveUnitDbm(const std::vector<Unit>& units)
+            {
+                Unit volt = Unit::parse("V");
+                Unit ohm = Unit::parse("Ohm");
+                if (units[0].has_dimension() && !units[0].same_dimension(volt))
+                    throw std::invalid_argument("v must be dimensionless or in V");
+                if (units[1].has_dimension() && !units[1].same_dimension(ohm))
+                    throw std::invalid_argument("z must be dimensionless or in Ohm");
+                return Unit();
             }
 
             // --- binary helpers ---------------------------------------------------
-            static inline double op_atan2_d(double y, double x)
-            {
-                return std::atan2(y, x);
-            }
             template <typename T>
             static inline T op_root(T x, T n)
             {
@@ -500,6 +445,7 @@ namespace rel
         {
             switch (info.dtype)
             {
+                case DataType::kInteger: return ExecUnaryT<int>(info, ops, op_sqr<int>);
                 case DataType::kReal: return ExecUnaryT<double>(info, ops, op_sqr<double>);
                 case DataType::kComplex: return ExecUnaryT<C>(info, ops, op_sqr<C>);
                 default: throw std::invalid_argument("unsupported dtype");
@@ -507,85 +453,47 @@ namespace rel
         }
         Value ExecuteSgn(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            auto sgn_int = [](double x) -> int { return static_cast<int>(op_sgn(x)); };
-            switch (ops[0].data_type())
-            {
-                case DataType::kBoolean:
-                case DataType::kInteger:
-                case DataType::kReal: return ExecUnaryCT<double, int>(info, ops, sgn_int);
-                default: throw std::invalid_argument("unsupported dtype");
-            }
+            return ExecUnaryCT<double, int>(
+                info, ops, [](double x) { return (x > 0.0)   ? 1
+                                                 : (x < 0.0) ? -1
+                                                             : 0; });
         }
         Value ExecuteCeil(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            switch (ops[0].data_type())
-            {
-                case DataType::kBoolean:
-                case DataType::kInteger:
-                case DataType::kReal: return ExecUnaryCT<double, int>(info, ops, op_ceil<double>);
-                default: throw std::invalid_argument("unsupported dtype");
-            }
+            return ExecUnaryCT<double, int>(
+                info, ops, [](double x) { return static_cast<int>(std::ceil(x)); });
         }
         Value ExecuteFloor(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            switch (ops[0].data_type())
-            {
-                case DataType::kBoolean:
-                case DataType::kInteger:
-                case DataType::kReal: return ExecUnaryCT<double, int>(info, ops, op_floor<double>);
-                default: throw std::invalid_argument("unsupported dtype");
-            }
+            return ExecUnaryCT<double, int>(
+                info, ops, [](double x) { return static_cast<int>(std::floor(x)); });
         }
         Value ExecuteRound(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            switch (ops[0].data_type())
-            {
-                case DataType::kBoolean:
-                case DataType::kInteger:
-                case DataType::kReal: return ExecUnaryCT<double, int>(info, ops, op_round<double>);
-                default: throw std::invalid_argument("unsupported dtype");
-            }
+            return ExecUnaryCT<double, int>(
+                info, ops, [](double x) { return static_cast<int>(std::round(x)); });
         }
         Value ExecuteDeg(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            switch (ops[0].data_type())
-            {
-                case DataType::kBoolean:
-                case DataType::kInteger:
-                case DataType::kReal: return ExecUnaryT<double>(info, ops, op_deg<double>);
-                default: throw std::invalid_argument("unsupported dtype");
-            }
+            return ExecUnaryT<double>(info, ops, [](double x) { return x * (180.0 / M_PI); });
         }
         Value ExecuteRad(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            switch (ops[0].data_type())
-            {
-                case DataType::kBoolean:
-                case DataType::kInteger:
-                case DataType::kReal: return ExecUnaryT<double>(info, ops, op_rad<double>);
-                default: throw std::invalid_argument("unsupported dtype");
-            }
+            return ExecUnaryT<double>(info, ops, [](double x) { return x * (M_PI / 180.0); });
         }
 
         Value ExecuteStep(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            switch (ops[0].data_type())
-            {
-                case DataType::kBoolean:
-                case DataType::kInteger:
-                case DataType::kReal:
-                    return ExecUnaryCT<double, double>(info, ops, op_step<double>);
-                case DataType::kComplex: return ExecUnaryCT<C, double>(info, ops, op_step<C>);
-                default: throw std::invalid_argument("unsupported dtype");
-            }
+            return ExecUnaryT<double>(info, ops,
+                [](double x) { return (x > 0.0) ? 1.0 : (x < 0.0) ? 0.0 : 0.5; });
         }
 
         Value ExecuteAbs(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            switch (ops[0].data_type())
+            switch (info.dtype)
             {
-                case DataType::kBoolean:
                 case DataType::kInteger:
+                    return ExecUnaryT<int>(info, ops, [](int x) { return std::abs(x); });
                 case DataType::kReal: return ExecUnaryT<double>(info, ops, op_abs<double>);
                 case DataType::kComplex: return ExecUnaryCT<C, double>(info, ops, op_abs<C>);
                 default: throw std::invalid_argument("unsupported dtype");
@@ -593,36 +501,32 @@ namespace rel
         }
         Value ExecuteReal(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            switch (ops[0].data_type())
+            switch (info.dtype)
             {
-                case DataType::kBoolean:
-                case DataType::kInteger:
-                case DataType::kReal: return ExecUnaryT<double>(info, ops, op_real<double>);
-                case DataType::kComplex: return ExecUnaryCT<C, double>(info, ops, op_real<C>);
+                case DataType::kInteger: return ExecUnaryT<int>(info, ops, [](int x) { return x; });
+                case DataType::kReal:
+                    return ExecUnaryT<double>(info, ops, [](double x) { return x; });
+                case DataType::kComplex:
+                    return ExecUnaryCT<C, double>(info, ops, [](C x) { return std::real(x); });
                 default: throw std::invalid_argument("unsupported dtype");
             }
         }
         Value ExecuteImag(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            switch (ops[0].data_type())
+            switch (info.dtype)
             {
-                case DataType::kBoolean:
-                case DataType::kInteger:
-                case DataType::kReal: return ExecUnaryT<double>(info, ops, op_imag<double>);
-                case DataType::kComplex: return ExecUnaryCT<C, double>(info, ops, op_imag<C>);
+                case DataType::kInteger: return ExecUnaryT<int>(info, ops, [](int) { return 0; });
+                case DataType::kReal:
+                    return ExecUnaryT<double>(info, ops, [](double) { return 0.0; });
+                case DataType::kComplex:
+                    return ExecUnaryCT<C, double>(info, ops, [](C x) { return std::imag(x); });
                 default: throw std::invalid_argument("unsupported dtype");
             }
         }
         Value ExecutePhase(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            switch (ops[0].data_type())
-            {
-                case DataType::kBoolean:
-                case DataType::kInteger:
-                case DataType::kReal: return ExecUnaryT<double>(info, ops, op_phase<double>);
-                case DataType::kComplex: return ExecUnaryCT<C, double>(info, ops, op_phase<C>);
-                default: throw std::invalid_argument("unsupported dtype");
-            }
+            return ExecUnaryCT<C, double>(
+                info, ops, [](C x) { return std::arg(x) * (180.0 / M_PI); });
         }
         Value ExecuteConj(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
@@ -631,56 +535,44 @@ namespace rel
                 case DataType::kInteger: return ExecUnaryT<int>(info, ops, [](int x) { return x; });
                 case DataType::kReal:
                     return ExecUnaryT<double>(info, ops, [](double x) { return x; });
-                case DataType::kComplex: return ExecUnaryT<C>(info, ops, op_conj<C>);
+                case DataType::kComplex:
+                    return ExecUnaryT<C>(info, ops, [](C x) { return std::conj(x); });
                 default: throw std::invalid_argument("unsupported dtype");
             }
         }
         Value ExecuteInt(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            switch (ops[0].data_type())
-            {
-                case DataType::kBoolean:
-                case DataType::kInteger:
-                case DataType::kReal: return ExecUnaryCT<double, int>(info, ops, op_int<double>);
-                default: throw std::invalid_argument("unsupported dtype");
-            }
+            return ExecUnaryCT<double, int>(
+                info, ops, [](double x) { return static_cast<int>(x); });
         }
         Value ExecuteFloat(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            switch (ops[0].data_type())
-            {
-                case DataType::kBoolean:
-                case DataType::kInteger: return ExecUnaryCT<int, double>(info, ops, op_float<int>);
-                case DataType::kReal:
-                    return ExecUnaryT<double>(info, ops, [](double x) { return x; });
-                default: throw std::invalid_argument("unsupported dtype");
-            }
+            return ExecUnaryT<double>(info, ops, [](double x) { return x; });
         }
         Value ExecuteSinc(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            switch (ops[0].data_type())
+            switch (info.dtype)
             {
-                case DataType::kBoolean:
-                case DataType::kInteger:
-                case DataType::kReal:
-                    return ExecUnaryCT<double, double>(info, ops, op_sinc<double>);
+                case DataType::kReal: return ExecUnaryT<double>(info, ops, op_sinc<double>);
                 case DataType::kComplex: return ExecUnaryT<C>(info, ops, op_sinc<C>);
                 default: throw std::invalid_argument("unsupported dtype");
             }
         }
         Value ExecuteDbmtow(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            return ExecUnaryCT<double, double>(info, ops, op_dbmtow<double>);
+            switch (info.dtype)
+            {
+                case DataType::kReal: return ExecUnaryT<double>(info, ops, op_dbmtow<double>);
+                case DataType::kComplex: return ExecUnaryT<C>(info, ops, op_dbmtow<C>);
+                default: throw std::invalid_argument("unsupported dtype");
+            }
         }
         Value ExecuteWtodbm(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            switch (ops[0].data_type())
+            switch (info.dtype)
             {
-                case DataType::kBoolean:
-                case DataType::kInteger:
-                case DataType::kReal:
-                    return ExecUnaryCT<double, double>(info, ops, op_wtodbm_real<double>);
-                case DataType::kComplex: return ExecUnaryT<C>(info, ops, op_wtodbm_c);
+                case DataType::kReal: return ExecUnaryT<double>(info, ops, op_wtodbm<double>);
+                case DataType::kComplex: return ExecUnaryT<C>(info, ops, op_wtodbm<C>);
                 default: throw std::invalid_argument("unsupported dtype");
             }
         }
@@ -688,12 +580,12 @@ namespace rel
         // multi-arg callbacks
         Value ExecuteDb(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            auto v_flat = ops[0].template flat_data<double>();
-            auto z1_flat = ops[1].template flat_data<double>();
-            auto z2_flat = ops[2].template flat_data<double>();
-            const double* v_ptr = v_flat.ptr;
-            const double* z1_ptr = z1_flat.ptr;
-            const double* z2_ptr = z2_flat.ptr;
+            auto v_flat = ops[0].flat_data<C>();
+            auto z1_flat = ops[1].flat_data<C>();
+            auto z2_flat = ops[2].flat_data<C>();
+            const C* v_ptr = v_flat.ptr;
+            const C* z1_ptr = z1_flat.ptr;
+            const C* z2_ptr = z2_flat.ptr;
             Index v_stride = v_flat.stride;
             Index z1_stride = z1_flat.stride;
             Index z2_stride = z2_flat.stride;
@@ -704,7 +596,7 @@ namespace rel
                 RowBroadcastPlan::Compute({ops[0].rows(), ops[1].rows(), ops[2].rows()});
 
             auto out_ds = std::unique_ptr<DataSeries>(new DataSeries(DataType::kReal, info.shape));
-            out_ds->set_unit(Unit());
+            out_ds->set_unit(info.unit);
             out_ds->resize(static_cast<std::size_t>(info.rows));
             double* out = out_ds->mutable_contiguous_data<double>();
 
@@ -731,10 +623,10 @@ namespace rel
         }
         Value ExecuteDbm(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            auto l_flat = ops[0].template flat_data<double>();
-            auto r_flat = ops[1].template flat_data<double>();
-            const double* l_ptr = l_flat.ptr;
-            const double* r_ptr = r_flat.ptr;
+            auto l_flat = ops[0].flat_data<C>();
+            auto r_flat = ops[1].flat_data<C>();
+            const C* l_ptr = l_flat.ptr;
+            const C* r_ptr = r_flat.ptr;
             Index ls = l_flat.stride;
             Index rs = r_flat.stride;
 
@@ -770,7 +662,8 @@ namespace rel
         // binary
         Value ExecuteAtan2(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            return ExecBinaryArithT<double>(info, ops, op_atan2_d);
+            return ExecBinaryArithT<double>(
+                info, ops, [](double y, double x) { return std::atan2(y, x); });
         }
         Value ExecuteRoot(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
@@ -835,85 +728,85 @@ namespace rel
                                  DeriveUnitPromoteDimension,
                                  ExecuteCot};
         const OpTraits kOpAsin = {1,
-                                 "Asin",
-                                 DeriveShapeBroadcast,
+                                  "Asin",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
                                   DeriveDtypePromoteReal,
                                   DeriveUnitPromoteDimension,
                                   ExecuteAsin};
         const OpTraits kOpAcos = {1,
-                                 "Acos",
-                                 DeriveShapeBroadcast,
+                                  "Acos",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
                                   DeriveDtypePromoteReal,
                                   DeriveUnitPromoteDimension,
                                   ExecuteAcos};
         const OpTraits kOpAtan = {1,
-                                 "Atan",
-                                 DeriveShapeBroadcast,
+                                  "Atan",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
                                   DeriveDtypePromoteReal,
                                   DeriveUnitPromoteDimension,
                                   ExecuteAtan};
         const OpTraits kOpAcot = {1,
-                                 "Acot",
-                                 DeriveShapeBroadcast,
+                                  "Acot",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
                                   DeriveDtypePromoteReal,
                                   DeriveUnitPromoteDimension,
                                   ExecuteAcot};
         const OpTraits kOpSinh = {1,
-                                 "Sinh",
-                                 DeriveShapeBroadcast,
+                                  "Sinh",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
                                   DeriveDtypePromoteReal,
                                   DeriveUnitPromoteDimension,
                                   ExecuteSinh};
         const OpTraits kOpCosh = {1,
-                                 "Cosh",
-                                 DeriveShapeBroadcast,
+                                  "Cosh",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
                                   DeriveDtypePromoteReal,
                                   DeriveUnitPromoteDimension,
                                   ExecuteCosh};
         const OpTraits kOpTanh = {1,
-                                 "Tanh",
-                                 DeriveShapeBroadcast,
+                                  "Tanh",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
                                   DeriveDtypePromoteReal,
                                   DeriveUnitPromoteDimension,
                                   ExecuteTanh};
         const OpTraits kOpCoth = {1,
-                                 "Coth",
-                                 DeriveShapeBroadcast,
+                                  "Coth",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
                                   DeriveDtypePromoteReal,
                                   DeriveUnitPromoteDimension,
                                   ExecuteCoth};
         const OpTraits kOpAsinh = {1,
-                                 "Asinh",
-                                 DeriveShapeBroadcast,
+                                   "Asinh",
+                                   DeriveShapeBroadcast,
                                    DeriveRowsBroadcast,
                                    DeriveDtypePromoteReal,
                                    DeriveUnitPromoteDimension,
                                    ExecuteAsinh};
         const OpTraits kOpAcosh = {1,
-                                 "Acosh",
-                                 DeriveShapeBroadcast,
+                                   "Acosh",
+                                   DeriveShapeBroadcast,
                                    DeriveRowsBroadcast,
                                    DeriveDtypePromoteReal,
                                    DeriveUnitPromoteDimension,
                                    ExecuteAcosh};
         const OpTraits kOpAtanh = {1,
-                                 "Atanh",
-                                 DeriveShapeBroadcast,
+                                   "Atanh",
+                                   DeriveShapeBroadcast,
                                    DeriveRowsBroadcast,
                                    DeriveDtypePromoteReal,
                                    DeriveUnitPromoteDimension,
                                    ExecuteAtanh};
         const OpTraits kOpAcoth = {1,
-                                 "Acoth",
-                                 DeriveShapeBroadcast,
+                                   "Acoth",
+                                   DeriveShapeBroadcast,
                                    DeriveRowsBroadcast,
                                    DeriveDtypePromoteReal,
                                    DeriveUnitPromoteDimension,
@@ -926,8 +819,8 @@ namespace rel
                                  DeriveUnitPromoteDimension,
                                  ExecuteLog};
         const OpTraits kOpLog10 = {1,
-                                 "Log10",
-                                 DeriveShapeBroadcast,
+                                   "Log10",
+                                   DeriveShapeBroadcast,
                                    DeriveRowsBroadcast,
                                    DeriveDtypePromoteReal,
                                    DeriveUnitPromoteDimension,
@@ -940,8 +833,8 @@ namespace rel
                                  DeriveUnitPromoteDimension,
                                  ExecuteExp};
         const OpTraits kOpSqrt = {1,
-                                 "Sqrt",
-                                 DeriveShapeBroadcast,
+                                  "Sqrt",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
                                   DeriveDtypePromoteReal,
                                   DeriveUnitPromoteDimension,
@@ -950,7 +843,7 @@ namespace rel
                                  "Sqr",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
-                                 DeriveDtypePromoteReal,
+                                 DeriveDtypePromote,
                                  DeriveUnitSquare,
                                  ExecuteSqr};
         const OpTraits kOpSgn = {1,
@@ -961,22 +854,22 @@ namespace rel
                                  DeriveUnitDimless,
                                  ExecuteSgn};
         const OpTraits kOpCeil = {1,
-                                 "Ceil",
-                                 DeriveShapeBroadcast,
+                                  "Ceil",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
                                   DeriveDtypeForceIntNoComplex,
                                   DeriveUnitPromoteDimension,
                                   ExecuteCeil};
         const OpTraits kOpFloor = {1,
-                                 "Floor",
-                                 DeriveShapeBroadcast,
+                                   "Floor",
+                                   DeriveShapeBroadcast,
                                    DeriveRowsBroadcast,
                                    DeriveDtypeForceIntNoComplex,
                                    DeriveUnitPromoteDimension,
                                    ExecuteFloor};
         const OpTraits kOpRound = {1,
-                                 "Round",
-                                 DeriveShapeBroadcast,
+                                   "Round",
+                                   DeriveShapeBroadcast,
                                    DeriveRowsBroadcast,
                                    DeriveDtypeForceIntNoComplex,
                                    DeriveUnitPromoteDimension,
@@ -985,14 +878,14 @@ namespace rel
                                  "Deg",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
-                                 DeriveDtypePromoteReal,
+                                 DeriveDtypeForceRealNoComplex,
                                  DeriveUnitPromoteDimension,
                                  ExecuteDeg};
         const OpTraits kOpRad = {1,
                                  "Rad",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
-                                 DeriveDtypePromoteReal,
+                                 DeriveDtypeForceRealNoComplex,
                                  DeriveUnitPromoteDimension,
                                  ExecuteRad};
 
@@ -1000,33 +893,33 @@ namespace rel
                                  "Abs",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
-                                 DeriveDtypePromoteReal,
+                                 DeriveDtypeComplexToReal,
                                  DeriveUnitPromoteDimension,
                                  ExecuteAbs};
         const OpTraits kOpReal = {1,
-                                 "Real",
-                                 DeriveShapeBroadcast,
+                                  "Real",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
-                                  DeriveDtypeForceReal,
+                                  DeriveDtypeComplexToReal,
                                   DeriveUnitPromoteDimension,
                                   ExecuteReal};
         const OpTraits kOpImag = {1,
-                                 "Imag",
-                                 DeriveShapeBroadcast,
+                                  "Imag",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
-                                  DeriveDtypeForceReal,
+                                  DeriveDtypeComplexToReal,
                                   DeriveUnitPromoteDimension,
                                   ExecuteImag};
         const OpTraits kOpPhase = {1,
-                                 "Phase",
-                                 DeriveShapeBroadcast,
+                                   "Phase",
+                                   DeriveShapeBroadcast,
                                    DeriveRowsBroadcast,
                                    DeriveDtypeForceReal,
-                                   DeriveUnitPromoteDimension,
+                                   DeriveUnitDimless,
                                    ExecutePhase};
         const OpTraits kOpConj = {1,
-                                 "Conj",
-                                 DeriveShapeBroadcast,
+                                  "Conj",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
                                   DeriveDtypePromote,
                                   DeriveUnitPromoteDimension,
@@ -1040,80 +933,80 @@ namespace rel
                                  DeriveUnitPromoteDimension,
                                  ExecuteInt};
         const OpTraits kOpFloat = {1,
-                                 "Float",
-                                 DeriveShapeBroadcast,
+                                   "Float",
+                                   DeriveShapeBroadcast,
                                    DeriveRowsBroadcast,
-                                   DeriveDtypeForceReal,
+                                   DeriveDtypeForceRealNoComplex,
                                    DeriveUnitPromoteDimension,
                                    ExecuteFloat};
         const OpTraits kOpSinc = {1,
-                                 "Sinc",
-                                 DeriveShapeBroadcast,
+                                  "Sinc",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
                                   DeriveDtypePromoteReal,
                                   DeriveUnitPromoteDimension,
                                   ExecuteSinc};
         const OpTraits kOpStep = {1,
-                                 "Step",
-                                 DeriveShapeBroadcast,
+                                  "Step",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
-                                  DeriveDtypeForceReal,
+                                  DeriveDtypeForceRealNoComplex,
                                   DeriveUnitDimless,
                                   ExecuteStep};
 
         const OpTraits kOpDbmtow = {1,
-                                 "Dbmtow",
-                                 DeriveShapeBroadcast,
+                                    "Dbmtow",
+                                    DeriveShapeBroadcast,
                                     DeriveRowsBroadcast,
-                                    DeriveDtypeForceReal,
-                                    DeriveUnitDimless,
+                                    DeriveDtypePromoteReal,
+                                    DeriveUnitDbmtow,
                                     ExecuteDbmtow};
         const OpTraits kOpWtodbm = {1,
-                                 "Wtodbm",
-                                 DeriveShapeBroadcast,
+                                    "Wtodbm",
+                                    DeriveShapeBroadcast,
                                     DeriveRowsBroadcast,
-                                    DeriveDtypeComplexOrReal,
-                                    DeriveUnitDimless,
+                                    DeriveDtypePromoteReal,
+                                    DeriveUnitWtodbm,
                                     ExecuteWtodbm};
         const OpTraits kOpDb = {3,
-                                 "Db",
-                                 DeriveShapeBroadcast,
+                                "Db",
+                                DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
                                 DeriveDtypeForceReal,
-                                DeriveUnitForceDimless,
+                                DeriveUnitDb,
                                 ExecuteDb};
         const OpTraits kOpDbm = {2,
                                  "Dbm",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
                                  DeriveDtypeForceReal,
-                                 DeriveUnitForceDimless,
+                                 DeriveUnitDbm,
                                  ExecuteDbm};
 
         const OpTraits kOpAtan2 = {2,
-                                 "Atan2",
-                                 DeriveShapeBroadcast,
+                                   "Atan2",
+                                   DeriveShapeBroadcast,
                                    DeriveRowsBroadcast,
                                    DeriveDtypeForceRealNoComplex,
                                    DeriveUnitPromoteDimension,
                                    ExecuteAtan2};
         const OpTraits kOpRoot = {2,
-                                 "Root",
-                                 DeriveShapeBroadcast,
+                                  "Root",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
                                   DeriveDtypePromoteReal,
                                   DeriveUnitPromoteDimension,
                                   ExecuteRoot};
         const OpTraits kOpMax2 = {2,
-                                 "Max2",
-                                 DeriveShapeBroadcast,
+                                  "Max2",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
                                   DeriveDtypePromote,
                                   DeriveUnitPromoteDimension,
                                   ExecuteMax2};
         const OpTraits kOpMin2 = {2,
-                                 "Min2",
-                                 DeriveShapeBroadcast,
+                                  "Min2",
+                                  DeriveShapeBroadcast,
                                   DeriveRowsBroadcast,
                                   DeriveDtypePromote,
                                   DeriveUnitPromoteDimension,
@@ -1303,5 +1196,3 @@ namespace rel
 
     } // namespace operation
 } // namespace rel
-
-

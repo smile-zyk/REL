@@ -378,8 +378,8 @@ namespace rel
         lib.Add(Function("db",
             std::vector<FunctionParam>{
                 Param("r"),
-                Param("z1", Value::Real(50)),
-                Param("z2", Value::Real(50)),
+                Param("z1", Value::Real(50, Unit::parse("Ohm"))),
+                Param("z2", Value::Real(50, Unit::parse("Ohm"))),
             },
             [](const Function::ArgMap& args) {
                 return OperationDb(args.at("r"), args.at("z1"), args.at("z2"));

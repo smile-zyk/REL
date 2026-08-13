@@ -270,6 +270,21 @@ namespace rel
         }
 
         // =========================================================================
+        //  DeriveDtypeComplexToReal  (Int→Int, Real→Real, Complex→Real)
+        // =========================================================================
+
+        DataType DeriveDtypeComplexToReal(const std::vector<DataType>& dtypes)
+        {
+            DataType dt = (dtypes[0] == DataType::kBoolean) ? DataType::kInteger : dtypes[0];
+            if (dt == DataType::kInteger || dt == DataType::kReal)
+                return dt;
+            if (dt == DataType::kComplex)
+                return DataType::kReal;
+            throw std::runtime_error(std::string("unsupported type: ")
+                + DataTypeToString(dt) + ", expected Real, Integer, or Complex");
+        }
+
+        // =========================================================================
         //  DeriveUnitPromoteDimension
         // =========================================================================
 
