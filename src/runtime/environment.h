@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -74,7 +75,14 @@ public:
     static bool UnregisterFunction(const std::string& name);
 
     /// Look up a registered function by name, or nullptr when not found.
+    /// The returned pointer is only valid until the next registry mutation;
+    /// prefer CopyFunction() when the Function must outlive the lookup.
     static const Function* FindFunction(const std::string& name);
+
+    /// Thread-safe copy of a registered function, or false when not found.
+    /// Copies the Function while holding the registry lock, so the returned
+    /// copy can be invoked without racing a concurrent re-registration.
+    static bool CopyFunction(const std::string& name, Function& out);
 
     /// Names of all registered functions (unordered).
     static std::vector<std::string> FunctionNames();
@@ -154,6 +162,7 @@ private:
         builtin_constants_;
     static std::unordered_map<std::string, Function>
         functions_;
+    static std::mutex functions_mutex_;  // guards functions_
     static std::unordered_map<std::string, std::unique_ptr<xdataset::Dataset>>
         datasets_;
     static std::string default_dataset_name_;

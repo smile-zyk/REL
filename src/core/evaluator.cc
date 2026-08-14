@@ -593,15 +593,13 @@ bool Evaluator::try_function_call(const CallExpr& expr)
     if (!ref || ref->segments.size() != 1)
         return false;
 
-    const Function* fn = Environment::FindFunction(ref->segments[0].name);
-    if (!fn)
+    // Copy under the registry lock (thread-safe); the implementation may
+    // register more functions while running without invalidating the copy.
+    Function fn;
+    if (!Environment::CopyFunction(ref->segments[0].name, fn))
         return false;
 
-    // Work on a stack copy: the implementation may register more functions
-    // while running, and rehashing the registry would invalidate the
-    // pointer we hold.
-    Function fn_copy = *fn;
-    result_ = invoke_function(fn_copy, expr);
+    result_ = invoke_function(fn, expr);
     return true;
 }
 

@@ -18,6 +18,7 @@ std::unordered_map<std::string, rel::Value>
     Environment::builtin_constants_;
 std::unordered_map<std::string, Function>
     Environment::functions_;
+std::mutex Environment::functions_mutex_;
 std::unordered_map<std::string, std::unique_ptr<xdataset::Dataset>>
     Environment::datasets_;
 std::string Environment::default_dataset_name_;
@@ -102,6 +103,7 @@ void Environment::InitBuiltinFunctions()
 
 void Environment::RegisterFunction(Function fn)
 {
+    std::lock_guard<std::mutex> lock(functions_mutex_);
     functions_[fn.name()] = std::move(fn);
 }
 
@@ -113,19 +115,32 @@ void Environment::RegisterLibrary(const FunctionLibrary& lib)
 
 bool Environment::UnregisterFunction(const std::string& name)
 {
+    std::lock_guard<std::mutex> lock(functions_mutex_);
     return functions_.erase(name) > 0;
 }
 
 const Function* Environment::FindFunction(const std::string& name)
 {
+    std::lock_guard<std::mutex> lock(functions_mutex_);
     auto it = functions_.find(name);
     if (it != functions_.end())
         return &it->second;
     return nullptr;
 }
 
+bool Environment::CopyFunction(const std::string& name, Function& out)
+{
+    std::lock_guard<std::mutex> lock(functions_mutex_);
+    auto it = functions_.find(name);
+    if (it == functions_.end())
+        return false;
+    out = it->second;  // copy under lock
+    return true;
+}
+
 std::vector<std::string> Environment::FunctionNames()
 {
+    std::lock_guard<std::mutex> lock(functions_mutex_);
     std::vector<std::string> names;
     names.reserve(functions_.size());
     for (const auto& kv : functions_)
@@ -136,26 +151,25 @@ std::vector<std::string> Environment::FunctionNames()
 rel::Value Environment::CallFunction(const std::string& name,
                                      const Function::ArgMap& args)
 {
-    const Function* fn = FindFunction(name);
-    if (!fn)
+    Function fn;
+    if (!CopyFunction(name, fn))
         throw std::runtime_error("function '" + name + "' is not registered");
 
-    // Work on a stack copy: the implementation may register more functions
-    // while running, and rehashing the registry would invalidate the pointer
-    // we hold (same as Evaluator::try_function_call).
-    Function fn_copy = *fn;
-    return fn_copy.Invoke(args);
+    // The copy is taken under the registry lock (CopyFunction), so the
+    // implementation may register more functions while running without
+    // invalidating anything we hold.  Invoke runs without the lock.
+    return fn.Invoke(args);
 }
 
 rel::Value Environment::CallFunction(const std::string& name,
                                      const std::vector<rel::Value>& args)
 {
-    const Function* fn = FindFunction(name);
-    if (!fn)
+    Function fn;
+    if (!CopyFunction(name, fn))
         throw std::runtime_error("function '" + name + "' is not registered");
 
     // Bind positional arguments to the function's declared parameter names.
-    const std::vector<FunctionParam>& params = fn->params();
+    const std::vector<FunctionParam>& params = fn.params();
     if (args.size() > params.size())
     {
         throw std::runtime_error("function '" + name + "' expects at most " +
@@ -168,9 +182,8 @@ rel::Value Environment::CallFunction(const std::string& name,
     for (std::size_t i = 0; i < args.size(); ++i)
         named[params[i].name] = args[i];
 
-    // Same rehash-safety note as above: copy before invoking.
-    Function fn_copy = *fn;
-    return fn_copy.Invoke(named);
+    // The copy was taken under the registry lock (CopyFunction).
+    return fn.Invoke(named);
 }
 
 // =========================================================================

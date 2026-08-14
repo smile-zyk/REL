@@ -16,7 +16,7 @@ namespace function_library_sample {
 //
 //  The single function sincos(x) = sin(x) * cos(x) calls the already-registered
 //  builtin functions sin() and cos() through the registry — the same path the
-//  evaluator uses (Environment::FindFunction + Function::Invoke).
+//  evaluator uses (Environment::CallFunction).
 
 /// Build the "function_library_sample" library.
 FunctionLibrary MakeLibrary();
