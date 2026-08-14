@@ -764,7 +764,7 @@ rel.indep(da, "freq")            # 默认参数 selector=Integer(1)
 | 要点 | 说明 |
 |------|------|
 | 单一事实源 | `Function` 已含 `name` + `params()` + `impl()`，`Invoke(ArgMap)` 是通用入口；桥接只做"收集显式参数 → 调 `Invoke`" |
-| 懒加载 | `__getattr__` 在访问时解析，**后注册的函数也能被发现**——内建（启动时 `InitBuiltinFunctions()`）、C++ 插件（`LoadFunctionPlugin`）、Python `register_function` 全部适用，无需任何额外注册步骤 |
+| 懒加载 | `__getattr__` 在访问时解析，**后注册的函数也能被发现**——内建（启动时 `InitBuiltinFunctions()`）、C++ 扩展（静态库 `RegisterLibrary`）、Python `register_function` 全部适用，无需任何额外注册步骤 |
 | 无命名冲突 | `__getattr__` 仅在普通属性查找失败时触发，`rel.Value` / `rel.Param` / `rel.register_function` 等真实属性优先 |
 | 生命周期安全 | 内建函数常驻 `rel_runtime.dll`，包装时复制 `Function`（含 `std::function` 闭包）不悬挂 |
 
@@ -788,59 +788,38 @@ rel.sin      # 第 2 次：m.__dict__ 直接命中 v1，__getattr__ 不再触发
 此后 C++ 侧 `RegisterFunction(新 sin)` 覆盖 map 里的 `Function`，但 Python 的
 `m.__dict__["sin"]` 仍是旧 `v1` —— **Python 对象字典 ≠ C++ 注册表**，二者从此分叉。
 
-#### 8.4.2 Dangling（悬挂）的根因：`std::function` 复制语义
+#### 8.4.2 Dangling（悬挂）的根因：Python 函数对象的生命周期
 
-`std::function` 被复制时复制的是**可调用对象（含捕获数据）**，但函数体机器码
-不在 `std::function` 里，而在编译出那个 lambda 的 DLL/EXE 的 `.text` 段。
-
-```mermaid
-flowchart LR
-    subgraph map["Environment::functions_"]
-        F["\"plugin_fn\" → Function 副本 #1"]
-    end
-    subgraph cache["Python 缓存"]
-        C["Function 副本 #2"]
-    end
-    subgraph dll["plugin.dll (.text)"]
-        CODE["lambda 机器码"]
-    end
-    F -.->|"impl_ 代码指针"| CODE
-    C -.->|"复制后仍指向同一段代码"| CODE
-```
-
-复制 `Function` 只复制数据、不复制代码，所以每份副本的 `std::function` 调用的
-都是插件 DLL 里的同一段机器码。精确悬挂序列：
+Python 注册的函数，其 `Function::impl_` 是桥接 lambda，内部持有 `py::function`
+（底层 `PyObject*`）。这些 `Function` 存在全局静态表 `Environment::functions_` 中，
+与进程同生命周期。危险在**静态析构顺序**：
 
 ```cpp
-// 1. Python 首次访问，__getattr__ 缓存 Function 副本 #2（impl_ 代码指针 → plugin.dll）
-
-// 2. 卸载插件
-UnloadFunctionPlugin(plugin);
-//    → UnregisterFunction: map 里副本 #1 被 erase
-//    → FreeLibrary:       plugin.dll 代码段移出进程地址空间
-
-// 3. 再调用 → 副本 #2 跳转到已卸载地址 → 段错误/UB
-rel.plugin_fn(...)
+// 进程退出，按构造逆序析构：
+//   1. scoped_interpreter 先析构 → Python 运行时 finalize
+//   2. functions_ 后析构 → 每个 Function 的 impl_ 析构 → py::function 析构
+//      → Py_DECREF 访问已销毁的 Python 运行时 → 段错误/UB
 ```
 
-`Environment` 原本靠"先 erase、后 FreeLibrary"的顺序保证安全（卸载时 map 里
-已无指向插件代码的 `Function`）；Python 缓存的副本 #2 是**第三份拷贝**，绕开了保护。
+内建函数和 C++ 扩展没有这个问题（`std::function` 捕获纯 C++ 对象，析构无副作用）。
+但 Python 注册的函数**必然**踩中，必须在 finalize 前显式清空（`UnregisterFunction`
++ 释放 `py::function`）。
 
 #### 8.4.3 解法取舍
 
 | 方案 | 核心 | stale | dangling | 代价 |
 |------|------|:---:|:---:|------|
-| **1. 只缓存内建** | 插件函数每次 `FindFunction` 现取，不复制缓存 | ✅ | ✅ | 插件函数每次多一次 map 查找；`is` 身份不保证 |
-| **2. 副本持住 `LoadedPlugin`** | 缓存副本同时持插件引用，DLL 不卸载 | ❌ 仍需失效缓存 | ✅ | `LoadedPlugin` 改引用计数；仍要单独处理覆盖 |
+| **1. 只缓存内建** | 动态注册的函数（Python）每次 `FindFunction` 现取，不复制缓存 | ✅ | ✅ | 每次多一次 map 查找；`is` 身份不保证 |
+| **2. 显式清空** | 退出前 `UnregisterFunction` 释放 Python 函数对象 | — | ✅ | 需主机进程退出钩子 |
 
-**推荐方案 1**：用"不缓存"同时消掉 stale 与 dangling —— `FindFunction` 永远返回
-注册表**当前**状态，覆盖自然拿到最新；卸载后返回 `nullptr` 自然抛 `AttributeError`
-而非调野指针。代价仅一次 map 查找 + 函数 `is` 身份不保证（对函数通常无关紧要）。
+**推荐方案 1 + 2 组合**：
 
-实现要点：`Environment::InitBuiltinFunctions()` 时把内建函数名记入
-`builtin_function_names_` 集合；`__getattr__` 仅当名字命中该集合才缓存，其余
-（C++ 插件 / `register_function`）走 `FindFunction` 现取——每次包装新 callable，
-或包装一个"每次现查 `FindFunction`"的转发代理。
+- **方案 1**（缓存策略）：`Environment::InitBuiltinFunctions()` 时把内建函数名记入
+  `builtin_function_names_` 集合；`__getattr__` 仅当名字命中该集合才缓存，其余
+  （C++ 扩展 / `register_function`）走 `FindFunction` 现取——每次包装新 callable，
+  或包装一个"每次现查 `FindFunction`"的转发代理。
+- **方案 2**（生命周期）：宿主进程退出前，先清空 Python 注册的函数、再 finalize
+  解释器，保证析构顺序正确。
 
 **实现位置**（`src/runtime/python/`）：
 
@@ -872,11 +851,10 @@ rel.db(da, 50, 50)                # db(r, z1=50, z2=50)
 **内建常量（可选扩展）**：同一 `__getattr__` 依次查找 函数 → 常量，即可让
 `rel.PI`、`rel.c0`、`rel.i` 等自然可用。
 
-**插件互调（跨插件函数调用）**：`__getattr__` 桥接只解决了 **Python 侧**调用任意
-函数的能力；**DLL（C++）插件**调用其他函数还需 `RelPluginApi` 增加 `find_function`
-回调 + `Function::Invoke` inline 化（见 `BUILD.md` §6）。二者合流后四向互调全部
-打通：内建 / DLL / Python 两两可调，最终都落到 `Environment::FindFunction` +
-`Function::Invoke`，与 REL 表达式求值同一条路径。
+**跨扩展互调**：`__getattr__` 桥接解决 **Python 侧**调用任意函数的能力；C++ 扩展
+（静态库链接 `rel_runtime`）直接 `Environment::FindFunction` + `Function::Invoke`
+调用其他函数（见 `BUILD.md` §6）。二者合流后内建 / C++ 扩展 / Python 两两可调，
+最终都落到 `Environment::FindFunction` + `Function::Invoke`，与 REL 表达式求值同一条路径。
 
 ---
 

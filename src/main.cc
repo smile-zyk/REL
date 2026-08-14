@@ -10,6 +10,7 @@
 #include "rel.h"
 #include "parser.h"
 #include "scanner.h"
+#include "function_library_sample.h"
 
 #ifdef _WIN32
 // No readline on Windows yet �?fall back to std::getline.
@@ -221,6 +222,7 @@ namespace
         rel::Environment env;
         rel::Environment::InitBuiltinConstants();
         rel::Environment::InitBuiltinFunctions();
+        rel::Environment::RegisterLibrary(rel::function_library_sample::MakeLibrary());
 #ifdef REL_LOAD_TEST_ENV
         try {
             rel::Environment::LoadFromConfig(
@@ -256,14 +258,10 @@ namespace
         rel::Environment env;
         rel::Environment::InitBuiltinConstants();
         rel::Environment::InitBuiltinFunctions();
-#ifdef REL_LOAD_TEST_ENV
-        try {
-            rel::Environment::LoadFromConfig(
-                resolve_exe_relative(exe_path, "../../case/test_env.json"));
-        } catch (const std::exception& e) {
-            std::cerr << "warning: test env load failed: " << e.what() << '\n';
-        }
-#endif
+        rel::Environment::RegisterLibrary(rel::function_library_sample::MakeLibrary());
+
+        rel::Environment::LoadFromConfig("../../case/test_env.json");
+
 
         std::cout << "REL interpreter.\n"
                   << "  expr        - evaluate and print\n"

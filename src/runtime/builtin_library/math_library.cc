@@ -25,6 +25,8 @@ using namespace rel::operation;
 
 namespace rel
 {
+namespace math
+{
 
     // ---- Function factory helpers ----------------------------------------------------
 
@@ -307,7 +309,7 @@ namespace rel
 
     // ---- Library definition ----------------------------------------------------------
 
-    FunctionLibrary MakeMathLibrary()
+    FunctionLibrary MakeLibrary()
     {
         FunctionLibrary lib("math");
 
@@ -392,6 +394,51 @@ namespace rel
         lib.Add(make_unary_fn("dbmtow",  OperationDbmtow));
         lib.Add(make_unary_fn("wtodbm",  OperationWtodbm));
 
+        // Operation kernels (Value operators registered as callable functions)
+        // -- binary arithmetic
+        lib.Add(make_binary_fn("add",       OperationAdd));
+        lib.Add(make_binary_fn("subtract",  OperationSub));
+        lib.Add(make_binary_fn("multiply",  OperationMul));
+        lib.Add(make_binary_fn("divide",    OperationDiv));
+        lib.Add(make_binary_fn("times",     OperationTimes));
+        lib.Add(make_binary_fn("rdivide",   OperationRdivide));
+        lib.Add(make_binary_fn("mod",       OperationMod));
+
+        // -- comparison
+        lib.Add(make_binary_fn("equal",        OperationEq));
+        lib.Add(make_binary_fn("notequal",     OperationNeq));
+        lib.Add(make_binary_fn("lessthan",     OperationLt));
+        lib.Add(make_binary_fn("greaterthan",  OperationGt));
+        lib.Add(make_binary_fn("lessequal",    OperationLe));
+        lib.Add(make_binary_fn("greaterequal", OperationGe));
+
+        // -- logical
+        lib.Add(make_binary_fn("and", OperationAnd));
+        lib.Add(make_binary_fn("or",  OperationOr));
+
+        // -- bitwise
+        lib.Add(make_binary_fn("bitand", OperationBitAnd));
+        lib.Add(make_binary_fn("bitor",  OperationBitOr));
+        lib.Add(make_binary_fn("bitxor", OperationBitXor));
+
+        // -- shift
+        lib.Add(make_binary_fn("shiftleft",  OperationShl));
+        lib.Add(make_binary_fn("shiftright", OperationShr));
+
+        // -- unary
+        lib.Add(make_unary_fn("negate", OperationNegate));
+        lib.Add(make_unary_fn("not",    OperationNot));
+        lib.Add(make_unary_fn("bitnot", OperationBitNot));
+
+        // -- ternary
+        lib.Add(Function("conditional",
+            std::vector<FunctionParam>{
+                Param("condition"), Param("true_value"), Param("false_value")},
+            [](const Function::ArgMap& args) {
+                return OperationConditional(
+                    args.at("condition"), args.at("true_value"), args.at("false_value"));
+            }));
+
         // Binary math
         lib.Add(make_binary_fn("pow",   OperationPow));
         lib.Add(make_binary_fn("atan2", OperationAtan2));
@@ -408,4 +455,5 @@ namespace rel
         return lib;
     }
 
+} // namespace math
 } // namespace rel

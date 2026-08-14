@@ -1,7 +1,7 @@
-# REL Plugin System — Build Architecture
+# REL Extension System — Build Architecture
 
-> **Status**: Draft  
-> **Date**: 2026-08-10  
+> **Status**: Updated  
+> **Date**: 2026-08-14  
 > **Companion to**: `PYTHON_API.md` (Python 接口设计)
 
 ---
@@ -10,8 +10,8 @@
 
 1. **`rel_runtime.dll` 默认零外部依赖** — 不开 `BUILD_PYTHON` 时只有 xdataset
 2. **一个编译选项控制 Python** — `option(BUILD_PYTHON)` 决定是否嵌入解释器 + pybind11 绑定
-3. **无额外产物** — 不产 `rel_plugin.dll` / `rel_python_plugin.dll`，全部在 `rel_runtime.dll` 内
-4. **不需要导出层** — 无需 `rel_plugin_api.h`、回调注入、ABI 兼容层
+3. **C++ 扩展 = 静态库** — 不再有 DLL 插件加载机制；C++ 扩展是链接 `rel_runtime` 的静态库
+4. **Python 是唯一的运行时插件** — 动态热扩展只走 `LoadPython` / `register_function`
 5. **未来 `rel.dll` 友好** — 同样的 `BUILD_PYTHON` 选项继承
 
 ---
@@ -22,13 +22,18 @@
   rel_runtime.dll  ─────────────────────────────────────┐
   │                                                     │
   ├── value.cc, function.cc, environment.cc  ...        │
-  ├── rel_plugin.cc          (C++ 插件加载, 始终编译)     │
+  ├── builtin_library/*    (builtin + math, 始终编译)     │
   │                                                     │
   └── [BUILD_PYTHON=ON]                                 │
       ├── python/rel_module.cc       PYBIND11_MODULE     │
       ├── python/xdataset_bindings.cc                    │
       ├── python/rel_bindings.cc                         │
       └── python/python_loader.cc    LoadPython / ExecPython
+
+  rel_function_library_sample (STATIC)  ← C++ 扩展示例
+       │  MakeLibrary()
+       ▼
+  rel.exe / rel_test 显式 RegisterLibrary
 ```
 
 ### 依赖关系
@@ -39,19 +44,20 @@
     xdataset.dll                      xdataset.dll
          ↑                                 ↑
     rel_runtime.dll                  rel_runtime.dll
-         ↑                              ↑        ↑
-    rel_core (STATIC)              rel_core   pybind11::embed
-         ↑                              ↑
-       rel.exe                        rel.exe
+         ↑         ↑                     ↑         ↑
+    rel_core  扩展静态库          rel_core  扩展静态库  pybind11::embed
+         ↑         ↑                     ↑         ↑
+       rel.exe / rel_test               rel.exe / rel_test
 ```
 
 ### 职责表
 
 | 产物 | 类型 | 职责 | Python 依赖 |
 |------|------|------|:---:|
-| `rel_runtime.dll` | SHARED | Value, Environment, 注册表, C++ 插件加载, (可选) Python 嵌入 | `BUILD_PYTHON` 控制 |
+| `rel_runtime.dll` | SHARED | Value, Environment, 函数注册表, 内建库, (可选) Python 嵌入 | `BUILD_PYTHON` 控制 |
 | `rel_core` | STATIC | Scanner, Parser, AST, Evaluator | ❌ |
-| `rel.exe` | EXE | CLI 驱动 | ❌ |
+| 扩展静态库 (如 `rel_function_library_sample`) | STATIC | C++ 函数库，`MakeLibrary()` 工厂 | ❌ |
+| `rel.exe` | EXE | CLI 驱动，显式注册扩展 | ❌ |
 | 未来 `rel.dll` | SHARED | 完整 REL API | `BUILD_PYTHON` 控制 |
 
 ---
@@ -60,12 +66,22 @@
 
 ```
 REL/
-├── CMakeLists.txt                       # BUILD_PYTHON option, add_subdirectory(src)
+├── CMakeLists.txt                       # BUILD_PYTHON option, rel_runtime / 扩展静态库目标
 │
 ├── src/runtime/
-│   ├── environment.h/.cc                # 保留 LoadFunctionPlugin / UnloadFunctionPlugin
-│   ├── rel_plugin.h                     # C ABI 头
-│   ├── rel_plugin.cc                    # C++ DLL 插件加载 (不动)
+│   ├── environment.h/.cc                # Environment（函数/常量/数据集注册表 + 配置加载）
+│   ├── value.h/.cc                      # Value
+│   │
+│   ├── function/                        # 函数基础设施 (header-only)
+│   │   ├── function.h                   # Function / FunctionParam / Param / ComputedParam
+│   │   ├── function.cc                  # Function::Invoke
+│   │   └── function_library.h           # FunctionLibrary
+│   │
+│   ├── builtin_library/                 # 内建函数库 (编译进 rel_runtime)
+│   │   ├── builtin_library.h/.cc        # rel::builtin::MakeLibrary()
+│   │   └── math_library.h/.cc           # rel::math::MakeLibrary()
+│   │
+│   ├── operation/                       # Value 运算符 + 数学运算
 │   │
 │   └── python/                          # [BUILD_PYTHON=ON] 才编译
 │       ├── rel_module.cc                # PYBIND11_MODULE(rel, m) 入口 + __getattr__ 内建函数懒加载
@@ -73,15 +89,16 @@ REL/
 │       ├── rel_bindings.cc              # Value, Param, ComputedParam, register_function, Function→callable 桥接
 │       └── python_loader.cc             # LoadPython, ExecPython (惰性初始化)
 │
-├── plugin/                              # 仅文档 + 示例
+├── src/function_library/                # C++ 扩展示例 (静态库)
+│   ├── function_library_sample.h        # rel::function_library_sample::MakeLibrary()
+│   └── function_library_sample.cc       # sincos(x) = sin(x) * cos(x)
+│
+├── plugin/                              # 仅文档
 │   ├── BUILD.md                         # 本文档
-│   ├── PYTHON_API.md                    # Python 接口设计
-│   └── example/
-│       ├── rel_plugin_sample.cc         # C++ 插件示例
-│       └── example_functions.py         # Python 插件示例
+│   └── PYTHON_API.md                    # Python 接口设计
 │
 └── tests/
-    └── test_plugin.cc                   # 测试 LoadFunctionPlugin / LoadPython
+    └── test_function_library.cc         # 测试静态库扩展 (sincos)
 ```
 
 ---
@@ -103,10 +120,15 @@ endif()
 # ---- rel_runtime ----
 set(REL_RUNTIME_SOURCES
     src/runtime/value.cc
-    src/runtime/function.cc
+    src/runtime/function/function.cc
+    src/runtime/builtin_library/builtin_library.cc
+    src/runtime/builtin_library/math_library.cc
+    src/runtime/operation/operator.cc
+    src/runtime/operation/pipeline.cc
+    src/runtime/operation/operation_helpers.cc
+    src/runtime/operation/math_operation.cc
     src/runtime/environment.cc
-    src/runtime/rel_plugin.cc        # C++ 插件加载, 始终编译
-    ...(其他)...
+    src/runtime/environment_config.cc
 )
 
 if(BUILD_PYTHON)
@@ -135,23 +157,35 @@ target_compile_definitions(rel_runtime PRIVATE
     $<$<BOOL:${BUILD_PYTHON}>:REL_HAS_PYTHON>
 )
 
+# ---- C++ 扩展静态库 (示例) ----
+add_library(rel_function_library_sample STATIC
+    src/function_library/function_library_sample.cc
+)
+target_include_directories(rel_function_library_sample PUBLIC
+    src/function_library
+    src/runtime
+)
+target_link_libraries(rel_function_library_sample PUBLIC rel_runtime)
+
 # ---- rel.exe ----
 add_executable(rel src/main.cc)
-target_link_libraries(rel PRIVATE rel_core rel_runtime)
+target_link_libraries(rel PRIVATE rel_core rel_function_library_sample)
 ```
 
 ### 4.2 构建变体
 
 | CMake 选项 | `rel_runtime.dll` 包含 |
 |---|---|
-| `BUILD_PYTHON=OFF` (默认) | C++ 插件加载，无 Python |
-| `BUILD_PYTHON=ON` | C++ 插件加载 + Python 嵌入 + pybind11 绑定 |
+| `BUILD_PYTHON=OFF` (默认) | 内建库，无 Python |
+| `BUILD_PYTHON=ON` | 内建库 + Python 嵌入 + pybind11 绑定 |
+
+C++ 扩展静态库不依赖 `BUILD_PYTHON`，始终可链接。
 
 ---
 
 ## 5. API — `Environment` 直接暴露
 
-不再需要 `rel_plugin_api.h`。`Environment` 原生支持：
+不再需要 `rel_plugin.h` / C ABI / `LoadFunctionPlugin`。`Environment` 提供：
 
 ```cpp
 // src/runtime/environment.h
@@ -160,26 +194,30 @@ namespace rel {
 
 class Environment {
 public:
-    // ---- C++ 插件 (始终可用) ----
+    // ---- 函数注册表 (全局静态) ----
 
-    /// Load a C++ plugin DLL, register its functions into this Environment.
-    void* LoadFunctionPlugin(const char* path);
+    /// Register REL's builtin function libraries ("builtin" + "math").
+    static void InitBuiltinFunctions();
 
-    /// Unload a C++ plugin, unregister its functions.
-    void  UnloadFunctionPlugin(void* handle);
+    /// Register a single function (overwrites同名 silently).
+    static void RegisterFunction(Function fn);
+
+    /// Register every function in a library.
+    static void RegisterLibrary(const FunctionLibrary& lib);
+
+    /// Remove a registered function by name.
+    static bool UnregisterFunction(const std::string& name);
+
+    /// Look up a registered function by name, or nullptr.
+    static const Function* FindFunction(const std::string& name);
+
+    /// Names of all registered functions.
+    static std::vector<std::string> FunctionNames();
 
     // ---- Python 插件 (BUILD_PYTHON=ON 时可用, 否则抛 runtime_error) ----
 
-    /// Execute a .py script in an independent context.
-    /// Each script gets its own globals dict — plugins cannot pollute
-    /// each other or the host's __main__.
-    /// Automatically initializes the Python interpreter on first call.
     bool  LoadPython(const char* path);
-
-    /// Execute a Python string directly, likewise in an isolated context.
     bool  ExecPython(const char* code);
-
-    /// True when the Python interpreter has been initialized.
     bool  IsPythonAvailable() const;
 };
 
@@ -190,16 +228,14 @@ public:
 
 ```cpp
 rel::Environment env;
-
-// C++ 插件 (BUILD_PYTHON=OFF/ON 都能用):
-void* h = env.LoadFunctionPlugin("my_funcs.dll");
+rel::Environment::InitBuiltinConstants();
+rel::Environment::InitBuiltinFunctions();                 // 内建库
+rel::Environment::RegisterLibrary(my_ext::MakeLibrary()); // C++ 扩展 (静态库)
 
 // Python 插件 (BUILD_PYTHON=ON, 首次调用自动初始化解释器):
 env.LoadPython("my_funcs.py");
 // 脚本中的 rel.register_function("snr", ...)
 //   → 函数直接注册到 env 的注册表
-
-env.UnloadFunctionPlugin(h);
 ```
 
 ### 惰性初始化
@@ -211,6 +247,10 @@ env.UnloadFunctionPlugin(h);
 
 #include <pybind11/embed.h>
 
+// P0: scoped_interpreter 必须是持久对象（文件级 static 或 new 永不释放），
+// 不能是局部变量——否则函数返回即析构、解释器立刻 finalize。
+static pybind11::scoped_interpreter* g_interp = nullptr;
+
 static bool EnsureInterpreter() {
     if (Py_IsInitialized()) {
         // 宿主已经初始化了 Python（如 Maya / Blender / QGIS）
@@ -218,15 +258,8 @@ static bool EnsureInterpreter() {
         return true;
     }
 
-    // 宿主没有 Python → 全隔离初始化
-    pybind11::scoped_interpreter guard{};
-    // scoped_interpreter 内部使用 PyConfig, 不读 PYTHONPATH / site-packages
-
-    // 注册 "rel" 为 builtin module
-    PYBIND11_EMBEDDED_MODULE(rel, m) {
-        // xdataset_bindings.cc 和 rel_bindings.cc 中的绑定
-    }
-
+    // 宿主没有 Python → 全隔离初始化（持久对象，进程退出才 finalize）
+    g_interp = new pybind11::scoped_interpreter();
     return true;
 }
 
@@ -239,10 +272,6 @@ bool Environment::LoadPython(const char* path) {
     pybind11::dict script_globals;
     script_globals["__builtins__"] = pybind11::module_::import("builtins");
 
-    // 注入当前 Environment
-    pybind11::module_ rel_mod = pybind11::module_::import("rel");
-    rel_mod.attr("current_env") = pybind11::cast(this, pybind11::return_value_policy::reference);
-
     pybind11::eval_file(path, script_globals);
     return true;
 }
@@ -250,137 +279,102 @@ bool Environment::LoadPython(const char* path) {
 
 > **插件之间完全隔离**：`a.py` 的 `x = 1` 不会出现在 `b.py` 中。`register_function()` 是唯一的跨插件通信渠道——它写入 `Environment` 的注册表，不依赖 Python 命名空间。
 
-### `LoadFromConfig` 中的 plugin 字段
-
-因为 `LoadFunctionPlugin` 就在 `rel_runtime.dll` 内，`LoadFromConfig` 直接调用即可，**不需要回调注入**。
-
-```json
-{
-    "plugins": [
-        "my_funcs.dll",
-        "my_funcs.py"
-    ]
-}
-```
-→ `LoadFunctionPlugin("my_funcs.dll")` + `LoadPython("my_funcs.py")`，都是 `Environment` 的内置方法。
+> **P0 — 静态析构顺序**：Python 注册的函数（`Function::impl_` 捕获 `py::function`）
+> 存在 `Environment::functions_`（static `unordered_map`）。进程退出时若解释器先
+> finalize、`functions_` 后析构，则 `py::function` 析构时 `Py_DECREF` 会访问已销毁的
+> Python 运行时 → 段错误。必须在 finalize 前显式清空 Python 注册的函数。
 
 ---
 
-## 6. 跨插件函数调用（插件 ABI v4）
+## 6. 跨扩展函数调用
 
-### 6.1 问题：插件无法调用其他函数
+### 6.1 模型：单一注册表 + 直接调用
 
-函数注册表是全局静态的（`Environment::functions_`），内建、DLL 插件、Python
-插件注册的函数都在同一张表里。但：
-
-- `Environment::FindFunction` / `Function::Invoke` 都在 `rel_runtime.dll` 内；
-- DLL 插件只链接 `xdataset`（不链接 `rel_runtime`），拿不到这两个符号；
-- `RelPluginApi` 只有 `register_library`（单向：插件→宿主），没有反向的
-  "查找/调用"服务。
-
-结果：**插件函数实现里无法调用其他函数**（内建、其他 DLL 插件、Python 插件），
-而 REL 表达式里 `foo(bar(x))` 可以自然组合。这造成宿主与插件的能力不对等。
-
-### 6.2 方案：Invoke 变 inline + `find_function` 回调
-
-两个改动，让插件作者写调用代码的方式与 `Evaluator::try_function_call` 完全一致：
-
-**（1）`Function::Invoke` 变为 header-only（inline）**
-
-`Invoke` 只依赖 `name_` / `params_` / `impl_`（均为 `function.h` 内字段），不碰
-`Environment`。把 `function.cc` 的实现移入 `function.h` 末尾（inline），并去掉
-`REL_RUNTIME_API` 导出。插件已 include header-only 的 `function.h`，于是可直接
-调用 `Invoke`，无需链接 `rel_runtime`。
-
-**（2）`RelPluginApi` 新增 `find_function` 回调**
-
-```c
-/// Host-provided: look up a registered function by name.
-/// Returns a pointer valid until the next host registry mutation, or nullptr
-/// when not found. Caller must copy the Function before invoking (Invoke may
-/// re-register and rehash the map, invalidating the pointer).
-typedef const void* (*RelFindFunctionFn)(void* host_context, const char* name);
-
-typedef struct RelPluginApi {
-    int api_version;                        // REL_PLUGIN_API_VERSION = 4
-    RelRegisterLibraryFn register_library;
-    RelFindFunctionFn   find_function;      // 新增
-} RelPluginApi;
-```
-
-host 侧（`rel_plugin.cc`）：
+函数注册表是全局静态的（`Environment::functions_`），内建、C++ 扩展、Python 插件
+注册的函数都在同一张表里。C++ 扩展链接 `rel_runtime`，直接拿到 `Environment`
+与 `Function` 的导出符号，**无需任何 C ABI / 回调**：
 
 ```cpp
-const void* host_find_function(void* ctx, const char* name) {
-    return static_cast<const void*>(Environment::FindFunction(name));
+// src/function_library/function_library_sample.cc
+#include "function_library_sample.h"
+#include "environment.h"
+
+namespace rel {
+namespace function_library_sample {
+namespace {
+
+/// 按名调用已注册函数，单参数 "x"。
+Value CallRegistered(const char* name, const Value& x)
+{
+    const Function* fn = Environment::FindFunction(name);
+    if (!fn)
+        throw std::runtime_error(std::string("sincos: '") + name
+                                 + "' is not registered");
+
+    // 拷贝后再 Invoke：实现可能重注册并 rehash 注册表（与 Evaluator 一致）。
+    Function copy = *fn;
+    Function::ArgMap args;
+    args["x"] = x;
+    return copy.Invoke(args);
 }
-```
 
-### 6.3 插件用法
+}  // namespace
 
-```cpp
-extern "C" REL_PLUGIN_API int rel_plugin_main(const RelPluginApi* api, void* ctx) {
-    auto find_fn = [api, ctx](const char* name) -> const rel::Function* {
-        return static_cast<const rel::Function*>(api->find_function(ctx, name));
-    };
-
-    rel::FunctionLibrary lib("my_plugin");
-    lib.Add(rel::Function("twice_sin",
-        { rel::Param("x") },
-        [find_fn](const rel::Function::ArgMap& a) -> rel::Value {
-            const rel::Function* fn = find_fn("sin");   // 内建 / 其他 DLL / Python
-            if (!fn) throw std::runtime_error("sin not found");
-            rel::Function copy = *fn;                    // 拷贝后再 Invoke（防 rehash 失效）
-            rel::Value s = copy.Invoke(a);               // 与 Evaluator 相同的调用路径
-            double x = s.as_measurement().as_scalar<double>();
-            return rel::Value::Real(2 * x);
+FunctionLibrary MakeLibrary()
+{
+    FunctionLibrary lib("function_library_sample");
+    lib.Add(Function("sincos",
+        std::vector<FunctionParam>{ Param("x") },
+        [](const Function::ArgMap& args) -> Value {
+            const Value& x = args.at("x");
+            const Value s = CallRegistered("sin", x);  // 先 sin
+            const Value c = CallRegistered("cos", x);  // 再 cos
+            double sv = s.as_measurement().as_scalar<double>();
+            double cv = c.as_measurement().as_scalar<double>();
+            return Value::Real(sv * cv);
         }));
-
-    api->register_library(ctx, &lib);
-    return 0;
+    return lib;
 }
+
+}  // namespace function_library_sample
+}  // namespace rel
 ```
 
-四个方向全部打通：
+三个方向全部打通，最终都落到 `Environment::FindFunction` + `Function::Invoke`：
 
-| 调用方 \ 被调方 | 内建 | DLL 插件 | Python 插件 |
+| 调用方 \ 被调方 | 内建 | C++ 扩展 | Python 插件 |
 |------|:---:|:---:|:---:|
 | 内建 | ✅ | ✅ | ✅ |
-| DLL 插件 | ✅ `find_function` | ✅ `find_function` | ✅ `find_function`（impl 是桥接 lambda，获取 GIL 调 Python） |
-| Python 插件 | ✅ `rel.sin(...)` | ✅ `rel.sqr(...)` | ✅ `rel.my_fn(...)` |
+| C++ 扩展 | ✅ `FindFunction` | ✅ `FindFunction` | ✅ `FindFunction`（impl 是桥接 lambda，获取 GIL 调 Python） |
+| Python 插件 | ✅ `rel.sin(...)` | ✅ `rel.sincos(...)` | ✅ `rel.my_fn(...)` |
 
-（Python 插件通过 `PYTHON_API.md` §8.4 的 `__getattr__` 桥接调用，最终同样落到
-`Environment::FindFunction` + `Invoke`。）
+（Python 插件通过 `PYTHON_API.md` §8.4 的 `__getattr__` 桥接调用。）
 
-### 6.4 注意事项
+### 6.2 注意事项
 
-- **ABI 版本**：`RelPluginApi` 结构体布局变化，`REL_PLUGIN_API_VERSION` 3 → 4，
-  旧插件（v3）需重新编译。
-- **指针生命周期**：`find_function` 返回的指针在 `Invoke` 期间可能因 rehash 失效，
+- **指针生命周期**：`FindFunction` 返回的指针在 `Invoke` 期间可能因 rehash 失效，
   **必须先拷贝 `Function` 再 `Invoke`**（与 `Evaluator::try_function_call` 相同）。
-- **GIL 重入**：DLL 插件函数若在 Python 调用链中被调用，再经 `find_function`
-  调用 Python 注册的函数时会重入 Python（桥接 lambda 内 `gil_scoped_acquire`）。
-  同一线程重入 GIL 是安全的，但桥接需用可重入 acquire 避免死锁。
-- **`function.cc` 清空**：`Invoke` 是 `function.cc` 唯一成员实现，inline 化后该
-  文件可删除或清空。
+- **GIL 重入**：C++ 扩展函数若在 Python 调用链中被调用，再经 `FindFunction` 调用
+  Python 注册的函数时会重入 Python（桥接 lambda 内 `gil_scoped_acquire`）。同一线程
+  重入 GIL 是安全的，但桥接需用可重入 acquire 避免死锁。
+- **注册顺序**：调用方扩展必须在被调方（内建 `sin`/`cos`）注册之后才 `RegisterLibrary`。
+  `main.cc` 中 `InitBuiltinFunctions()` 在扩展 `RegisterLibrary` 之前，天然满足。
 
 ---
 
-## 7. 迁移清单
+## 7. 迁移清单（已完成）
 
-| 步骤 | 内容 | 影响 |
+| 步骤 | 内容 | 状态 |
 |------|------|------|
-| 1 | 创建 `src/runtime/python/` 目录 | 新文件 |
-| 2 | `function.cc` 的 `Invoke` 移入 `function.h`（inline），去掉 `REL_RUNTIME_API` 导出 | 移除导出符号，`function.cc` 清空/删除 |
-| 3 | `rel_plugin.h` 加 `RelFindFunctionFn`，`REL_PLUGIN_API_VERSION` 3 → 4 | **ABI 破坏**，旧插件（v3）需重新编译 |
-| 4 | `rel_plugin.cc` 加 `host_find_function` 回调实现 | 小改动 |
-| 5 | 实现 Python 绑定 (`src/runtime/python/*.cc`)，含 `__getattr__` 内建函数懒加载 | 新代码 |
-| 6 | 顶层 CMakeLists 加 `BUILD_PYTHON` option + 条件编译 | CMake 改动 |
-| 7 | `test_plugin.cc` 加跨插件调用测试 + Python 测试 (`BUILD_PYTHON=ON`) | 新测试 |
-| 8 | `rel.exe` 支持 `--py` flag | CLI 扩展 |
+| 1 | `builtin_library` / `math_library` 移入 `src/runtime/builtin_library/`，命名空间 `rel::builtin` / `rel::math`，工厂改 `MakeLibrary()` | ✅ |
+| 2 | 删除 DLL 插件机制：`rel_plugin.{h,cc}`、`LoadFunctionPlugin` / `UnloadFunctionPlugin`、`EnvironmentConfig::plugins`、`plugins/sample/`、`tests/test_plugin.cc` | ✅ |
+| 3 | 新增 `src/function_library/function_library_sample.{h,cc}`（`sincos` 调 `sin`+`cos`），CMake 目标 `rel_function_library_sample` STATIC | ✅ |
+| 4 | `rel.exe` / `rel_test` 链接扩展静态库；`main.cc` 显式 `RegisterLibrary` | ✅ |
+| 5 | 实现 Python 绑定 (`src/runtime/python/*.cc`)，含 `__getattr__` 内建函数懒加载 | ⏳ 待做 |
+| 6 | 顶层 CMakeLists 加 `BUILD_PYTHON` option + 条件编译 | ⏳ 待做 |
+| 7 | Python 测试 (`BUILD_PYTHON=ON`) | ⏳ 待做 |
 
-对比之前的 9-10 步方案，核心 Python 绑定部分仍无破坏性变更；唯一破坏点在第 3 步的
-插件 ABI 版本号（3 → 4），仅影响已编译的旧版 DLL 插件，需重新编译。
+C++ 侧已无破坏性变更（不再有 ABI 版本号）；剩余待做项均为 Python 绑定（新代码）。
 
 ---
 

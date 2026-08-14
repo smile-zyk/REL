@@ -25,6 +25,7 @@
 #endif
 
 namespace rel {
+namespace builtin {
 namespace {
 
 std::string absolute_path(const std::string& rel)
@@ -142,7 +143,7 @@ Value Output(const Value& v, const Value& var_name_val)
     return Value::String(file_path);
 }
 
-FunctionLibrary MakeBuiltinLibrary()
+FunctionLibrary MakeLibrary()
 {
     FunctionLibrary lib("builtin");
 
@@ -177,4 +178,5 @@ FunctionLibrary MakeBuiltinLibrary()
     return lib;
 }
 
+}  // namespace builtin
 }  // namespace rel

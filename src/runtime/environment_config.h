@@ -16,14 +16,11 @@ namespace rel {
 //      { "name": "noise",    "format": "hdf5", "path": "/data/noise.xdataset" },
 //      { "name": "amplifier","format": "hdf5", "path": "/data/amp.xdataset" }
 //    ],
-//    "default_dataset": "noise",
-//    "plugin": [
-//      "/path/to/my_plugin.dylib"
-//    ]
+//    "default_dataset": "noise"
 //  }
 //
 //  "default_dataset" is optional; if omitted, the first dataset in "datasets"
-//  becomes the default.  "plugin" is an optional array of shared-library paths.
+//  becomes the default.
 
 struct DatasetConfig {
     std::string name;
@@ -34,7 +31,6 @@ struct DatasetConfig {
 struct EnvironmentConfig {
     std::vector<DatasetConfig> datasets;
     std::string               default_dataset;
-    std::vector<std::string>  plugins;
 
     /// Load from a JSON file.
     static EnvironmentConfig Load(const std::string& config_path);

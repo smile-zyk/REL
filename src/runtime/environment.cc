@@ -2,8 +2,8 @@
 
 #include "dataset.h"
 #include "dataset_io.h"
-#include "function/builtin_library.h"
-#include "function/math_library.h"
+#include "builtin_library/builtin_library.h"
+#include "builtin_library/math_library.h"
 #include "touchstone_io.h"
 
 #include <stdexcept>
@@ -96,8 +96,8 @@ std::vector<std::string> Environment::ConstantNames()
 
 void Environment::InitBuiltinFunctions()
 {
-    RegisterLibrary(MakeBuiltinLibrary());
-    RegisterLibrary(MakeMathLibrary());
+    RegisterLibrary(builtin::MakeLibrary());
+    RegisterLibrary(math::MakeLibrary());
 }
 
 void Environment::RegisterFunction(Function fn)
@@ -131,6 +131,46 @@ std::vector<std::string> Environment::FunctionNames()
     for (const auto& kv : functions_)
         names.push_back(kv.first);
     return names;
+}
+
+rel::Value Environment::CallFunction(const std::string& name,
+                                     const Function::ArgMap& args)
+{
+    const Function* fn = FindFunction(name);
+    if (!fn)
+        throw std::runtime_error("function '" + name + "' is not registered");
+
+    // Work on a stack copy: the implementation may register more functions
+    // while running, and rehashing the registry would invalidate the pointer
+    // we hold (same as Evaluator::try_function_call).
+    Function fn_copy = *fn;
+    return fn_copy.Invoke(args);
+}
+
+rel::Value Environment::CallFunction(const std::string& name,
+                                     const std::vector<rel::Value>& args)
+{
+    const Function* fn = FindFunction(name);
+    if (!fn)
+        throw std::runtime_error("function '" + name + "' is not registered");
+
+    // Bind positional arguments to the function's declared parameter names.
+    const std::vector<FunctionParam>& params = fn->params();
+    if (args.size() > params.size())
+    {
+        throw std::runtime_error("function '" + name + "' expects at most " +
+                                 std::to_string(params.size()) +
+                                 " argument(s), got " +
+                                 std::to_string(args.size()));
+    }
+
+    Function::ArgMap named;
+    for (std::size_t i = 0; i < args.size(); ++i)
+        named[params[i].name] = args[i];
+
+    // Same rehash-safety note as above: copy before invoking.
+    Function fn_copy = *fn;
+    return fn_copy.Invoke(named);
 }
 
 // =========================================================================
@@ -260,23 +300,6 @@ void Environment::LoadFromConfig(const std::string& config_path)
         SetDefaultDataset(cfg.datasets[0].name);
     }
 
-    // ---- load plugins ----
-    for (const auto& plugin_path : cfg.plugins)
-    {
-        std::string full_plugin_path = plugin_path;
-        if (!full_plugin_path.empty() && full_plugin_path[0] != '/' && !base_dir.empty())
-            full_plugin_path = base_dir + plugin_path;
-
-        LoadedPlugin* plugin = LoadFunctionPlugin(full_plugin_path);
-        if (!plugin)
-        {
-            throw std::runtime_error(
-                "failed to load plugin: " + full_plugin_path);
-        }
-        // Store for later cleanup? For now plugins live until process exit.
-        // In a full implementation, you'd track handles for UnloadFunctionPlugin.
-        (void)plugin;
-    }
 }
 
 } // namespace rel

@@ -29,28 +29,29 @@ add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
 #
 #  Everything that operates on xdataset types without touching the REL
 #  language front-end (scanner, parser, AST, evaluator).  Kept as a SHARED
-#  library so Value/Function/Environment symbols can be consumed across DLL
-#  boundaries (e.g. function plugins) with a single definition per type.
+#  library so Value/Function/Environment symbols can be consumed by C++
+#  extensions (static libraries) and the Python bridge with a single
+#  definition per type.
 #
 #  Contents:
-#    value/              Value, Operation  (was rel_runtime)
-#    eval/environment*   Environment, dataset/variable/function registries
-#    eval/rel_plugin     dynamic library loader
-#    eval/builtin/*      builtin function libraries
-#    eval/function/     Function / FunctionLibrary (header-only)
+#    value.*             Value
+#    environment.*       Environment, dataset/variable/function registries
+#    function/*          Function / FunctionLibrary (header-only)
+#    builtin_library/*   "builtin" function library
+#    math_library/*      "math" function library
+#    operation/*         Value operators + math operations
 
 add_library(rel_runtime SHARED
     src/runtime/value.cc
     src/runtime/function/function.cc
-    src/runtime/function/math_library.cc
-    src/runtime/function/builtin_library.cc
+    src/runtime/builtin_library/math_library.cc
+    src/runtime/builtin_library/builtin_library.cc
     src/runtime/operation/operator.cc
     src/runtime/operation/pipeline.cc
     src/runtime/operation/operation_helpers.cc
     src/runtime/operation/math_operation.cc
     src/runtime/environment.cc
     src/runtime/environment_config.cc
-    src/runtime/rel_plugin.cc
 )
 target_compile_definitions(rel_runtime PRIVATE REL_RUNTIME_BUILD_DLL)
 target_include_directories(rel_runtime PUBLIC src/runtime)
@@ -86,7 +87,7 @@ target_link_libraries(rel_core PUBLIC xdataset rel_runtime)
 # =========================================================================
 
 add_executable(rel src/main.cc)
-target_link_libraries(rel PRIVATE rel_core)
+target_link_libraries(rel PRIVATE rel_core rel_function_library_sample)
 
 # Readline / editline for REPL history (up/down arrow navigation).
 if(APPLE)
@@ -117,15 +118,21 @@ if(WIN32)
 endif()
 
 # =========================================================================
-#  Function plugin (sample)
+#  Function library (sample static extension)
 # =========================================================================
 #
-#  A plugin only needs rel_runtime (function.h is header-only); it does not
-#  link against rel_core.
+#  A C++ extension is a static library that links rel_runtime and exposes a
+#  MakeLibrary() factory.  The host (rel.exe / tests) registers it explicitly
+#  via Environment::RegisterLibrary.  It does not link rel_core.
 
-add_library(rel_plugin_sample SHARED plugins/sample/rel_plugin_sample.cc)
-target_include_directories(rel_plugin_sample PRIVATE src/runtime)
-target_link_libraries(rel_plugin_sample PRIVATE rel_runtime)
+add_library(rel_function_library_sample STATIC
+    src/function_library/function_library_sample.cc
+)
+target_include_directories(rel_function_library_sample PUBLIC
+    src/function_library
+    src/runtime
+)
+target_link_libraries(rel_function_library_sample PUBLIC rel_runtime)
 
 # ---- Tests ---------------------------------------------------------------
 # Single test executable (same pattern as xdataset_test): all test sources are
@@ -144,13 +151,11 @@ add_executable(rel_test
     tests/test_evaluator_func.cc
     tests/test_builtin_functions.cc
     tests/test_math_operation.cc
-    tests/test_plugin.cc
+    tests/test_function_library.cc
     tests/value_test.cc
     tests/operation_test.cc
 )
-target_link_libraries(rel_test PRIVATE rel_core GTest::gtest_main)
-target_compile_definitions(rel_test PRIVATE
-    REL_SAMPLE_PLUGIN_PATH="$<TARGET_FILE:rel_plugin_sample>")
+target_link_libraries(rel_test PRIVATE rel_core rel_function_library_sample GTest::gtest_main)
 
 # Copy runtime DLLs next to the test binary on Windows so gtest_discover_tests
 # can find them during the build-time discovery step.

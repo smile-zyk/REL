@@ -1,9 +1,10 @@
 #pragma once
 
-#include "function_library.h"
+#include "function/function_library.h"
 #include "value.h"
 
 namespace rel {
+namespace math {
 
 // =============================================================================
 //  Reduce operation C++ API
@@ -26,6 +27,7 @@ Value Mean(const Value& v);
 // =============================================================================
 
 /// Build the "math" function library (trig, log, exp, sqrt, reduce, ...).
-FunctionLibrary MakeMathLibrary();
+FunctionLibrary MakeLibrary();
 
+}  // namespace math
 }  // namespace rel

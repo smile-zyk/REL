@@ -140,7 +140,7 @@ rel::Value Evaluator::apply_binary(TokenType op, const rel::Value& lhs, const re
         case TokenType::OP_BAND: return lhs & rhs;
         case TokenType::OP_BXOR: return lhs ^ rhs;
         case TokenType::OP_BOR:  return lhs | rhs;
-        case TokenType::OP_POW:  return pow(lhs, rhs);
+        case TokenType::OP_POW:  return lhs.pow(rhs);
         default: return rel::Value();
     }
 }

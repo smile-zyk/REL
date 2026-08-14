@@ -266,9 +266,9 @@ namespace
         rel::Environment env;
         rel::Environment::InitBuiltinFunctions();
 
-        EXPECT_NEAR(rel::Eval("sqr(0)", &env).as_measurement().as_scalar<double>(), 0.0, 1e-12);
-        EXPECT_NEAR(rel::Eval("sqr(3)", &env).as_measurement().as_scalar<double>(), 9.0, 1e-12);
-        EXPECT_NEAR(rel::Eval("sqr(-4)", &env).as_measurement().as_scalar<double>(), 16.0, 1e-12);
+        EXPECT_EQ(rel::Eval("sqr(0)", &env).as_measurement().as_scalar<int>(), 0);
+        EXPECT_EQ(rel::Eval("sqr(3)", &env).as_measurement().as_scalar<int>(), 9);
+        EXPECT_EQ(rel::Eval("sqr(-4)", &env).as_measurement().as_scalar<int>(), 16);
         EXPECT_NEAR(rel::Eval("sqr(0.5)", &env).as_measurement().as_scalar<double>(), 0.25, 1e-12);
     }
 
@@ -281,9 +281,9 @@ namespace
         rel::Environment env;
         rel::Environment::InitBuiltinFunctions();
 
-        EXPECT_NEAR(rel::Eval("abs(0)", &env).as_measurement().as_scalar<double>(), 0.0, 1e-12);
-        EXPECT_NEAR(rel::Eval("abs(5)", &env).as_measurement().as_scalar<double>(), 5.0, 1e-12);
-        EXPECT_NEAR(rel::Eval("abs(-5)", &env).as_measurement().as_scalar<double>(), 5.0, 1e-12);
+        EXPECT_EQ(rel::Eval("abs(0)", &env).as_measurement().as_scalar<int>(), 0);
+        EXPECT_EQ(rel::Eval("abs(5)", &env).as_measurement().as_scalar<int>(), 5);
+        EXPECT_EQ(rel::Eval("abs(-5)", &env).as_measurement().as_scalar<int>(), 5);
     }
 
     TEST(MathFunctionTest, AbsVectorCell)
@@ -295,10 +295,10 @@ namespace
         ASSERT_TRUE(v.is_measurement());
         const xdataset::Measurement& m = v.as_measurement();
         EXPECT_EQ(m.data_kind(), xdataset::DataKind::kVector);
-        auto vec = m.as_vector<double>();
-        EXPECT_NEAR(vec[0], 3.0, 1e-12);
-        EXPECT_NEAR(vec[1], 0.0, 1e-12);
-        EXPECT_NEAR(vec[2], 4.0, 1e-12);
+        auto vec = m.as_vector<int>();
+        EXPECT_EQ(vec[0], 3);
+        EXPECT_EQ(vec[1], 0);
+        EXPECT_EQ(vec[2], 4);
     }
 
     // =========================================================================
@@ -344,7 +344,7 @@ namespace
         rel::Environment env;
         rel::Environment::InitBuiltinFunctions();
 
-        EXPECT_NEAR(rel::Eval("imag(5)", &env).as_measurement().as_scalar<double>(), 0.0, 1e-12);
+        EXPECT_EQ(rel::Eval("imag(5)", &env).as_measurement().as_scalar<int>(), 0);
         EXPECT_NEAR(rel::Eval("imag(-2.5)", &env).as_measurement().as_scalar<double>(), 0.0, 1e-12);
     }
 
@@ -353,9 +353,9 @@ namespace
         rel::Environment env;
         rel::Environment::InitBuiltinFunctions();
 
-        double a = rel::Eval("imag(3)", &env).as_measurement().as_scalar<double>();
-        double b = rel::Eval("im(3)", &env).as_measurement().as_scalar<double>();
-        EXPECT_DOUBLE_EQ(a, b);
+        int a = rel::Eval("imag(3)", &env).as_measurement().as_scalar<int>();
+        int b = rel::Eval("im(3)", &env).as_measurement().as_scalar<int>();
+        EXPECT_EQ(a, b);
     }
 
     // =========================================================================
@@ -396,13 +396,13 @@ namespace
         rel::Environment env;
         rel::Environment::InitBuiltinFunctions();
 
-        double a = rel::Eval("mag(4)", &env).as_measurement().as_scalar<double>();
-        double b = rel::Eval("abs(4)", &env).as_measurement().as_scalar<double>();
-        EXPECT_DOUBLE_EQ(a, b);
+        int a = rel::Eval("mag(4)", &env).as_measurement().as_scalar<int>();
+        int b = rel::Eval("abs(4)", &env).as_measurement().as_scalar<int>();
+        EXPECT_EQ(a, b);
 
-        double c = rel::Eval("mag(-3)", &env).as_measurement().as_scalar<double>();
-        double d = rel::Eval("abs(-3)", &env).as_measurement().as_scalar<double>();
-        EXPECT_DOUBLE_EQ(c, d);
+        int c = rel::Eval("mag(-3)", &env).as_measurement().as_scalar<int>();
+        int d = rel::Eval("abs(-3)", &env).as_measurement().as_scalar<int>();
+        EXPECT_EQ(c, d);
     }
 
     TEST(MathFunctionTest, PhaseReal)
@@ -410,9 +410,10 @@ namespace
         rel::Environment env;
         rel::Environment::InitBuiltinFunctions();
 
+        // phase returns degrees (see ExecutePhase: std::arg(x) * 180/pi).
         EXPECT_NEAR(rel::Eval("phase(1)", &env).as_measurement().as_scalar<double>(), 0.0, 1e-12);
         EXPECT_NEAR(rel::Eval("phase(0)", &env).as_measurement().as_scalar<double>(), 0.0, 1e-12);
-        EXPECT_NEAR(rel::Eval("phase(-1)", &env).as_measurement().as_scalar<double>(), M_PI, 1e-12);
+        EXPECT_NEAR(rel::Eval("phase(-1)", &env).as_measurement().as_scalar<double>(), 180.0, 1e-12);
     }
 
     // =========================================================================
@@ -550,8 +551,8 @@ namespace
         rel::Environment env;
         rel::Environment::InitBuiltinFunctions();
 
-        EXPECT_NEAR(rel::Eval("abs(TRUE)", &env).as_measurement().as_scalar<double>(), 1.0, 1e-12);
-        EXPECT_NEAR(rel::Eval("abs(FALSE)", &env).as_measurement().as_scalar<double>(), 0.0, 1e-12);
+        EXPECT_EQ(rel::Eval("abs(TRUE)", &env).as_measurement().as_scalar<int>(), 1);
+        EXPECT_EQ(rel::Eval("abs(FALSE)", &env).as_measurement().as_scalar<int>(), 0);
     }
 
     // =========================================================================
@@ -645,11 +646,11 @@ namespace
         ASSERT_TRUE(v.is_measurement());
         const xdataset::Measurement& m = v.as_measurement();
         EXPECT_EQ(m.data_kind(), xdataset::DataKind::kMatrix);
-        auto mat = m.as_matrix<double>();
-        EXPECT_NEAR(mat(0, 0), 0.0, 1e-12);
-        EXPECT_NEAR(mat(0, 1), 1.0, 1e-12);
-        EXPECT_NEAR(mat(1, 0), 4.0, 1e-12);
-        EXPECT_NEAR(mat(1, 1), 9.0, 1e-12);
+        auto mat = m.as_matrix<int>();
+        EXPECT_EQ(mat(0, 0), 0);
+        EXPECT_EQ(mat(0, 1), 1);
+        EXPECT_EQ(mat(1, 0), 4);
+        EXPECT_EQ(mat(1, 1), 9);
     }
 
     TEST(MathFunctionTest, AbsMatrix)
@@ -661,11 +662,11 @@ namespace
         ASSERT_TRUE(v.is_measurement());
         const xdataset::Measurement& m = v.as_measurement();
         EXPECT_EQ(m.data_kind(), xdataset::DataKind::kMatrix);
-        auto mat = m.as_matrix<double>();
-        EXPECT_NEAR(mat(0, 0), 1.0, 1e-12);
-        EXPECT_NEAR(mat(0, 1), 2.0, 1e-12);
-        EXPECT_NEAR(mat(1, 0), 3.0, 1e-12);
-        EXPECT_NEAR(mat(1, 1), 4.0, 1e-12);
+        auto mat = m.as_matrix<int>();
+        EXPECT_EQ(mat(0, 0), 1);
+        EXPECT_EQ(mat(0, 1), 2);
+        EXPECT_EQ(mat(1, 0), 3);
+        EXPECT_EQ(mat(1, 1), 4);
     }
 
     TEST(MathFunctionTest, ExpMatrix)

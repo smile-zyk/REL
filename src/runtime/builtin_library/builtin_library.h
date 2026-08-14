@@ -1,9 +1,10 @@
 #pragma once
 
-#include "function_library.h"
+#include "function/function_library.h"
 #include "value.h"
 
 namespace rel {
+namespace builtin {
 
 // =============================================================================
 //  Builtin operation C++ API
@@ -34,6 +35,7 @@ Value Output(const Value& da, const Value& variable_name);
 // =============================================================================
 
 /// Build the "builtin" function library.
-FunctionLibrary MakeBuiltinLibrary();
+FunctionLibrary MakeLibrary();
 
+}  // namespace builtin
 }  // namespace rel

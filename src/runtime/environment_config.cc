@@ -25,10 +25,6 @@ EnvironmentConfig EnvironmentConfig::Parse(const rapidjson::Document& doc)
     }
     if (doc.HasMember("default_dataset") && doc["default_dataset"].IsString())
         cfg.default_dataset = doc["default_dataset"].GetString();
-    if (doc.HasMember("plugin") && doc["plugin"].IsArray()) {
-        for (const auto& p : doc["plugin"].GetArray())
-            cfg.plugins.push_back(p.GetString());
-    }
 
     return cfg;
 }

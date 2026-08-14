@@ -7,46 +7,6 @@
 #include <vector>
 
 namespace rel {
-
-// =========================================================================
-//  Value operators (must be in namespace rel for ADL)
-// =========================================================================
-//
-//  These operators delegate to the corresponding rel::operation::OperationXxx
-//  kernels below.
-
-// -- Value: arithmetic / comparison / logical / bitwise / shift / unary / pow
-REL_RUNTIME_API Value operator+(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value operator-(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value operator*(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value operator/(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value operator%(const Value& lhs, const Value& rhs);
-
-REL_RUNTIME_API Value operator==(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value operator!=(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value operator<(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value operator>(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value operator<=(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value operator>=(const Value& lhs, const Value& rhs);
-
-REL_RUNTIME_API Value operator&&(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value operator||(const Value& lhs, const Value& rhs);
-
-REL_RUNTIME_API Value operator&(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value operator|(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value operator^(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value operator<<(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value operator>>(const Value& lhs, const Value& rhs);
-
-REL_RUNTIME_API Value operator-(const Value& v);
-REL_RUNTIME_API Value operator!(const Value& v);
-REL_RUNTIME_API Value operator~(const Value& v);
-
-REL_RUNTIME_API Value pow(const Value& base, const Value& exponent);
-
-}  // namespace rel
-
-namespace rel {
 namespace operation {
 
 // =========================================================================
@@ -61,6 +21,8 @@ REL_RUNTIME_API Value OperationAdd(const Value& lhs, const Value& rhs);
 REL_RUNTIME_API Value OperationSub(const Value& lhs, const Value& rhs);
 REL_RUNTIME_API Value OperationMul(const Value& lhs, const Value& rhs);
 REL_RUNTIME_API Value OperationDiv(const Value& lhs, const Value& rhs);
+REL_RUNTIME_API Value OperationTimes(const Value& lhs, const Value& rhs);
+REL_RUNTIME_API Value OperationRdivide(const Value& lhs, const Value& rhs);
 REL_RUNTIME_API Value OperationMod(const Value& lhs, const Value& rhs);
 REL_RUNTIME_API Value OperationPow(const Value& lhs, const Value& rhs);
 

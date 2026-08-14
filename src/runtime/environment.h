@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "value.h"  // rel::Value
@@ -11,9 +12,6 @@
 #include "function/function_library.h"
 
 namespace rel {
-
-// Opaque handle to a loaded function plugin.
-struct LoadedPlugin;
 
 // =========================================================================
 //  Environment — flat variable table + global shared context
@@ -81,6 +79,36 @@ public:
     /// Names of all registered functions (unordered).
     static std::vector<std::string> FunctionNames();
 
+    /// Look up a registered function by name and invoke it with the given
+    /// resolved arguments.  Throws std::runtime_error when the function is
+    /// not registered.  The lookup copies the Function before invoking, so an
+    /// implementation that registers more functions (and rehashes the
+    /// registry) cannot invalidate the held pointer.
+    static rel::Value CallFunction(const std::string& name,
+                                   const Function::ArgMap& args);
+
+    /// Positional form: arguments bind to the function's declared parameters
+    /// in declaration order (the i-th argument maps to params()[i].name).
+    /// Throws std::runtime_error when more positional args are given than the
+    /// function declares.
+    static rel::Value CallFunction(const std::string& name,
+                                   const std::vector<rel::Value>& args);
+
+    /// Variadic positional convenience: CallFunction("sin", x) or
+    /// CallFunction("max2", a, b).  Forwards to the vector overload.
+    template <typename... Args>
+    static rel::Value CallFunction(const std::string& name, Args&&... args)
+    {
+        // Build the positional argument vector via a braced-init-list.  It is
+        // bound to a const reference (lifetime-extended) so overload
+        // resolution picks the non-template vector overload instead of this
+        // template — the universal-reference parameter would otherwise win
+        // and recurse infinitely.
+        const std::vector<rel::Value>& cargs =
+            std::vector<rel::Value>{ std::forward<Args>(args)... };
+        return CallFunction(name, cargs);
+    }
+
     // ---- static: dataset registry -----------------------------------------
 
     /// Register a Dataset, transferring ownership to the global registry.
@@ -108,14 +136,6 @@ public:
     /// Existing global registries (datasets, functions) are preserved.
     /// Call once during process startup.
     static void LoadFromConfig(const std::string& config_path);
-
-    /// Load a function plugin (DLL / .so / .dylib) and register its functions
-    /// in the global registry.  Returns an opaque handle, or nullptr on failure.
-    static LoadedPlugin* LoadFunctionPlugin(const std::string& path);
-
-    /// Unload a plugin previously returned by LoadFunctionPlugin.
-    /// Unregisters the functions the plugin registered, then releases the library.
-    static void UnloadFunctionPlugin(LoadedPlugin* plugin);
 
     // ---- direct lookups (AST-free) ----------------------------------------
 

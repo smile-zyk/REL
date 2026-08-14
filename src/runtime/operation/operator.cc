@@ -44,98 +44,98 @@ namespace rel
     //  Value operators (delegate to OperationXxx)
     // =========================================================================
 
-    Value operator+(const Value& a, const Value& b)
+    Value Value::operator+(const Value& rhs) const
     {
-        return operation::OperationAdd(a, b);
+        return operation::OperationAdd(*this, rhs);
     }
-    Value operator-(const Value& a, const Value& b)
+    Value Value::operator-(const Value& rhs) const
     {
-        return operation::OperationSub(a, b);
+        return operation::OperationSub(*this, rhs);
     }
-    Value operator*(const Value& a, const Value& b)
+    Value Value::operator*(const Value& rhs) const
     {
-        return operation::OperationMul(a, b);
+        return operation::OperationMul(*this, rhs);
     }
-    Value operator/(const Value& a, const Value& b)
+    Value Value::operator/(const Value& rhs) const
     {
-        return operation::OperationDiv(a, b);
+        return operation::OperationDiv(*this, rhs);
     }
-    Value operator%(const Value& a, const Value& b)
+    Value Value::operator%(const Value& rhs) const
     {
-        return operation::OperationMod(a, b);
-    }
-
-    Value operator==(const Value& a, const Value& b)
-    {
-        return operation::OperationEq(a, b);
-    }
-    Value operator!=(const Value& a, const Value& b)
-    {
-        return operation::OperationNeq(a, b);
-    }
-    Value operator<(const Value& a, const Value& b)
-    {
-        return operation::OperationLt(a, b);
-    }
-    Value operator>(const Value& a, const Value& b)
-    {
-        return operation::OperationGt(a, b);
-    }
-    Value operator<=(const Value& a, const Value& b)
-    {
-        return operation::OperationLe(a, b);
-    }
-    Value operator>=(const Value& a, const Value& b)
-    {
-        return operation::OperationGe(a, b);
+        return operation::OperationMod(*this, rhs);
     }
 
-    Value operator&&(const Value& a, const Value& b)
+    Value Value::operator==(const Value& rhs) const
     {
-        return operation::OperationAnd(a, b);
+        return operation::OperationEq(*this, rhs);
     }
-    Value operator||(const Value& a, const Value& b)
+    Value Value::operator!=(const Value& rhs) const
     {
-        return operation::OperationOr(a, b);
+        return operation::OperationNeq(*this, rhs);
     }
-
-    Value operator&(const Value& a, const Value& b)
+    Value Value::operator<(const Value& rhs) const
     {
-        return operation::OperationBitAnd(a, b);
+        return operation::OperationLt(*this, rhs);
     }
-    Value operator|(const Value& a, const Value& b)
+    Value Value::operator>(const Value& rhs) const
     {
-        return operation::OperationBitOr(a, b);
+        return operation::OperationGt(*this, rhs);
     }
-    Value operator^(const Value& a, const Value& b)
+    Value Value::operator<=(const Value& rhs) const
     {
-        return operation::OperationBitXor(a, b);
+        return operation::OperationLe(*this, rhs);
     }
-    Value operator<<(const Value& a, const Value& b)
+    Value Value::operator>=(const Value& rhs) const
     {
-        return operation::OperationShl(a, b);
-    }
-    Value operator>>(const Value& a, const Value& b)
-    {
-        return operation::OperationShr(a, b);
+        return operation::OperationGe(*this, rhs);
     }
 
-    Value operator-(const Value& v)
+    Value Value::operator&&(const Value& rhs) const
     {
-        return operation::OperationNegate(v);
+        return operation::OperationAnd(*this, rhs);
     }
-    Value operator!(const Value& v)
+    Value Value::operator||(const Value& rhs) const
     {
-        return operation::OperationNot(v);
-    }
-    Value operator~(const Value& v)
-    {
-        return operation::OperationBitNot(v);
+        return operation::OperationOr(*this, rhs);
     }
 
-    Value pow(const Value& base, const Value& exp)
+    Value Value::operator&(const Value& rhs) const
     {
-        return operation::OperationPow(base, exp);
+        return operation::OperationBitAnd(*this, rhs);
+    }
+    Value Value::operator|(const Value& rhs) const
+    {
+        return operation::OperationBitOr(*this, rhs);
+    }
+    Value Value::operator^(const Value& rhs) const
+    {
+        return operation::OperationBitXor(*this, rhs);
+    }
+    Value Value::operator<<(const Value& rhs) const
+    {
+        return operation::OperationShl(*this, rhs);
+    }
+    Value Value::operator>>(const Value& rhs) const
+    {
+        return operation::OperationShr(*this, rhs);
+    }
+
+    Value Value::operator-() const
+    {
+        return operation::OperationNegate(*this);
+    }
+    Value Value::operator!() const
+    {
+        return operation::OperationNot(*this);
+    }
+    Value Value::operator~() const
+    {
+        return operation::OperationBitNot(*this);
+    }
+
+    Value Value::pow(const Value& exponent) const
+    {
+        return operation::OperationPow(*this, exponent);
     }
 
 } // namespace rel
@@ -563,6 +563,31 @@ namespace rel
                         info, ops, op_sub<std::complex<double>>);
                 case DataType::kReal: return ExecBinaryArithT<double>(info, ops, op_sub<double>);
                 case DataType::kInteger: return ExecBinaryArithT<int>(info, ops, op_sub<int>);
+                default: throw std::invalid_argument("unsupported dtype");
+            }
+        }
+
+        Value ExecuteTimes(const ExecContextInfo& info, const std::vector<Value>& ops)
+        {
+            switch (info.dtype)
+            {
+                case DataType::kComplex:
+                    return ExecBinaryArithT<std::complex<double>>(
+                        info, ops, op_mul<std::complex<double>>);
+                case DataType::kReal: return ExecBinaryArithT<double>(info, ops, op_mul<double>);
+                case DataType::kInteger: return ExecBinaryArithT<int>(info, ops, op_mul<int>);
+                default: throw std::invalid_argument("unsupported dtype");
+            }
+        }
+
+        Value ExecuteRdivide(const ExecContextInfo& info, const std::vector<Value>& ops)
+        {
+            switch (info.dtype)
+            {
+                case DataType::kComplex:
+                    return ExecBinaryArithT<std::complex<double>>(
+                        info, ops, op_div<std::complex<double>>);
+                case DataType::kReal: return ExecBinaryArithT<double>(info, ops, op_div<double>);
                 default: throw std::invalid_argument("unsupported dtype");
             }
         }
@@ -2575,7 +2600,7 @@ namespace rel
                                  ExecuteAdd};
 
         const OpTraits kOpSub = {2,
-                                 "sub",
+                                 "subtract",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
                                  DeriveDtypePromote,
@@ -2583,7 +2608,7 @@ namespace rel
                                  ExecuteSub};
 
         const OpTraits kOpMul = {2,
-                                 "mul",
+                                 "multiply",
                                  DeriveShapeMul,
                                  DeriveRowsBroadcast,
                                  DeriveDtypePromote,
@@ -2591,12 +2616,28 @@ namespace rel
                                  ExecuteBinaryMul};
 
         const OpTraits kOpDiv = {2,
-                                 "div",
+                                 "divide",
                                  DeriveShapeDiv,
                                  DeriveRowsBroadcast,
                                  DeriveDtypePromoteReal,
                                  DeriveUnitDiv,
                                  ExecuteBinaryDiv};
+
+        const OpTraits kOpTimes = {2,
+                                   "times",
+                                   DeriveShapeBroadcast,
+                                   DeriveRowsBroadcast,
+                                   DeriveDtypePromote,
+                                   DeriveUnitMul,
+                                   ExecuteTimes};
+
+        const OpTraits kOpRdivide = {2,
+                                     "rdivide",
+                                     DeriveShapeBroadcast,
+                                     DeriveRowsBroadcast,
+                                     DeriveDtypePromoteReal,
+                                     DeriveUnitDiv,
+                                     ExecuteRdivide};
 
         const OpTraits kOpMod = {2,
                                  "mod",
@@ -2617,7 +2658,7 @@ namespace rel
         // ---- binary comparison -----------------------------------------------------
 
         const OpTraits kOpEq = {2,
-                                 "eq",
+                                 "equal",
                                  DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
                                 DeriveDtypePromoteWithString,
@@ -2625,7 +2666,7 @@ namespace rel
                                 ExecuteEq};
 
         const OpTraits kOpNeq = {2,
-                                 "neq",
+                                 "notequal",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
                                  DeriveDtypePromoteWithString,
@@ -2633,7 +2674,7 @@ namespace rel
                                  ExecuteNeq};
 
         const OpTraits kOpLt = {2,
-                                 "lt",
+                                 "lessthan",
                                  DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
                                 DeriveDtypePromoteWithString,
@@ -2641,7 +2682,7 @@ namespace rel
                                 ExecuteLt};
 
         const OpTraits kOpGt = {2,
-                                 "gt",
+                                 "greaterthan",
                                  DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
                                 DeriveDtypePromoteWithString,
@@ -2649,7 +2690,7 @@ namespace rel
                                 ExecuteGt};
 
         const OpTraits kOpLe = {2,
-                                 "le",
+                                 "lessequal",
                                  DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
                                 DeriveDtypePromoteWithString,
@@ -2657,7 +2698,7 @@ namespace rel
                                 ExecuteLe};
 
         const OpTraits kOpGe = {2,
-                                 "ge",
+                                 "greaterequal",
                                  DeriveShapeBroadcast,
                                 DeriveRowsBroadcast,
                                 DeriveDtypePromoteWithString,
@@ -2685,7 +2726,7 @@ namespace rel
         // ---- binary bitwise ----------------------------------------------------
 
         const OpTraits kOpBitAnd = {2,
-                                 "bitAnd",
+                                 "bitand",
                                  DeriveShapeBroadcast,
                                     DeriveRowsBroadcast,
                                     DeriveDtypeRequireInt,
@@ -2693,7 +2734,7 @@ namespace rel
                                     ExecuteBitAnd};
 
         const OpTraits kOpBitOr = {2,
-                                 "bitOr",
+                                 "bitor",
                                  DeriveShapeBroadcast,
                                    DeriveRowsBroadcast,
                                    DeriveDtypeRequireInt,
@@ -2701,7 +2742,7 @@ namespace rel
                                    ExecuteBitOr};
 
         const OpTraits kOpBitXor = {2,
-                                 "bitXor",
+                                 "bitxor",
                                  DeriveShapeBroadcast,
                                     DeriveRowsBroadcast,
                                     DeriveDtypeRequireInt,
@@ -2711,7 +2752,7 @@ namespace rel
         // ---- binary shift ------------------------------------------------------
 
         const OpTraits kOpShl = {2,
-                                 "shl",
+                                 "shiftleft",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
                                  DeriveDtypeRequireInt,
@@ -2719,7 +2760,7 @@ namespace rel
                                  ExecuteShl};
 
         const OpTraits kOpShr = {2,
-                                 "shr",
+                                 "shiftright",
                                  DeriveShapeBroadcast,
                                  DeriveRowsBroadcast,
                                  DeriveDtypeRequireInt,
@@ -2745,7 +2786,7 @@ namespace rel
                                  ExecuteUnaryNot};
 
         const OpTraits kOpBitNot = {1,
-                                 "bitNot",
+                                 "bitnot",
                                  DeriveShapeBroadcast,
                                     DeriveRowsBroadcast,
                                     DeriveDtypeRequireInt,
@@ -2807,6 +2848,14 @@ namespace rel
         Value OperationDiv(const Value& lhs, const Value& rhs)
         {
             return Operate({lhs, rhs}, kOpDiv);
+        }
+        Value OperationTimes(const Value& lhs, const Value& rhs)
+        {
+            return Operate({lhs, rhs}, kOpTimes);
+        }
+        Value OperationRdivide(const Value& lhs, const Value& rhs)
+        {
+            return Operate({lhs, rhs}, kOpRdivide);
         }
         Value OperationMod(const Value& lhs, const Value& rhs)
         {

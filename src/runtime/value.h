@@ -282,6 +282,41 @@ public:
     static Value ArrayMatrix(const std::vector<MatXs>& rows);
     /// @}
 
+    // ---- operators ------------------------------------------------------
+
+    /// @{
+    /// Binary operators (delegate to rel::operation::OperationXxx kernels).
+    Value operator+(const Value& rhs) const;
+    Value operator-(const Value& rhs) const;
+    Value operator*(const Value& rhs) const;
+    Value operator/(const Value& rhs) const;
+    Value operator%(const Value& rhs) const;
+
+    Value operator==(const Value& rhs) const;
+    Value operator!=(const Value& rhs) const;
+    Value operator<(const Value& rhs) const;
+    Value operator>(const Value& rhs) const;
+    Value operator<=(const Value& rhs) const;
+    Value operator>=(const Value& rhs) const;
+
+    Value operator&&(const Value& rhs) const;
+    Value operator||(const Value& rhs) const;
+
+    Value operator&(const Value& rhs) const;
+    Value operator|(const Value& rhs) const;
+    Value operator^(const Value& rhs) const;
+    Value operator<<(const Value& rhs) const;
+    Value operator>>(const Value& rhs) const;
+
+    /// Unary operators.
+    Value operator-() const;
+    Value operator!() const;
+    Value operator~() const;
+
+    /// Exponentiation (delegates to OperationPow).
+    Value pow(const Value& exponent) const;
+    /// @}
+
 private:
     typedef boost::variant<
         Measurement,

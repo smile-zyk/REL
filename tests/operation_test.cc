@@ -34,6 +34,8 @@ using rel::operation::OperationAdd;
 using rel::operation::OperationSub;
 using rel::operation::OperationMul;
 using rel::operation::OperationDiv;
+using rel::operation::OperationTimes;
+using rel::operation::OperationRdivide;
 using rel::operation::OperationMod;
 using rel::operation::OperationPow;
 using rel::operation::OperationNegate;
@@ -226,6 +228,81 @@ TEST(OperationDivTest, MeasMeasVectorDivMatrix)
     ASSERT_TRUE(result.is_measurement());
     auto vec = result.as_measurement().as_vector<double>();
     EXPECT_DOUBLE_EQ(vec(0), 3.0);
+    EXPECT_DOUBLE_EQ(vec(1), 2.0);
+}
+
+// =========================================================================
+//  OperationTimes / OperationRdivide (element-wise, broadcast)
+// =========================================================================
+
+TEST(OperationTimesTest, MatrixMatrixElementwise)
+{
+    MatXd a(2, 2); a << 1.0, 2.0, 3.0, 4.0;
+    MatXd b(2, 2); b << 10.0, 20.0, 30.0, 40.0;
+    Value result = OperationTimes(Value::Matrix(a), Value::Matrix(b));
+    ASSERT_TRUE(result.is_measurement());
+    auto mat = result.as_measurement().as_matrix<double>();
+    EXPECT_DOUBLE_EQ(mat(0, 0), 10.0);
+    EXPECT_DOUBLE_EQ(mat(0, 1), 40.0);
+    EXPECT_DOUBLE_EQ(mat(1, 0), 90.0);
+    EXPECT_DOUBLE_EQ(mat(1, 1), 160.0);
+}
+
+TEST(OperationTimesTest, MatrixTimesScalarBroadcast)
+{
+    MatXd m(2, 2); m << 1.0, 2.0, 3.0, 4.0;
+    Value result = OperationTimes(Value::Matrix(m), Value::Real(2.0));
+    ASSERT_TRUE(result.is_measurement());
+    auto mat = result.as_measurement().as_matrix<double>();
+    EXPECT_DOUBLE_EQ(mat(0, 0), 2.0);
+    EXPECT_DOUBLE_EQ(mat(1, 1), 8.0);
+}
+
+TEST(OperationTimesTest, IntVectorElementwisePromote)
+{
+    VecXi a(3); a << 2, 3, 4;
+    VecXi b(3); b << 5, 6, 7;
+    Value result = OperationTimes(Value::Vector(a), Value::Vector(b));
+    ASSERT_TRUE(result.is_measurement());
+    auto vec = result.as_measurement().as_vector<int>();
+    EXPECT_EQ(vec(0), 10);
+    EXPECT_EQ(vec(1), 18);
+    EXPECT_EQ(vec(2), 28);
+}
+
+TEST(OperationRdivideTest, MatrixMatrixElementwise)
+{
+    MatXd a(2, 2); a << 6.0, 8.0, 10.0, 12.0;
+    MatXd b(2, 2); b << 2.0, 4.0, 5.0, 3.0;
+    Value result = OperationRdivide(Value::Matrix(a), Value::Matrix(b));
+    ASSERT_TRUE(result.is_measurement());
+    auto mat = result.as_measurement().as_matrix<double>();
+    EXPECT_DOUBLE_EQ(mat(0, 0), 3.0);
+    EXPECT_DOUBLE_EQ(mat(0, 1), 2.0);
+    EXPECT_DOUBLE_EQ(mat(1, 0), 2.0);
+    EXPECT_DOUBLE_EQ(mat(1, 1), 4.0);
+}
+
+TEST(OperationRdivideTest, VectorVectorElementwise)
+{
+    VecXd a(3); a << 6.0, 8.0, 10.0;
+    VecXd b(3); b << 2.0, 4.0, 5.0;
+    Value result = OperationRdivide(Value::Vector(a), Value::Vector(b));
+    ASSERT_TRUE(result.is_measurement());
+    auto vec = result.as_measurement().as_vector<double>();
+    EXPECT_DOUBLE_EQ(vec(0), 3.0);
+    EXPECT_DOUBLE_EQ(vec(1), 2.0);
+    EXPECT_DOUBLE_EQ(vec(2), 2.0);
+}
+
+TEST(OperationRdivideTest, IntVectorPromoteToReal)
+{
+    VecXi a(2); a << 3, 8;
+    VecXi b(2); b << 2, 4;
+    Value result = OperationRdivide(Value::Vector(a), Value::Vector(b));
+    ASSERT_TRUE(result.is_measurement());
+    auto vec = result.as_measurement().as_vector<double>();
+    EXPECT_DOUBLE_EQ(vec(0), 1.5);
     EXPECT_DOUBLE_EQ(vec(1), 2.0);
 }
 
@@ -426,7 +503,7 @@ TEST(OperationLtTest, ComplexAbs)
 
 TEST(OperationGtTest, ComplexAbs)
 {
-    // |5+0i| = 5  >  |3+4i| = 5  â†?false (equal abs)
+    // |5+0i| = 5  >  |3+4i| = 5  ï¿½?false (equal abs)
     Value v1 = Value::Complex(std::complex<double>(5.0, 0.0));
     Value v2 = Value::Complex(std::complex<double>(3.0, 4.0));
     Value result = OperationGt(v1, v2);
@@ -505,12 +582,12 @@ TEST(OperationLtTest, IntAndDouble)
 
 TEST(OperationLtTest, ComplexAndReal)
 {
-    // real 5.0 becomes (5,0), |3+4i|=5, |5+0i|=5 â†?not less
+    // real 5.0 becomes (5,0), |3+4i|=5, |5+0i|=5 ï¿½?not less
     Value v1 = Value::Complex(std::complex<double>(3.0, 4.0));
     Value v2 = Value::Real(5.0);
     Value result = OperationLt(v1, v2);
     ASSERT_TRUE(result.is_measurement());
-    EXPECT_EQ(result.as_measurement().as_scalar<bool>(), false);  // 5 < 5 â†?false
+    EXPECT_EQ(result.as_measurement().as_scalar<bool>(), false);  // 5 < 5 ï¿½?false
 }
 
 // ---- Cmp: row broadcast (Array x Array) ---------------------------------
@@ -539,8 +616,8 @@ TEST(OperationLtTest, ArrayArrayBroadcastRows)
     ASSERT_TRUE(result.is_data_array());
     const auto& arr = result.as_data_array().data();
     EXPECT_EQ(arr.size(), 2u);
-    EXPECT_EQ(arr.scalar_at<int>(0), 0);  // 3 < 1 â†?0
-    EXPECT_EQ(arr.scalar_at<int>(1), 1);  // 3 < 5 â†?1
+    EXPECT_EQ(arr.scalar_at<int>(0), 0);  // 3 < 1 ï¿½?0
+    EXPECT_EQ(arr.scalar_at<int>(1), 1);  // 3 < 5 ï¿½?1
 }
 
 // ---- Cmp: cell broadcast (Vector broadcast in Meas) ---------------------
@@ -617,7 +694,7 @@ TEST(OperationOrTest, BoolOperands)
     EXPECT_EQ(result.as_measurement().as_scalar<bool>(), true);
 }
 
-// ---- Logic: real/complex operands (as_logical: non-zeroâ†?) --------------
+// ---- Logic: real/complex operands (as_logical: non-zeroï¿½?) --------------
 
 TEST(OperationAndTest, RealOperands)
 {
@@ -639,7 +716,7 @@ TEST(OperationOrTest, RealOperands)
 
 TEST(OperationAndTest, ComplexOperands)
 {
-    // (1+0i) non-zero â†?1, (0+0i) zero â†?0
+    // (1+0i) non-zero ï¿½?1, (0+0i) zero ï¿½?0
     Value v1 = Value::Complex(std::complex<double>(1.0, 0.0));
     Value v2 = Value::Complex(std::complex<double>(0.0, 0.0));
     Value result = OperationAnd(v1, v2);
@@ -649,7 +726,7 @@ TEST(OperationAndTest, ComplexOperands)
 
 TEST(OperationOrTest, ComplexOperands)
 {
-    // (0+5i) non-zero â†?1
+    // (0+5i) non-zero ï¿½?1
     Value v1 = Value::Complex(std::complex<double>(0.0, 5.0));
     Value v2 = Value::Complex(std::complex<double>(0.0, 0.0));
     Value result = OperationOr(v1, v2);
@@ -683,7 +760,7 @@ TEST(OperationNotTest, RealOperand)
 
 TEST(OperationNotTest, ComplexOperand)
 {
-    // (0+5i) non-zero â†?!1 = 0
+    // (0+5i) non-zero ï¿½?!1 = 0
     Value result = OperationNot(Value::Complex(std::complex<double>(0.0, 5.0)));
     ASSERT_TRUE(result.is_measurement());
     EXPECT_EQ(result.as_measurement().as_scalar<bool>(), false);
@@ -907,7 +984,7 @@ TEST(OperationConditionalTest, ScalarFalsePath)
 
 TEST(OperationConditionalTest, ScalarNegativeCondition)
 {
-    // non-zero (negative) â†?true path
+    // non-zero (negative) ï¿½?true path
     Value cond = Value::Integer(-3);
     Value t = Value::Integer(100);
     Value f = Value::Integer(200);
@@ -985,9 +1062,9 @@ TEST(OperationConditionalTest, VectorElementWise)
     Value result = OperationConditional(cond, t, f);
     ASSERT_TRUE(result.is_measurement());
     auto vec = result.as_measurement().as_vector<double>();
-    EXPECT_DOUBLE_EQ(vec(0), 100.0);  // 1 â†?true
-    EXPECT_DOUBLE_EQ(vec(1), -2.0);   // 0 â†?false
-    EXPECT_DOUBLE_EQ(vec(2), 300.0);  // 2 â†?true
+    EXPECT_DOUBLE_EQ(vec(0), 100.0);  // 1 ï¿½?true
+    EXPECT_DOUBLE_EQ(vec(1), -2.0);   // 0 ï¿½?false
+    EXPECT_DOUBLE_EQ(vec(2), 300.0);  // 2 ï¿½?true
 }
 
 // ---- Matrix condition (scalar tf broadcast) ------------------------------
@@ -1040,13 +1117,13 @@ TEST(OperationConditionalTest, ComplexOperands)
     EXPECT_DOUBLE_EQ(c.imag(), 2.0);
 }
 
-// ---- Type promotion (int + real â†?real) ----------------------------------
+// ---- Type promotion (int + real ï¿½?real) ----------------------------------
 
 TEST(OperationConditionalTest, TypePromotion)
 {
     Value cond = Value::Integer(1);
     Value t = Value::Integer(1);     // int
-    Value f = Value::Real(2.5);      // real â†?promotes to real
+    Value f = Value::Real(2.5);      // real ï¿½?promotes to real
     Value result = OperationConditional(cond, t, f);
     ASSERT_TRUE(result.is_measurement());
     // Should promote to double
