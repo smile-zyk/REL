@@ -154,6 +154,22 @@ public:
     /// Find a registered Dataset by name, or nullptr if not found.
     static xdataset::Dataset* FindDataset(const std::string& name);
 
+    // ---- Python plugin (BUILD_PYTHON=ON) ----------------------------------
+
+    /// Execute a Python plugin file.  The interpreter is initialized lazily
+    /// on first use.  `register_function()` calls in the script register
+    /// functions into the global registry.  Returns true on success, false
+    /// on a Python error.  Throws std::runtime_error when built without
+    /// Python support (BUILD_PYTHON=OFF).
+    static bool LoadPython(const std::string& path);
+
+    /// Execute a snippet of Python code (same semantics as LoadPython).
+    static bool ExecPython(const std::string& code);
+
+    /// True when the embedded Python interpreter is available (compiled in).
+    /// Returns false when built with BUILD_PYTHON=OFF.
+    static bool IsPythonAvailable();
+
 private:
     std::unordered_map<std::string, rel::Value> variables_;
 

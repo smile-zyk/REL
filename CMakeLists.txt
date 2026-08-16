@@ -24,6 +24,56 @@ set(BUILD_XDATASET_PYTHON OFF CACHE BOOL "Build the xdataset Python bindings" FO
 add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
 
 # =========================================================================
+#  Python plugin (embedded interpreter + pybind11 bindings)
+# =========================================================================
+#
+#  BUILD_PYTHON controls whether the Python bridge is compiled into
+#  rel_runtime.  On by default; set -DBUILD_PYTHON=OFF for a rel_runtime with
+#  zero external dependencies (only xdataset).  When ON, it additionally
+#  requires pybind11 (and its matching CPython).  numpy interop is implemented
+#  via the buffer protocol, so numpy headers are NOT required at build time.
+option(BUILD_PYTHON "Enable embedded Python + plugin support" ON)
+
+# ---- Python bridge sources + pybind11 discovery ------------------------
+#
+#  The Python sources are listed here so they can appear in
+#  compile_commands.json (for clangd) even when BUILD_PYTHON=OFF; they are
+#  compiled into rel_runtime only when BUILD_PYTHON=ON.
+set(REL_PYTHON_SOURCES
+    src/runtime/python/rel_module.cc
+    src/runtime/python/xdataset_bindings.cc
+    src/runtime/python/rel_bindings.cc
+    src/runtime/python/python_loader.cc
+)
+
+# Discover CPython first (before pybind11) so pybind11 reuses the found
+# Python3::Python target instead of running its own discovery.  This is what
+# makes `pybind11::embed` link against libpython and expose Python.h.
+#   - BUILD_PYTHON=ON  -> REQUIRED (embedding needs the interpreter + libpython)
+#   - BUILD_PYTHON=OFF -> QUIET best-effort (only to feed the clangd index below)
+if(BUILD_PYTHON)
+    find_package(Python3 COMPONENTS Interpreter Development.Embed REQUIRED)
+else()
+    find_package(Python3 COMPONENTS Interpreter Development.Embed QUIET)
+endif()
+
+# Best-effort pybind11 discovery (required only when BUILD_PYTHON=ON).  This
+# also locates a pip-installed pybind11 via `python3 -m pybind11 --cmakedir`,
+# so BUILD_PYTHON=ON does not need a manually supplied pybind11_DIR.
+find_package(pybind11 CONFIG QUIET)
+if(NOT pybind11_FOUND AND Python3_Interpreter_FOUND)
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}" -m pybind11 --cmakedir
+        OUTPUT_VARIABLE _pybind11_cmakedir
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+    if(_pybind11_cmakedir)
+        set(pybind11_DIR "${_pybind11_cmakedir}")
+        find_package(pybind11 CONFIG QUIET)
+    endif()
+endif()
+
+# =========================================================================
 #  rel_runtime (SHARED) — value layer + runtime services
 # =========================================================================
 #
@@ -41,7 +91,7 @@ add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
 #    math_library/*      "math" function library
 #    operation/*         Value operators + math operations
 
-add_library(rel_runtime SHARED
+set(REL_RUNTIME_SOURCES
     src/runtime/value.cc
     src/runtime/function/function.cc
     src/runtime/builtin_library/math_library.cc
@@ -53,9 +103,45 @@ add_library(rel_runtime SHARED
     src/runtime/environment.cc
     src/runtime/environment_config.cc
 )
+
+if(BUILD_PYTHON)
+    if(NOT pybind11_FOUND)
+        message(FATAL_ERROR
+            "BUILD_PYTHON=ON requires pybind11. Install it (e.g. pip install "
+            "pybind11) or point CMake at it via -Dpybind11_DIR=...")
+    endif()
+    list(APPEND REL_RUNTIME_SOURCES ${REL_PYTHON_SOURCES})
+endif()
+
+add_library(rel_runtime SHARED ${REL_RUNTIME_SOURCES})
 target_compile_definitions(rel_runtime PRIVATE REL_RUNTIME_BUILD_DLL)
 target_include_directories(rel_runtime PUBLIC src/runtime)
 target_link_libraries(rel_runtime PUBLIC xdataset)
+
+if(BUILD_PYTHON)
+    # The whole project is C++11 (see CMAKE_CXX_STANDARD above); the Python
+    # bridge stays C++11 too — the buffer-protocol approach avoids the
+    # C++14+ pybind11 helpers (no overload_cast / generic lambdas).
+    target_compile_definitions(rel_runtime PRIVATE REL_HAS_PYTHON)
+    target_link_libraries(rel_runtime PRIVATE pybind11::embed)
+    # pybind11's quiet discovery can fall back to the legacy FindPythonLibs,
+    # which sets PYTHON_INCLUDE_DIRS but not Python3_INCLUDE_DIRS — the latter
+    # is what pybind11::python_headers expects.  Add the CPython include path
+    # explicitly so rel_runtime sees Python.h.
+    target_include_directories(rel_runtime PRIVATE ${Python3_INCLUDE_DIRS})
+elseif(pybind11_FOUND)
+    # BUILD_PYTHON=OFF: still emit compile_commands.json entries for the
+    # Python sources so clangd can index them against pybind11 + CPython
+    # headers.  This OBJECT library is never built (EXCLUDE_FROM_ALL), but its
+    # compile flags (include paths + REL_HAS_PYTHON) land in
+    # compile_commands.json.
+    add_library(rel_python_index OBJECT EXCLUDE_FROM_ALL ${REL_PYTHON_SOURCES})
+    target_compile_definitions(rel_python_index PRIVATE
+        REL_HAS_PYTHON REL_RUNTIME_BUILD_DLL)
+    target_include_directories(rel_python_index PRIVATE
+        src/runtime ${Python3_INCLUDE_DIRS})
+    target_link_libraries(rel_python_index PRIVATE xdataset pybind11::headers)
+endif()
 
 # Plugin loader needs dlopen on Linux.
 if(UNIX AND NOT APPLE)
@@ -141,7 +227,7 @@ enable_testing()
 find_package(GTest CONFIG REQUIRED)
 include(GoogleTest)
 
-add_executable(rel_test
+set(REL_TEST_SOURCES
     tests/test_scanner.cc
     tests/test_parser.cc
     tests/test_environment.cc
@@ -155,6 +241,14 @@ add_executable(rel_test
     tests/value_test.cc
     tests/operation_test.cc
 )
+
+# Python plugin tests need the embedded interpreter, so they are only built
+# when BUILD_PYTHON=ON.
+if(BUILD_PYTHON)
+    list(APPEND REL_TEST_SOURCES tests/test_python_plugin.cc)
+endif()
+
+add_executable(rel_test ${REL_TEST_SOURCES})
 target_link_libraries(rel_test PRIVATE rel_core rel_function_library_sample GTest::gtest_main)
 
 # Copy runtime DLLs next to the test binary on Windows so gtest_discover_tests

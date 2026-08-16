@@ -315,4 +315,34 @@ void Environment::LoadFromConfig(const std::string& config_path)
 
 }
 
+// =========================================================================
+//  Python plugin — stubs used when built without BUILD_PYTHON
+// =========================================================================
+//
+//  When REL_HAS_PYTHON is defined, the real implementations live in
+//  src/runtime/python/python_loader.cc (which is only compiled with
+//  BUILD_PYTHON=ON).  These stubs keep the symbols available so callers
+//  link cleanly even when Python is compiled out.
+
+#ifndef REL_HAS_PYTHON
+
+bool Environment::LoadPython(const std::string&)
+{
+    throw std::runtime_error(
+        "Python plugin support not compiled in (build with BUILD_PYTHON=ON)");
+}
+
+bool Environment::ExecPython(const std::string&)
+{
+    throw std::runtime_error(
+        "Python plugin support not compiled in (build with BUILD_PYTHON=ON)");
+}
+
+bool Environment::IsPythonAvailable()
+{
+    return false;
+}
+
+#endif  // !REL_HAS_PYTHON
+
 } // namespace rel
