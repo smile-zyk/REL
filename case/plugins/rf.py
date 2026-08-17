@@ -35,7 +35,7 @@ def vswr(args):
     return (1.0 + rho) / (1.0 - rho)               # broadcasting
 
 
-rel.register_function("dbm", [
+rel.register_function("vtodbm", [
     rel.Param("v"),
     rel.Param("z", 50.0),                          # static default
 ], vtodbm)

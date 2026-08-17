@@ -20,7 +20,7 @@ endif()
 set(BUILD_XDATASET_TEST OFF CACHE BOOL "Build xdataset unit tests" FORCE)
 # REL does not need the pybind11 Python bindings (avoids requiring Python /
 # pybind11 during configure).
-set(BUILD_XDATASET_PYTHON OFF CACHE BOOL "Build the xdataset Python bindings" FORCE)
+set(BUILD_XDATASET_PYTHON ON CACHE BOOL "Build the xdataset Python bindings" FORCE)
 add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
 
 # =========================================================================
@@ -78,6 +78,23 @@ if(NOT pybind11_FOUND AND Python3_Interpreter_FOUND)
         set(pybind11_DIR "${_pybind11_cmakedir}")
         find_package(pybind11 CONFIG QUIET)
     endif()
+endif()
+
+# ---- Report the discovered Python / pybind11 paths -----------------------
+message(STATUS "BUILD_PYTHON         = ${BUILD_PYTHON}")
+message(STATUS "Python3 executable   = ${Python3_EXECUTABLE}")
+message(STATUS "Python3 version      = ${Python3_VERSION}")
+message(STATUS "Python3 include dirs = ${Python3_INCLUDE_DIRS}")
+message(STATUS "Python3 libraries    = ${Python3_LIBRARIES}")
+message(STATUS "Python3 stdlib       = ${Python3_STDLIB}")
+message(STATUS "Python3 site-packages= ${Python3_SITELIB}")
+message(STATUS "pybind11 found       = ${pybind11_FOUND}")
+if(pybind11_FOUND)
+    message(STATUS "pybind11_DIR         = ${pybind11_DIR}")
+    message(STATUS "pybind11 include dir = ${pybind11_INCLUDE_DIR}")
+    message(STATUS "pybind11 version     = ${pybind11_VERSION}")
+else()
+    message(WARNING "pybind11 NOT found - Python bridge will not be compiled")
 endif()
 
 # =========================================================================
