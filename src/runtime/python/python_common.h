@@ -93,5 +93,11 @@ void register_python_function(const std::string& name,
 /// name existed.
 bool unregister_python_function(const std::string& name);
 
+/// Drop every Python plugin state while the interpreter is still alive:
+/// unregister Python-registered functions and clear the callback registry
+/// (under the GIL).  Does NOT finalize the interpreter — that is owned by
+/// rel_python_env (xequation::python::PyEnvManager::ShutdownPyEnv).
+void CleanupPythonState();
+
 }  // namespace python
 }  // namespace rel

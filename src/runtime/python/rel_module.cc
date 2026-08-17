@@ -97,7 +97,7 @@ PYBIND11_EMBEDDED_MODULE(rel, m)
 
     // PEP 562 lazy lookup: resolve registered functions, then builtin constants.
     m.def("__getattr__", [](const std::string& name) -> pybind11::object {
-        if (rel::Environment::FindFunction(name))
+        if (rel::Environment::HasFunction(name))
             return pybind11::cast(FunctionProxy{name});
 
         const rel::Value* c = rel::Environment::FindConstant(name);

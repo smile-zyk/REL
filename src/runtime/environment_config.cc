@@ -26,6 +26,13 @@ EnvironmentConfig EnvironmentConfig::Parse(const rapidjson::Document& doc)
     if (doc.HasMember("default_dataset") && doc["default_dataset"].IsString())
         cfg.default_dataset = doc["default_dataset"].GetString();
 
+    if (doc.HasMember("python_plugins") && doc["python_plugins"].IsArray()) {
+        for (const auto& p : doc["python_plugins"].GetArray()) {
+            if (p.IsString())
+                cfg.python_plugins.push_back(p.GetString());
+        }
+    }
+
     return cfg;
 }
 

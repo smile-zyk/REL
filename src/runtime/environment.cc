@@ -119,13 +119,10 @@ bool Environment::UnregisterFunction(const std::string& name)
     return functions_.erase(name) > 0;
 }
 
-const Function* Environment::FindFunction(const std::string& name)
+bool Environment::HasFunction(const std::string& name)
 {
     std::lock_guard<std::mutex> lock(functions_mutex_);
-    auto it = functions_.find(name);
-    if (it != functions_.end())
-        return &it->second;
-    return nullptr;
+    return functions_.find(name) != functions_.end();
 }
 
 bool Environment::CopyFunction(const std::string& name, Function& out)
@@ -313,6 +310,18 @@ void Environment::LoadFromConfig(const std::string& config_path)
         SetDefaultDataset(cfg.datasets[0].name);
     }
 
+    // ---- load Python plugins ----
+    //
+    //  Plugin paths are resolved relative to the config file's directory.
+    //  LoadPython throws std::runtime_error when built without Python
+    //  support (BUILD_PYTHON=OFF) or on a Python error in the plugin.
+    for (const auto& plugin : cfg.python_plugins)
+    {
+        std::string full_path = plugin;
+        if (!full_path.empty() && full_path[0] != '/' && !base_dir.empty())
+            full_path = base_dir + plugin;
+        LoadPython(full_path);
+    }
 }
 
 // =========================================================================
@@ -341,6 +350,11 @@ bool Environment::ExecPython(const std::string&)
 bool Environment::IsPythonAvailable()
 {
     return false;
+}
+
+void Environment::CleanupPythonState()
+{
+    // No Python state exists when built without Python support.
 }
 
 #endif  // !REL_HAS_PYTHON

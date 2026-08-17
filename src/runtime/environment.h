@@ -74,10 +74,11 @@ public:
     /// Returns true when the function existed and was removed.
     static bool UnregisterFunction(const std::string& name);
 
-    /// Look up a registered function by name, or nullptr when not found.
-    /// The returned pointer is only valid until the next registry mutation;
-    /// prefer CopyFunction() when the Function must outlive the lookup.
-    static const Function* FindFunction(const std::string& name);
+    /// Check whether a function of that name is registered.
+    /// Thread-safe existence check; use CopyFunction() to obtain a callable
+    /// copy (a raw pointer/reference into the registry would escape the
+    /// registry lock and could dangle on a concurrent re-registration).
+    static bool HasFunction(const std::string& name);
 
     /// Thread-safe copy of a registered function, or false when not found.
     /// Copies the Function while holding the registry lock, so the returned
@@ -169,6 +170,14 @@ public:
     /// True when the embedded Python interpreter is available (compiled in).
     /// Returns false when built with BUILD_PYTHON=OFF.
     static bool IsPythonAvailable();
+
+    /// Release all Python plugin state while the interpreter is still alive:
+    /// unregister Python-registered functions and drop every pybind11::function
+    /// held by the callback registry (under the GIL).  Does NOT finalize the
+    /// interpreter — that is owned by rel_python_env
+    /// (xequation::python::PyEnvManager::ShutdownPyEnv), which the host must
+    /// call AFTER this cleanup.  No-op when built without Python support.
+    static void CleanupPythonState();
 
 private:
     std::unordered_map<std::string, rel::Value> variables_;

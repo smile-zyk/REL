@@ -13,10 +13,24 @@
 #include "environment.h"
 #include "value.h"
 
-#include <cmath>
+#ifdef REL_HAS_PYTHON
+#include "python_env.h"
+#endif
+
 #include <cstdio>
 #include <fstream>
 #include <string>
+
+#ifdef _WIN32
+#include <direct.h>
+#define REL_MKDIR(p) _mkdir(p)
+#define REL_RMDIR(p) _rmdir(p)
+#else
+#include <sys/stat.h>
+#include <unistd.h>
+#define REL_MKDIR(p) mkdir(p, 0755)
+#define REL_RMDIR(p) rmdir(p)
+#endif
 
 #include <gtest/gtest.h>
 
@@ -46,6 +60,11 @@ class PythonPluginTest : public ::testing::Test
 protected:
     static void SetUpTestSuite()
     {
+        // The runtime no longer creates an interpreter lazily; the test
+        // binary owns the embedded interpreter lifecycle (rel_python_env).
+        xequation::python::PyEnvManager::SetDefaultPyEnvConfig();
+        xequation::python::PyEnvManager::InitializePyEnv();
+
         rel::Environment::InitBuiltinConstants();
         rel::Environment::InitBuiltinFunctions();
         try
@@ -56,6 +75,14 @@ protected:
         {
             g_numpy_available = false;
         }
+    }
+
+    static void TearDownTestSuite()
+    {
+        // Release callbacks before finalization; finalize only when the
+        // test binary created the interpreter.
+        rel::Environment::CleanupPythonState();
+        xequation::python::PyEnvManager::ShutdownPyEnv();
     }
 };
 
@@ -106,7 +133,7 @@ TEST_F(PythonPluginTest, UnregisterPythonFunction)
         "rel.register_function('py_unreg', [rel.Param('x')], fn)\n"
         "rel.unregister_function('py_unreg')\n");
 
-    EXPECT_EQ(rel::Environment::FindFunction("py_unreg"), nullptr);
+    EXPECT_FALSE(rel::Environment::HasFunction("py_unreg"));
 }
 
 // ---------------------------------------------------------------------------
@@ -159,10 +186,10 @@ TEST_F(PythonPluginTest, MeasurementAndValueNumpy)
         "m = rel.Measurement(np.array([1.0, 2.0, 3.0]))\n"
         "assert m.data_kind == 'vector'\n"
         "a = np.asarray(m)\n"
-        "assert a.shape == (3,)\n"
+        "assert a.shape == (1, 3)   # a vector CELL exports as one row\n"
         "v = rel.Value.array_real([5.0, 6.0, 7.0])\n"
         "av = np.asarray(v)\n"
-        "assert av.shape == (3,)\n");
+        "assert av.shape == (3,)    # a 3-row SCALAR series\n");
 }
 
 TEST_F(PythonPluginTest, StringAndBooleanExport)
@@ -244,6 +271,155 @@ TEST_F(PythonPluginTest, LoadPythonFile)
         rel::Environment::CallFunction("py_from_file", rel::Value::Real(0.0));
     ASSERT_TRUE(v.is_measurement());
     EXPECT_NEAR(v.as_measurement().as_scalar<double>(), 7.0, 1e-12);
+}
+
+// ---------------------------------------------------------------------------
+// Config-driven plugin loading: Environment::LoadFromConfig + "python_plugins"
+// ---------------------------------------------------------------------------
+
+TEST_F(PythonPluginTest, LoadPluginsFromConfig)
+{
+    // A self-contained env config in a temp directory: the plugin path in
+    // the JSON is relative and must be resolved against the config file's
+    // directory.
+    const char* dir = "rel_test_cfg_env";
+    REL_MKDIR(dir);
+
+    const std::string plugin_path = std::string(dir) + "/cfg_plugin.py";
+    {
+        std::ofstream f(plugin_path.c_str());
+        f << "import rel\n"
+             "def cfg_fn(args):\n"
+             "    return 3.25\n"
+             "rel.register_function('py_cfg_fn', [rel.Param('x')], cfg_fn)\n";
+    }
+
+    const std::string config_path = std::string(dir) + "/env.json";
+    {
+        std::ofstream f(config_path.c_str());
+        f << "{\n"
+             "  \"python_plugins\": [\"cfg_plugin.py\"]\n"
+             "}\n";
+    }
+
+    try
+    {
+        rel::Environment::LoadFromConfig(config_path);
+    }
+    catch (const std::exception& e)
+    {
+        std::remove(plugin_path.c_str());
+        std::remove(config_path.c_str());
+        REL_RMDIR(dir);
+        FAIL() << "LoadFromConfig error: " << e.what();
+    }
+
+    // The plugin registered its function into the global registry.
+    EXPECT_TRUE(rel::Environment::HasFunction("py_cfg_fn"));
+    rel::Value v =
+        rel::Environment::CallFunction("py_cfg_fn", rel::Value::Real(0.0));
+    ASSERT_TRUE(v.is_measurement());
+    EXPECT_NEAR(v.as_measurement().as_scalar<double>(), 3.25, 1e-12);
+
+    // Cleanup.
+    rel::Environment::UnregisterFunction("py_cfg_fn");
+    std::remove(plugin_path.c_str());
+    std::remove(config_path.c_str());
+    REL_RMDIR(dir);
+}
+
+// ---------------------------------------------------------------------------
+// Registration collision: a Python plugin must NOT silently override a
+// builtin / C++-registered function.
+// ---------------------------------------------------------------------------
+
+TEST_F(PythonPluginTest, PythonCannotOverrideBuiltinFunction)
+{
+    // "sin" is a builtin from the math library.
+    ASSERT_TRUE(rel::Environment::HasFunction("sin"));
+
+    RUN_PY(
+        "import rel\n"
+        "def evil(args):\n"
+        "    return 0.0\n"
+        "try:\n"
+        "    rel.register_function('sin', [rel.Param('x')], evil)\n"
+        "    raise AssertionError('expected RuntimeError for name collision')\n"
+        "except RuntimeError:\n"
+        "    pass\n");
+
+    // The builtin must be untouched.
+    EXPECT_TRUE(rel::Environment::HasFunction("sin"));
+    rel::Value v = rel::Environment::CallFunction(
+        "sin", rel::Value::Real(0.0));
+    EXPECT_NEAR(v.as_measurement().as_scalar<double>(), 0.0, 1e-12);
+}
+
+// ---------------------------------------------------------------------------
+// Vectorized (broadcasting) Python function bodies: the registered function
+// returns an ndarray, which round-trips through from_python into a Value.
+// ---------------------------------------------------------------------------
+
+TEST_F(PythonPluginTest, PythonFunctionBroadcastsArrayInput)
+{
+    // Register a function that squares its input (element-wise).
+    RUN_PY(
+        "import numpy as np\n"
+        "import rel\n"
+        "def sq(args):\n"
+        "    return np.asarray(args['x']) ** 2\n"
+        "rel.register_function('py_sq', [rel.Param('x')], sq)\n");
+
+    // Vector input -> DataArray result.
+    rel::Value v = rel::Environment::CallFunction(
+        "py_sq", rel::Value::ArrayReal({1.0, 2.0, 3.0}));
+    ASSERT_TRUE(v.is_data_array());
+    EXPECT_NEAR(v.as_data_array().datas().begin()->second.scalar_at<double>(0),
+                1.0, 1e-12);
+    EXPECT_NEAR(v.as_data_array().datas().begin()->second.scalar_at<double>(2),
+                9.0, 1e-12);
+
+    // Scalar input -> scalar Measurement result.
+    rel::Value s = rel::Environment::CallFunction(
+        "py_sq", rel::Value::Real(5.0));
+    ASSERT_TRUE(s.is_measurement());
+    EXPECT_NEAR(s.as_measurement().as_scalar<double>(), 25.0, 1e-12);
+
+    rel::Environment::UnregisterFunction("py_sq");
+}
+
+// ---------------------------------------------------------------------------
+// Shape/kind intent preservation: a vector cell that goes through numpy must
+// round-trip as a vector (not degrade into an N-row scalar series), while a
+// scalar-series input keeps its N-row semantics.
+// ---------------------------------------------------------------------------
+
+TEST_F(PythonPluginTest, PythonFunctionPreservesVectorShape)
+{
+    RUN_PY(
+        "import numpy as np\n"
+        "import rel\n"
+        "def ident(args):\n"
+        "    return np.asarray(args['x'])\n"
+        "rel.register_function('py_ident', [rel.Param('x')], ident)\n");
+
+    // {1,2,3}-shaped input: a single 3-wide VECTOR cell.
+    rel::Value v = rel::Environment::CallFunction(
+        "py_ident", rel::Value::Vector(
+            xdataset::VecXd::LinSpaced(3, 1.0, 3.0).eval()));
+    ASSERT_TRUE(v.is_measurement());
+    EXPECT_EQ(v.data_kind(), xdataset::DataKind::kVector);
+    EXPECT_EQ(v.as_measurement().as_vector<double>().size(), 3u);
+
+    // [1,2,3]-shaped input: an N-row SCALAR series stays N rows.
+    rel::Value s = rel::Environment::CallFunction(
+        "py_ident", rel::Value::ArrayReal({1.0, 2.0, 3.0}));
+    ASSERT_TRUE(s.is_data_array());
+    EXPECT_EQ(s.as_data_array().datas().begin()->second.data_kind(),
+              xdataset::DataKind::kScalar);
+    EXPECT_EQ(s.as_data_array().datas().begin()->second.size(), 3u);
+
+    rel::Environment::UnregisterFunction("py_ident");
 }
 
 }  // namespace

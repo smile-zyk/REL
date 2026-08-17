@@ -192,6 +192,14 @@ pybind11::buffer_info make_measurement_buffer(const Measurement& m)
     const DataShape shape = m.shape();
     std::vector<ssize_t> shape_v, strides;
 
+    // A Measurement is a SINGLE cell; export it as one row so the first
+    // buffer dimension is always the row count (same convention as
+    // make_series_buffer).  This keeps the shape self-describing:
+    //   scalar cell -> 0-d
+    //   vector cell -> (1, w)
+    //   matrix cell -> (1, r, c)
+    // so a vector cell round-tripping through numpy (1, w) is NOT confused
+    // with an N-row scalar series (n,).
     switch (m.data_kind())
     {
         case DataKind::kScalar:
@@ -199,15 +207,15 @@ pybind11::buffer_info make_measurement_buffer(const Measurement& m)
         case DataKind::kVector:
         {
             Index w = shape[0];
-            shape_v = { w };
-            strides = { itemsize };
+            shape_v = { 1, w };
+            strides = { w * itemsize, itemsize };
             break;
         }
         case DataKind::kMatrix:
         {
             Index r = shape[0], c = shape[1];
-            shape_v = { r, c };
-            strides = { c * itemsize, itemsize };
+            shape_v = { 1, r, c };
+            strides = { r * c * itemsize, c * itemsize, itemsize };
             break;
         }
     }

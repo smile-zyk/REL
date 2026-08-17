@@ -25,7 +25,7 @@ TEST(FunctionLibrarySampleTest, MakeLibraryRegistersSincos)
     rel::Environment env;
     RegisterAllLibraries();
 
-    ASSERT_NE(rel::Environment::FindFunction("sincos"), nullptr);
+    ASSERT_TRUE(rel::Environment::HasFunction("sincos"));
 }
 
 TEST(FunctionLibrarySampleTest, SincosCallsSinThenCos)
@@ -45,9 +45,9 @@ TEST(FunctionLibrarySampleTest, UnregisterFunction)
     rel::Environment env;
     rel::Environment::InitBuiltinFunctions();
 
-    ASSERT_NE(rel::Environment::FindFunction("datasets"), nullptr);
+    ASSERT_TRUE(rel::Environment::HasFunction("datasets"));
     EXPECT_TRUE(rel::Environment::UnregisterFunction("datasets"));
-    EXPECT_EQ(rel::Environment::FindFunction("datasets"), nullptr);
+    EXPECT_FALSE(rel::Environment::HasFunction("datasets"));
 
     // Unregistering a nonexistent function returns false.
     EXPECT_FALSE(rel::Environment::UnregisterFunction("datasets"));

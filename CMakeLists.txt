@@ -46,6 +46,13 @@ set(REL_PYTHON_SOURCES
     src/runtime/python/python_loader.cc
 )
 
+# Extra Python sources that live outside rel_runtime (the rel_python_env
+# static library owns python_env.cc).  Listed here only so they appear in
+# compile_commands.json (for clangd) when BUILD_PYTHON=OFF.
+set(REL_PYTHON_EXTRA_SOURCES
+    src/python_env/python_env.cc
+)
+
 # Discover CPython first (before pybind11) so pybind11 reuses the found
 # Python3::Python target instead of running its own discovery.  This is what
 # makes `pybind11::embed` link against libpython and expose Python.h.
@@ -70,6 +77,92 @@ if(NOT pybind11_FOUND AND Python3_Interpreter_FOUND)
     if(_pybind11_cmakedir)
         set(pybind11_DIR "${_pybind11_cmakedir}")
         find_package(pybind11 CONFIG QUIET)
+    endif()
+endif()
+
+# =========================================================================
+#  rel_python_env (STATIC) — embedded CPython environment management
+# =========================================================================
+#
+#  Owns the *environment* side of the embedded interpreter: configuration
+#  (py_home + module search paths), initialization and finalization.  Uses
+#  only the CPython C API (no pybind11).  The hosts (rel.exe / rel_test)
+#  initialize the interpreter through this library; rel_runtime only
+#  executes plugins against an already-initialized interpreter.
+
+if(BUILD_PYTHON)
+    add_library(rel_python_env STATIC src/python_env/python_env.cc)
+    target_include_directories(rel_python_env PUBLIC src/python_env)
+    target_link_libraries(rel_python_env PUBLIC Python3::Python)
+
+    # ---- build-time Python paths -----------------------------------------
+    #
+    #  The hosts configure the embedded interpreter with an explicit py_home
+    #  and sys.path so plugins find the stdlib, the C extension modules
+    #  (lib-dynload) and pip packages (site-packages) regardless of the
+    #  process working directory or PYTHONPATH.  The paths are injected into
+    #  rel_python_env as compile definitions and applied by
+    #  PyEnvManager::SetDefaultPyEnvConfig().
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}" -c "import sys; print(sys.base_prefix)"
+        OUTPUT_VARIABLE REL_PYTHON_HOME
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+    if(REL_PYTHON_HOME STREQUAL "")
+        # Fallback: <prefix>/lib/pythonX.Y -> <prefix>
+        get_filename_component(REL_PYTHON_HOME
+            "${Python3_STDLIB}/../.." ABSOLUTE)
+    endif()
+    # Normalize to forward slashes so the paths are safe inside C string
+    # literals (a backslash would start an escape sequence).
+    string(REPLACE "\\" "/" REL_PYTHON_HOME "${REL_PYTHON_HOME}")
+    string(REPLACE "\\" "/" REL_PYTHON_STDLIB "${Python3_STDLIB}")
+    string(REPLACE "\\" "/" REL_PYTHON_SITE_PACKAGES "${Python3_SITELIB}")
+
+    target_compile_definitions(rel_python_env PRIVATE
+        REL_PYTHON_HOME="${REL_PYTHON_HOME}"
+        REL_PYTHON_STDLIB="${REL_PYTHON_STDLIB}"
+        REL_PYTHON_LIB_DYNLOAD="${REL_PYTHON_STDLIB}/lib-dynload"
+        REL_PYTHON_SITE_PACKAGES="${REL_PYTHON_SITE_PACKAGES}")
+
+    # ---- deploy the CPython DLL (Windows) --------------------------------
+    #
+    #  Hosts that link rel_python_env import libpython directly, so the
+    #  matching CPython DLL must sit next to the binary (or be on PATH).
+    #  Derive it from the discovered interpreter:
+    #    <prefix>/bin/python3.X.exe -> <prefix>/bin/libpython3.X.dll (MinGW)
+    #    <prefix>/python.exe        -> <prefix>/python3X.dll    (python.org)
+    if(WIN32)
+        get_filename_component(_py_bin_dir "${Python3_EXECUTABLE}" DIRECTORY)
+        # MinGW layout: <prefix>/bin/libpython3.X.dll
+        set(REL_PYTHON_DLL
+            "${_py_bin_dir}/libpython${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}.dll")
+        if(NOT EXISTS "${REL_PYTHON_DLL}")
+            # python.org layout: <prefix>/python3X.dll
+            get_filename_component(_py_prefix "${_py_bin_dir}" DIRECTORY)
+            set(REL_PYTHON_DLL
+                "${_py_prefix}/python${Python3_VERSION_MAJOR}${Python3_VERSION_MINOR}.dll")
+        endif()
+        # The directory that holds the native dependencies of extension
+        # modules (numpy -> libopenblas.dll, ...).  Registered at runtime via
+        # AddDllDirectory (Python 3.8+ no longer searches PATH for .pyd deps).
+        get_filename_component(REL_PYTHON_DLL_DIR "${REL_PYTHON_DLL}" DIRECTORY)
+        string(REPLACE "\\" "/" REL_PYTHON_DLL_DIR "${REL_PYTHON_DLL_DIR}")
+        target_compile_definitions(rel_python_env PRIVATE
+            REL_PYTHON_DLL_DIR="${REL_PYTHON_DLL_DIR}")
+        if(EXISTS "${REL_PYTHON_DLL}")
+            # FindPython3's runtime-library detection can pick the wrong
+            # interpreter installation on machines with several Pythons (it
+            # resolved to a non-existent python314.dll from a python.org
+            # install instead of msys2's libpython3.12.dll).  $<TARGET_RUNTIME_DLLS>
+            # reads IMPORTED_LOCATION of the SHARED Python3::Python target
+            # (FindPython sets the per-config variants), so point those at
+            # the DLL that matches the embedding import library.
+            set_target_properties(Python3::Python PROPERTIES
+                IMPORTED_LOCATION "${REL_PYTHON_DLL}"
+                IMPORTED_LOCATION_RELEASE "${REL_PYTHON_DLL}"
+                IMPORTED_LOCATION_DEBUG "${REL_PYTHON_DLL}")
+        endif()
     endif()
 endif()
 
@@ -135,11 +228,11 @@ elseif(pybind11_FOUND)
     # headers.  This OBJECT library is never built (EXCLUDE_FROM_ALL), but its
     # compile flags (include paths + REL_HAS_PYTHON) land in
     # compile_commands.json.
-    add_library(rel_python_index OBJECT EXCLUDE_FROM_ALL ${REL_PYTHON_SOURCES})
+    add_library(rel_python_index OBJECT EXCLUDE_FROM_ALL ${REL_PYTHON_SOURCES} ${REL_PYTHON_EXTRA_SOURCES})
     target_compile_definitions(rel_python_index PRIVATE
         REL_HAS_PYTHON REL_RUNTIME_BUILD_DLL)
     target_include_directories(rel_python_index PRIVATE
-        src/runtime ${Python3_INCLUDE_DIRS})
+        src/runtime src/python_env ${Python3_INCLUDE_DIRS})
     target_link_libraries(rel_python_index PRIVATE xdataset pybind11::headers)
 endif()
 
@@ -175,6 +268,18 @@ target_link_libraries(rel_core PUBLIC xdataset rel_runtime)
 add_executable(rel src/main.cc)
 target_link_libraries(rel PRIVATE rel_core rel_function_library_sample)
 
+if(BUILD_PYTHON)
+    # The host owns the embedded interpreter lifecycle (rel_python_env).
+    target_link_libraries(rel PRIVATE rel_python_env)
+    target_compile_definitions(rel PRIVATE REL_HAS_PYTHON)
+endif()
+
+# Inject the source root so main.cc can locate case/ (e.g. test_env.json) with
+# an absolute path regardless of the working directory.  Forward slashes only,
+# so the value is a safe C string literal.
+string(REPLACE "\\" "/" REL_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+target_compile_definitions(rel PRIVATE REL_SOURCE_DIR="${REL_SOURCE_DIR}")
+
 # Readline / editline for REPL history (up/down arrow navigation).
 if(APPLE)
     find_library(EDIT_LIBRARY edit REQUIRED)
@@ -194,6 +299,13 @@ if(WIN32)
             "$<TARGET_FILE:rel_runtime>"
             "$<TARGET_FILE_DIR:rel>"
     )
+    if(BUILD_PYTHON AND REL_PYTHON_DLL)
+        add_custom_command(TARGET rel POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${REL_PYTHON_DLL}"
+                "$<TARGET_FILE_DIR:rel>"
+        )
+    endif()
     if(XDATASET_ENABLE_HDF5 AND HDF5_ROOT)
         add_custom_command(TARGET rel POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -251,6 +363,13 @@ endif()
 add_executable(rel_test ${REL_TEST_SOURCES})
 target_link_libraries(rel_test PRIVATE rel_core rel_function_library_sample GTest::gtest_main)
 
+if(BUILD_PYTHON)
+    # Tests load plugins through the embedded interpreter, which the test
+    # binary initializes itself via rel_python_env.
+    target_link_libraries(rel_test PRIVATE rel_python_env)
+    target_compile_definitions(rel_test PRIVATE REL_HAS_PYTHON)
+endif()
+
 # Copy runtime DLLs next to the test binary on Windows so gtest_discover_tests
 # can find them during the build-time discovery step.
 if(WIN32)
@@ -260,6 +379,13 @@ if(WIN32)
             "$<TARGET_FILE_DIR:rel_test>"
         COMMAND_EXPAND_LISTS
     )
+    if(BUILD_PYTHON AND REL_PYTHON_DLL)
+        add_custom_command(TARGET rel_test POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${REL_PYTHON_DLL}"
+                "$<TARGET_FILE_DIR:rel_test>"
+        )
+    endif()
     if(XDATASET_ENABLE_HDF5 AND HDF5_ROOT)
         add_custom_command(TARGET rel_test POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -271,3 +397,38 @@ endif()
 
 set(_gtest_discovery_timeout 60)
 gtest_discover_tests(rel_test DISCOVERY_TIMEOUT ${_gtest_discovery_timeout})
+
+# =========================================================================
+#  rel_python_env_test — lifecycle tests for the rel_python_env library
+# =========================================================================
+#
+#  Kept as a SEPARATE executable from rel_test: these tests finalize and
+#  re-initialize the embedded interpreter, which is incompatible with the
+#  pybind11-based plugin tests (embedded modules are registered via
+#  PyImport_AppendInittab at static-init time and do not survive
+#  Py_Finalize + re-init in the same process).
+
+if(BUILD_PYTHON)
+    add_executable(rel_python_env_test tests/test_python_env.cc)
+    target_link_libraries(rel_python_env_test PRIVATE
+        rel_python_env GTest::gtest_main)
+
+    if(WIN32)
+        add_custom_command(TARGET rel_python_env_test POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_RUNTIME_DLLS:rel_python_env_test>"
+                "$<TARGET_FILE_DIR:rel_python_env_test>"
+            COMMAND_EXPAND_LISTS
+        )
+        if(REL_PYTHON_DLL)
+            add_custom_command(TARGET rel_python_env_test POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${REL_PYTHON_DLL}"
+                    "$<TARGET_FILE_DIR:rel_python_env_test>"
+            )
+        endif()
+    endif()
+
+    gtest_discover_tests(rel_python_env_test
+        DISCOVERY_TIMEOUT ${_gtest_discovery_timeout})
+endif()

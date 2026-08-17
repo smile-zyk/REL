@@ -12,6 +12,10 @@
 #include "scanner.h"
 #include "function_library_sample.h"
 
+#ifdef REL_HAS_PYTHON
+#include "python_env.h"
+#endif
+
 #ifdef _WIN32
 // No readline on Windows yet �?fall back to std::getline.
 #elif __APPLE__
@@ -26,57 +30,32 @@
 #include <iostream>
 #include <string>
 
-// Resolve a path relative to the executable's directory.
-// When exe_path is "/path/to/build/Debug/rel" and rel is "../../case/test_env.json",
-// returns "/path/to/case/test_env.json".
-static std::string resolve_exe_relative(const std::string& exe_path,
-                                         const std::string& rel)
-{
-    std::string base = exe_path;
-    // Strip executable name to get the directory.
-    std::size_t slash = base.find_last_of("/\\");
-    if (slash != std::string::npos)
-        base.resize(slash + 1);
-    else
-        base.clear();
-
-    // Append relative path, resolve ".." components naively.
-    std::string result = base + rel;
-    // Normalize: collapse /xxx/../ patterns.
-    std::string out;
-    out.reserve(result.size());
-    if (!result.empty() && result[0] == '/')
-        out = "/";
-    for (std::size_t i = 0; i < result.size(); )
-    {
-        // Find next path segment.
-        std::size_t next = result.find('/', i);
-        if (next == std::string::npos)
-            next = result.size();
-        std::string seg = result.substr(i, next - i);
-        if (seg == ".." && !out.empty())
-        {
-            // Remove last component.
-            std::size_t prev = out.find_last_of('/');
-            if (prev != std::string::npos)
-            {
-                // Check it's not the root "/".
-                out.resize(prev == 0 ? 1 : prev);
-            }
-        }
-        else if (seg != "." && !seg.empty())
-        {
-            if (!out.empty() && out.back() != '/')
-                out += '/';
-            out += seg;
-        }
-        i = next + 1;
-    }
-    return out;
-}
-
 namespace
 {
+    // Initialize the embedded Python environment (rel_python_env).  The
+    // interpreter lifecycle is owned by the host: configure the standard
+    // paths (py_home + stdlib / lib-dynload / site-packages, injected by
+    // CMake at build time) and start the interpreter.  A host that already
+    // runs Python keeps ownership (PyEnvManager detects Py_IsInitialized()).
+    void init_python_env()
+    {
+#ifdef REL_HAS_PYTHON
+        xequation::python::PyEnvManager::SetDefaultPyEnvConfig();
+        xequation::python::PyEnvManager::InitializePyEnv();
+#endif
+    }
+
+    // Tear down in the reverse order: release every pybind11::function held
+    // by the callback registry while the interpreter is still alive, then
+    // finalize the interpreter (only when rel_python_env created it).
+    void shutdown_python_env()
+    {
+#ifdef REL_HAS_PYTHON
+        rel::Environment::CleanupPythonState();
+        xequation::python::PyEnvManager::ShutdownPyEnv();
+#endif
+    }
+
     bool is_ident_start(char c)
     {
         return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
@@ -217,7 +196,7 @@ namespace
         return 0;
     }
 
-    int run_file(const char* path, const char* exe_path)
+    int run_file(const char* path)
     {
         rel::Environment env;
         rel::Environment::InitBuiltinConstants();
@@ -225,8 +204,10 @@ namespace
         rel::Environment::RegisterLibrary(rel::function_library_sample::MakeLibrary());
 #ifdef REL_LOAD_TEST_ENV
         try {
+            // Absolute path injected by CMake (CMAKE_SOURCE_DIR) — the
+            // working directory is irrelevant.
             rel::Environment::LoadFromConfig(
-                resolve_exe_relative(exe_path, "../../case/test_env.json"));
+                std::string(REL_SOURCE_DIR) + "/case/test_env.json");
         } catch (const std::exception& e) {
             std::cerr << "warning: test env load failed: " << e.what() << '\n';
         }
@@ -253,14 +234,19 @@ namespace
         return 0;
     }
 
-    int run_repl(const char* exe_path)
+    int run_repl()
     {
         rel::Environment env;
         rel::Environment::InitBuiltinConstants();
         rel::Environment::InitBuiltinFunctions();
         rel::Environment::RegisterLibrary(rel::function_library_sample::MakeLibrary());
 
-        rel::Environment::LoadFromConfig("../../case/test_env.json");
+        try {
+            rel::Environment::LoadFromConfig(
+                std::string(REL_SOURCE_DIR) + "/case/test_env.json");
+        } catch (const std::exception& e) {
+            std::cerr << "warning: test env load failed: " << e.what() << '\n';
+        }
 
 
         std::cout << "REL interpreter.\n"
@@ -316,6 +302,23 @@ int main(int argc, char** argv)
                   << " [path-to-file]\n";
         return 2;
     }
-    if (argc == 2) return run_file(argv[1], argv[0]);
-    return run_repl(argv[0]);
+
+    init_python_env();
+
+    int rc;
+    try
+    {
+        if (argc == 2)
+            rc = run_file(argv[1]);
+        else
+            rc = run_repl();
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "rel: fatal: " << e.what() << '\n';
+        rc = 1;
+    }
+
+    shutdown_python_env();
+    return rc;
 }

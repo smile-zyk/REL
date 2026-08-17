@@ -19,6 +19,10 @@ rel::Environment::ExecPython("print(1+1)");      // 执行一段 Python 代码
 rel::Environment::IsPythonAvailable();           // 是否编译了 Python 支持
 ```
 
+> **解释器生命周期由宿主管理**:`rel_runtime` 不再惰性创建解释器。宿主
+> (`rel.exe` / 测试)必须在加载插件前通过 `rel_python_env` 静态库初始化
+> 嵌入式 Python 环境(见 §2.1),退出前按顺序清理(见 §2.2)。
+
 Python 脚本里 `import rel` 即可访问整个运行时 API。
 
 ---
@@ -40,6 +44,67 @@ cmake --build build
 - **numpy**(运行时可选)—— 只有用到 `np.asarray(...)` 互操作时才需要。
 
 > numpy 互操作走的是 Python **buffer 协议**,编译期**不需要** numpy 头文件。
+
+---
+
+## 2.1 嵌入式 Python 环境(rel_python_env)
+
+解释器的配置与生命周期独立在静态库 `rel_python_env`(`src/python_env`,命名空间
+`xequation::python`,只用 CPython C API,不依赖 pybind11):
+
+```cpp
+namespace xequation::python {
+
+struct PyEnvConfig {
+    std::string py_home;                     // Python 安装前缀(含标准库)
+    std::vector<std::string> lib_path_list;  // sys.path(非空时完全替代默认路径计算)
+};
+
+class PyEnvManager {
+public:
+    static void SetPyEnvConfig(const PyEnvConfig& config);  // 须在 Initialize 前调用
+    static void SetDefaultPyEnvConfig();                    // CMake 注入的默认路径
+    static const PyEnvConfig& GetPyEnvConfig();
+    static void InitializePyEnv();   // 幂等;失败抛 std::runtime_error
+    static void ShutdownPyEnv();     // 仅 finalize 本库创建的解释器
+    static bool IsInitialized();
+    static bool ManagePythonContext();
+};
+
+}  // namespace xequation::python
+```
+
+语义:
+
+- `InitializePyEnv()` 幂等:若 `Py_IsInitialized()` 已为真(宿主自管理),
+  记 `manage_python_context_ = false` 直接返回;否则由本库通过
+  `PyConfig_InitPythonConfig` + `Py_InitializeFromConfig` 创建解释器并持有所有权。
+- `ShutdownPyEnv()` 只在 `manage_python_context_ == true` 时 `Py_FinalizeEx()`,
+  宿主自管理的解释器不受影响。
+- `SetDefaultPyEnvConfig()` 使用 CMake 在构建期注入的路径(`sys.base_prefix`、
+  stdlib、`lib-dynload`、`site-packages`),保证插件无论工作目录在哪都能
+  `import` 标准库与 pip 包。注意:`module_search_paths_set = 1` 会**完全替代**
+  CPython 的默认路径计算,所以列表必须完整。
+- 配置必须在 `InitializePyEnv()` 之前设置,解释器存活期间再调用 `SetPyEnvConfig`
+  会抛异常。
+
+宿主侧典型用法(`rel.exe` 的 `main.cc`):
+
+```cpp
+xequation::python::PyEnvManager::SetDefaultPyEnvConfig();
+xequation::python::PyEnvManager::InitializePyEnv();
+// ... 运行 REPL / 加载插件 ...
+rel::Environment::CleanupPythonState();            // 先释放回调注册表(GIL 下)
+xequation::python::PyEnvManager::ShutdownPyEnv();  // 再 finalize(仅自管理时)
+```
+
+## 2.2 关闭顺序(重要)
+
+`rel_runtime` 的回调注册表持有 `pybind11::function`(Python 对象引用)。
+退出时必须先调用 `rel::Environment::CleanupPythonState()`(原 `ShutdownPython`,
+已更名——它现在只清理回调注册表,不再 finalize 解释器),再调用
+`PyEnvManager::ShutdownPyEnv()`。顺序反了会导致 Python 对象在解释器销毁后
+才被析构,进程崩溃。
 
 ---
 
@@ -339,3 +404,4 @@ C++ 异常自动映射到 Python 异常:
 4. **`at` vs `select`**:`at` 是单元格向量/矩阵元素索引(标量数据会报错);`select` 是多维权(Equal 维度坍缩)。
 5. **多线程**:函数注册表已加锁(`Environment::functions_mutex_`);`datasets_` / 常量表暂未加锁(常量表初始化后只读)。
 6. **外部 `import rel` 不可用**:嵌入模式不产 `.pyd`,只能在宿主进程内 `import rel`。
+7. **Windows DLL 搜索路径**:Python 3.8+ 加载扩展模块(`.pyd`)时不再搜索 `PATH`。`PyEnvManager::InitializePyEnv()` 会在初始化前用 `AddDllDirectory` 注册 CPython DLL 所在目录(`REL_PYTHON_DLL_DIR`,即 msys2 的 `mingw64/bin`)与所有 `sys.path` 目录,否则 numpy 等带原生依赖的包会报误导性的 "import from source directory" 错误。
