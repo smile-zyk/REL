@@ -8,31 +8,30 @@
 #    vswr(rho)    -> VSWR from reflection-coefficient magnitude |rho|, with a
 #                    STATIC default rho = 0.5 (call: `vswr()` or `vswr(0.2)`).
 #
-#  Both functions are fully vectorized (numpy broadcasting): scalars, vectors
-#  and matrices all work, and a scalar default broadcasts against an array
-#  argument (e.g. `vtodbm(array, 75.0)`).
+#  The computation runs entirely on rel.Value (the exported operator dunders
+#  delegate to the rel::operation kernels) — no numpy round-trip for the
+#  arithmetic, so unit-carrying Values stay canonical.  numpy is used only
+#  for the scalar validation step in vswr().
 #
 #  NOTE: names are chosen to avoid colliding with builtin functions (dbm,
 #  db, dbmtow, wtodbm already exist in the math library).  The runtime
 #  rejects a Python registration whose name is already taken.
 # =============================================================================
 
-import numpy as np
 import rel
 
 
 def vtodbm(args):
-    v = np.asarray(args["v"])
-    z = np.asarray(args["z"])
-    power = np.abs(v) ** 2 / z                     # watts; broadcasting
-    return 10.0 * np.log10(power / 1e-3)           # dBm
+    v = args["v"]                      # rel.Value
+    z = args["z"]                      # rel.Value (static default 50)
+    # power = |v|^2 / z  (watts), broadcasting via Value operators
+    power = rel.abs(v) ** 2 / z
+    return 10.0 * rel.log10(power / 1e-3)   # dBm
 
 
 def vswr(args):
-    rho = np.abs(np.asarray(args["rho"]))
-    if np.any(rho >= 1.0):
-        raise ValueError("vswr() requires |rho| < 1, got " + str(rho))
-    return (1.0 + rho) / (1.0 - rho)               # broadcasting
+    rho = rel.abs(args["rho"])         # rel.Value, |rho|
+    return (1.0 + rho) / (1.0 - rho)
 
 
 rel.register_function("vtodbm", [

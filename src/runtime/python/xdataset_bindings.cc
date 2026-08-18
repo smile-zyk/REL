@@ -615,6 +615,7 @@ void register_xdataset_bindings(pybind11::module_& m)
         .def("measurement_at", &DataSeries::measurement_at)
         .def("__getitem__", [](const DataSeries& d, Index i) { return d.measurement_at(i); })
         .def("iloc", &DataSeries::iloc)
+        .def("canonicalized", &DataSeries::canonicalized)
         .def_buffer(&make_series_buffer)
         .def("__array__", [](const DataSeries& d, pybind11::args, pybind11::kwargs) -> pybind11::object {
             if (d.data_type() == DataType::kString)
@@ -674,6 +675,13 @@ void register_xdataset_bindings(pybind11::module_& m)
         .def("set_indep_data", static_cast<void (DataArray::*)(Index, Index, Measurement)>(&DataArray::set_indep_data))
         .def("set_indep_data", static_cast<void (DataArray::*)(const std::string&, Index, Measurement)>(&DataArray::set_indep_data))
         .def("clone", &DataArray::clone)
+        .def("canonicalized", [](const DataArray& d) {
+            // Same semantics as Value::canonicalized() for DataArray-backed
+            // values: canonicalize the self data, keep indep dims untouched.
+            DataArray result(d);
+            result.set_data(d.data().canonicalized());
+            return result;
+        })
         .def_property_readonly("rank", [](const DataArray& d) { return d.multi_dimension_spec().rank(); })
         .def_property_readonly("flat_size", [](const DataArray& d) { return d.multi_dimension_spec().compute_cell_count(); })
         .def("group_count_at_dim", [](const DataArray& d, Index dim_idx) {
