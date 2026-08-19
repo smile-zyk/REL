@@ -20,8 +20,8 @@ rel::Environment::ExecPython("print(1+1)");      // 执行一段 Python 代码
 rel::Environment::IsPythonAvailable();           // 是否编译了 Python 支持
 ```
 
-> **解释器生命周期由宿主管理**:`rel_core` 不再惰性创建解释器。宿主
-> (`rel.exe` / 测试)必须在加载插件前通过 `python_manager` 静态库初始化
+> **解释器生命周期由宿主管理**:`rel` 不再惰性创建解释器。宿主
+> (`rel_cli.exe` / 测试)必须在加载插件前通过 `python_manager` 静态库初始化
 > 嵌入式 Python 环境(见 §2.1),退出前按顺序清理(见 §2.2)。
 
 Python 脚本里 `import rel` 即可访问整个运行时 API 与语言前端(rel.eval,见 §3.1)。
@@ -30,11 +30,11 @@ Python 脚本里 `import rel` 即可访问整个运行时 API 与语言前端(re
 
 ## 2. 构建
 
-Python 支持默认开启(`BUILD_PYTHON=ON`)。需要零外部依赖的 `rel_core`(只依赖 xdataset)时,用 `-DBUILD_PYTHON=OFF` 关闭:
+Python 支持默认开启(`BUILD_PYTHON=ON`)。需要零外部依赖的 `rel`(只依赖 xdataset)时,用 `-DBUILD_PYTHON=OFF` 关闭:
 
 ```bash
 cmake -B build                  # 默认开启 Python
-cmake -B build -DBUILD_PYTHON=OFF   # 关闭 Python,rel_core 零外部依赖
+cmake -B build -DBUILD_PYTHON=OFF   # 关闭 Python,rel 零外部依赖
 cmake --build build
 ```
 
@@ -89,7 +89,7 @@ public:
 - 配置必须在 `InitializePyEnv()` 之前设置,解释器存活期间再调用 `SetPyEnvConfig`
   会抛异常。
 
-宿主侧典型用法(`rel.exe` 的 `main.cc`):
+宿主侧典型用法(`rel_cli.exe` 的 `main.cc`):
 
 ```cpp
 python_manager::PyEnvManager::SetDefaultPyEnvConfig();
@@ -101,7 +101,7 @@ python_manager::PyEnvManager::ShutdownPyEnv();  // 再 finalize(仅自管理时)
 
 ## 2.2 关闭顺序(重要)
 
-`rel_core` 的回调注册表持有 `pybind11::function`(Python 对象引用)。
+`rel` 的回调注册表持有 `pybind11::function`(Python 对象引用)。
 退出时必须先调用 `rel::Environment::CleanupPythonState()`(原 `ShutdownPython`,
 已更名——它现在只清理回调注册表,不再 finalize 解释器),再调用
 `PyEnvManager::ShutdownPyEnv()`。顺序反了会导致 Python 对象在解释器销毁后

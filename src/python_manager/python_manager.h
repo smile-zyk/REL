@@ -11,8 +11,8 @@
 //
 //  It deliberately uses only the CPython C API (no pybind11), so a host can
 //  manage the interpreter without pulling in the binding layer.  The REL
-//  runtime (rel_core) never creates or destroys an interpreter itself;
-//  the host (rel.exe / rel_test) does:
+//  runtime (rel) never creates or destroys an interpreter itself;
+//  the host (rel_cli.exe / rel_test) does:
 //
 //      python_manager::PyEnvConfig cfg;
 //      cfg.py_home       = ...;                 // Python installation prefix

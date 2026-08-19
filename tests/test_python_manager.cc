@@ -151,7 +151,7 @@ TEST_F(PythonEnvTest, StdlibAndSitePackagesImportable)
 
     // Explicit module_search_paths replace CPython's default path
     // computation, so the stdlib must come from the configured list.
-    // (Raw C API — this test binary does not link rel_core.)
+    // (Raw C API — this test binary does not link rel.)
     int rc = PyRun_SimpleString(
         "import sys, json, os\n"
         "assert any('site-packages' in p for p in sys.path)\n"

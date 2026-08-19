@@ -1,16 +1,40 @@
 #include "rel.h"
 
 #include "environment.h"
+#include "error.h"
 #include "evaluator.h"
 #include "parser.h"
 #include "scanner.h"
 
 #include <cctype>
-#include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace rel {
 namespace {
+
+/// Build a RelError from scanner / parser output (kind Lexical or Syntax).
+RelError make_parse_error(ErrorKind kind, const Error& first_error)
+{
+    Error err;
+    err.kind    = kind;
+    err.line    = first_error.line;
+    err.column  = first_error.column;
+    err.message = first_error.message;
+    return RelError(err);
+}
+
+/// Wrap a thrown std::exception raised during evaluation as a RunTime
+/// RelError anchored at the expression's source location.
+RelError make_eval_error(const Expr& expr, const std::exception& e)
+{
+    Error err;
+    err.kind    = ErrorKind::RunTime;
+    err.line    = expr.line;
+    err.column  = expr.column;
+    err.message = e.what();
+    return RelError(err);
+}
 
 bool is_ident_start(char c)
 {
@@ -68,23 +92,56 @@ std::size_t find_binding_eq(const std::string& line)
 
 }  // namespace
 
+ExprPtr Parse(const std::string& source)
+{
+    Scanner scanner(source);
+    ScanResult sr = scanner.Scan();
+    if (!sr.Ok())
+        throw make_parse_error(ErrorKind::Lexical, sr.errors[0]);
+
+    Parser parser(std::move(sr.tokens));
+    ParseResult result = parser.Parse();
+    if (!result.Ok())
+        throw make_parse_error(ErrorKind::Syntax, result.errors[0]);
+
+    return std::move(result.expr);
+}
+
 Value Eval(const std::string& source, Environment* env)
 {
     Environment temp_env;
     if (!env) env = &temp_env;
 
-    Scanner scanner(source);
-    ScanResult sr = scanner.Scan();
-    if (!sr.Ok())
-        throw std::runtime_error(sr.errors[0].to_string());
-    Parser parser(std::move(sr.tokens));
-    ParseResult result = parser.Parse();
+    ExprPtr expr = Parse(source);
+    try
+    {
+        return Eval(*expr, *env);
+    }
+    catch (const RelError&)
+    {
+        throw;  // already structured
+    }
+    catch (const std::exception& e)
+    {
+        throw make_eval_error(*expr, e);
+    }
+}
 
-    if (!result.Ok())
-        throw std::runtime_error(result.errors[0].to_string());
-
-    Evaluator evaluator(*env);
-    return evaluator.Evaluate(*result.expr);
+Value Eval(const Expr& expr, Environment& env)
+{
+    try
+    {
+        Evaluator evaluator(env);
+        return evaluator.Evaluate(expr);
+    }
+    catch (const RelError&)
+    {
+        throw;
+    }
+    catch (const std::exception& e)
+    {
+        throw make_eval_error(expr, e);
+    }
 }
 
 void Exec(const std::string& source, Environment& env)
@@ -100,7 +157,14 @@ void Exec(const std::string& source, Environment& env)
     std::string name = trim(source.substr(0, eq));
     std::string expr_str = trim(source.substr(eq + 1));
     if (!is_valid_identifier(name))
-        throw std::runtime_error("invalid identifier '" + name + "'");
+    {
+        Error err;
+        err.kind    = ErrorKind::Syntax;
+        err.line    = 1;
+        err.column  = 1;
+        err.message = "invalid identifier '" + name + "'";
+        throw RelError(err);
+    }
 
     Value v = Eval(expr_str, &env);
     env.Define(name, v);

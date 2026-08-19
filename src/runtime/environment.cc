@@ -4,7 +4,6 @@
 #include "dataset_io.h"
 #include "builtin_library/builtin_library.h"
 #include "builtin_library/math_library.h"
-#include "touchstone_io.h"
 
 #include <stdexcept>
 
@@ -286,8 +285,7 @@ void Environment::LoadFromConfig(const std::string& config_path)
         }
         else if (ds.format == "touchstone")
         {
-            xdataset::TouchstoneReader reader(full_path);
-            loaded = reader.Read();
+            loaded = xdataset::DatasetIO::Load("touchstone", full_path);
             loaded.set_name(ds.name);
         }
         else

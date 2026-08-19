@@ -1,6 +1,6 @@
 // Sample static C++ function-library extension.
 //
-// A C++ extension is a static library that links rel_core (for rel::Value
+// A C++ extension is a static library that links rel (for rel::Value
 // and the registry services), builds a FunctionLibrary, and exposes a
 // MakeLibrary() factory.  The host registers it explicitly.
 //

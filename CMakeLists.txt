@@ -28,7 +28,7 @@ add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
 # =========================================================================
 #
 #  BUILD_PYTHON controls whether the Python bridge is compiled into
-#  rel_core.  On by default; set -DBUILD_PYTHON=OFF for a rel_core with
+#  rel.  On by default; set -DBUILD_PYTHON=OFF for a rel with
 #  zero external dependencies (only xdataset).  When ON, it additionally
 #  requires pybind11 (and its matching CPython).  numpy interop is implemented
 #  via the buffer protocol, so numpy headers are NOT required at build time.
@@ -38,7 +38,7 @@ option(BUILD_PYTHON "Enable embedded Python + plugin support" ON)
 #
 #  The Python sources are listed here so they can appear in
 #  compile_commands.json (for clangd) even when BUILD_PYTHON=OFF; they are
-#  compiled into rel_core only when BUILD_PYTHON=ON.
+#  compiled into rel only when BUILD_PYTHON=ON.
 set(REL_PYTHON_SOURCES
     src/runtime/python/rel_module.cc
     src/runtime/python/xdataset_bindings.cc
@@ -46,7 +46,7 @@ set(REL_PYTHON_SOURCES
     src/runtime/python/python_loader.cc
 )
 
-# Extra Python sources that live outside rel_core (the python_manager
+# Extra Python sources that live outside rel (the python_manager
 # static library owns python_manager.cc).  Listed here only so they appear in
 # compile_commands.json (for clangd) when BUILD_PYTHON=OFF.
 set(REL_PYTHON_EXTRA_SOURCES
@@ -103,8 +103,8 @@ endif()
 #
 #  Owns the *environment* side of the embedded interpreter: configuration
 #  (py_home + module search paths), initialization and finalization.  Uses
-#  only the CPython C API (no pybind11).  The hosts (rel.exe / rel_test)
-#  initialize the interpreter through this library; rel_core only executes
+#  only the CPython C API (no pybind11).  The hosts (rel_cli.exe / rel_test)
+#  initialize the interpreter through this library; rel only executes
 #  plugins against an already-initialized interpreter.
 
 if(BUILD_PYTHON)
@@ -184,7 +184,7 @@ if(BUILD_PYTHON)
 endif()
 
 # =========================================================================
-#  rel_core (SHARED) — the merged REL engine (front-end + runtime)
+#  rel (SHARED) — the merged REL engine (front-end + runtime)
 # =========================================================================
 #
 #  One dynamic library hosting the WHOLE engine:
@@ -199,10 +199,10 @@ endif()
 #  Public API: the flat `include/` folder (rel.h, value.h, environment.h,
 #  function.h, expr.h, token.h, error.h, rel_api.h).  Internal headers stay
 #  under src/core and src/runtime; their symbols are still exported (REL_API)
-#  so hosts (rel.exe) and the test suite can use them, but they are not part
+#  so hosts (rel_cli.exe) and the test suite can use them, but they are not part
 #  of the public header surface.
 
-set(REL_CORE_SOURCES
+set(REL_SOURCES
     # ---- language front-end (src/core) ---------------------------------
     src/core/token.cc
     src/core/scanner.cc
@@ -231,29 +231,29 @@ if(BUILD_PYTHON)
             "BUILD_PYTHON=ON requires pybind11. Install it (e.g. pip install "
             "pybind11) or point CMake at it via -Dpybind11_DIR=...")
     endif()
-    list(APPEND REL_CORE_SOURCES ${REL_PYTHON_SOURCES})
+    list(APPEND REL_SOURCES ${REL_PYTHON_SOURCES})
 endif()
 
-add_library(rel_core SHARED ${REL_CORE_SOURCES})
-target_compile_definitions(rel_core PRIVATE REL_BUILD_DLL)
-target_include_directories(rel_core PUBLIC
+add_library(rel SHARED ${REL_SOURCES})
+target_compile_definitions(rel PRIVATE REL_BUILD_DLL)
+target_include_directories(rel PUBLIC
     include      # public API (flat)
     src/core     # internal headers (hosts / tests)
     src/runtime  # internal headers (hosts / tests)
 )
-target_link_libraries(rel_core PUBLIC xdataset)
+target_link_libraries(rel PUBLIC xdataset)
 
 if(BUILD_PYTHON)
     # The whole project is C++11 (see CMAKE_CXX_STANDARD above); the Python
     # bridge stays C++11 too — the buffer-protocol approach avoids the
     # C++14+ pybind11 helpers (no overload_cast / generic lambdas).
-    target_compile_definitions(rel_core PRIVATE REL_HAS_PYTHON)
-    target_link_libraries(rel_core PRIVATE pybind11::embed)
+    target_compile_definitions(rel PRIVATE REL_HAS_PYTHON)
+    target_link_libraries(rel PRIVATE pybind11::embed)
     # pybind11's quiet discovery can fall back to the legacy FindPythonLibs,
     # which sets PYTHON_INCLUDE_DIRS but not Python3_INCLUDE_DIRS — the latter
     # is what pybind11::python_headers expects.  Add the CPython include path
-    # explicitly so rel_core sees Python.h.
-    target_include_directories(rel_core PRIVATE ${Python3_INCLUDE_DIRS})
+    # explicitly so rel sees Python.h.
+    target_include_directories(rel PRIVATE ${Python3_INCLUDE_DIRS})
 elseif(pybind11_FOUND)
     # BUILD_PYTHON=OFF: still emit compile_commands.json entries for the
     # Python sources so clangd can index them against pybind11 + CPython
@@ -270,59 +270,59 @@ endif()
 
 # Plugin loader needs dlopen on Linux.
 if(UNIX AND NOT APPLE)
-    target_link_libraries(rel_core PUBLIC ${CMAKE_DL_LIBS})
+    target_link_libraries(rel PUBLIC ${CMAKE_DL_LIBS})
 endif()
 
 # =========================================================================
-#  rel (EXECUTABLE) — CLI driver: REPL + file mode
+#  rel_cli (EXECUTABLE) — CLI driver: REPL + file mode
 # =========================================================================
 
-add_executable(rel src/main.cc)
-target_link_libraries(rel PRIVATE rel_core rel_function_library_sample)
+add_executable(rel_cli src/main.cc)
+target_link_libraries(rel_cli PRIVATE rel rel_function_library_sample)
 
 if(BUILD_PYTHON)
     # The host owns the embedded interpreter lifecycle (python_manager).
-    target_link_libraries(rel PRIVATE python_manager)
-    target_compile_definitions(rel PRIVATE REL_HAS_PYTHON)
+    target_link_libraries(rel_cli PRIVATE python_manager)
+    target_compile_definitions(rel_cli PRIVATE REL_HAS_PYTHON)
 endif()
 
 # Inject the source root so main.cc can locate case/ (e.g. test_env.json) with
 # an absolute path regardless of the working directory.  Forward slashes only,
 # so the value is a safe C string literal.
 string(REPLACE "\\" "/" REL_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
-target_compile_definitions(rel PRIVATE REL_SOURCE_DIR="${REL_SOURCE_DIR}")
+target_compile_definitions(rel_cli PRIVATE REL_SOURCE_DIR="${REL_SOURCE_DIR}")
 
 # Readline / editline for REPL history (up/down arrow navigation).
 if(APPLE)
     find_library(EDIT_LIBRARY edit REQUIRED)
-    target_link_libraries(rel PRIVATE ${EDIT_LIBRARY})
+    target_link_libraries(rel_cli PRIVATE ${EDIT_LIBRARY})
 elseif(UNIX)
     find_package(Readline REQUIRED)
-    target_link_libraries(rel PRIVATE Readline::Readline)
+    target_link_libraries(rel_cli PRIVATE Readline::Readline)
 endif()
 
-# Copy xdataset DLL, rel_core DLL and its dependencies next to rel.exe.
+# Copy xdataset DLL, rel DLL and its dependencies next to rel_cli.exe.
 if(WIN32)
-    add_custom_command(TARGET rel POST_BUILD
+    add_custom_command(TARGET rel_cli POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:xdataset>"
-            "$<TARGET_FILE_DIR:rel>"
+            "$<TARGET_FILE_DIR:rel_cli>"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:rel_core>"
-            "$<TARGET_FILE_DIR:rel>"
+            "$<TARGET_FILE:rel>"
+            "$<TARGET_FILE_DIR:rel_cli>"
     )
     if(BUILD_PYTHON AND REL_PYTHON_DLL)
-        add_custom_command(TARGET rel POST_BUILD
+        add_custom_command(TARGET rel_cli POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${REL_PYTHON_DLL}"
-                "$<TARGET_FILE_DIR:rel>"
+                "$<TARGET_FILE_DIR:rel_cli>"
         )
     endif()
     if(XDATASET_ENABLE_HDF5 AND HDF5_ROOT)
-        add_custom_command(TARGET rel POST_BUILD
+        add_custom_command(TARGET rel_cli POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${HDF5_ROOT}/bin/libhdf5-320.dll"
-                "$<TARGET_FILE_DIR:rel>"
+                "$<TARGET_FILE_DIR:rel_cli>"
         )
     endif()
 endif()
@@ -331,8 +331,8 @@ endif()
 #  Function library (sample static extension)
 # =========================================================================
 #
-#  A C++ extension is a static library that links rel_core and exposes a
-#  MakeLibrary() factory.  The host (rel.exe / tests) registers it explicitly
+#  A C++ extension is a static library that links rel and exposes a
+#  MakeLibrary() factory.  The host (rel_cli.exe / tests) registers it explicitly
 #  via Environment::RegisterLibrary.
 
 add_library(rel_function_library_sample STATIC
@@ -342,7 +342,7 @@ target_include_directories(rel_function_library_sample PUBLIC
     src/function_library
     include
 )
-target_link_libraries(rel_function_library_sample PUBLIC rel_core)
+target_link_libraries(rel_function_library_sample PUBLIC rel)
 
 # ---- Tests ---------------------------------------------------------------
 # Single test executable (same pattern as xdataset_test): all test sources are
@@ -373,7 +373,7 @@ if(BUILD_PYTHON)
 endif()
 
 add_executable(rel_test ${REL_TEST_SOURCES})
-target_link_libraries(rel_test PRIVATE rel_core rel_function_library_sample GTest::gtest_main)
+target_link_libraries(rel_test PRIVATE rel rel_function_library_sample GTest::gtest_main)
 
 if(BUILD_PYTHON)
     # Tests load plugins through the embedded interpreter, which the test

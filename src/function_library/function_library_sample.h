@@ -10,7 +10,7 @@ namespace function_library_sample {
 // =============================================================================
 //
 //  Demonstrates the C++ extension model: a static library that links
-//  rel_core and exposes a MakeLibrary() factory.  The host (rel.exe or
+//  rel and exposes a MakeLibrary() factory.  The host (rel_cli.exe or
 //  tests) registers the returned FunctionLibrary explicitly via
 //  Environment::RegisterLibrary.
 //

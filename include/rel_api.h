@@ -10,7 +10,7 @@
 //
 //  The public API surface is the flat `include/` folder (rel.h, value.h,
 //  environment.h, function.h, expr.h, token.h, error.h).  Internal headers
-//  under src/core and src/runtime also use REL_API so that hosts (rel.exe)
+//  under src/core and src/runtime also use REL_API so that hosts (rel_cli.exe)
 //  and the test suite can link the symbols, but they are NOT part of the
 //  public API.
 #ifdef _WIN32
