@@ -325,7 +325,7 @@ void Environment::LoadFromConfig(const std::string& config_path)
 }
 
 // =========================================================================
-//  Python plugin — stubs used when built without BUILD_PYTHON
+//  Python plugin -- stubs used when built without BUILD_PYTHON
 // =========================================================================
 //
 //  When REL_HAS_PYTHON is defined, the real implementations live in

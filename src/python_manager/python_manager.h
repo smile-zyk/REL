@@ -1,33 +1,33 @@
 #pragma once
 
 // =============================================================================
-//  python_env.h — embedded CPython environment configuration & lifecycle
+//  python_manager.h -- embedded CPython environment configuration & lifecycle
 // =============================================================================
 //
-//  A small static library (rel_python_env) that owns the *environment* side
-//  of the embedded interpreter: where Python lives (home) and where modules
-//  are found (sys.path), plus initialization / finalization.
+//  A small static library (python_manager, formerly rel_python_env) that
+//  owns the *environment* side of the embedded interpreter: where Python
+//  lives (home) and where modules are found (sys.path), plus
+//  initialization / finalization.
 //
 //  It deliberately uses only the CPython C API (no pybind11), so a host can
 //  manage the interpreter without pulling in the binding layer.  The REL
-//  runtime (rel_runtime) never creates or destroys an interpreter itself;
+//  runtime (rel_core) never creates or destroys an interpreter itself;
 //  the host (rel.exe / rel_test) does:
 //
-//      xequation::python::PyEnvConfig cfg;
+//      python_manager::PyEnvConfig cfg;
 //      cfg.py_home       = ...;                 // Python installation prefix
 //      cfg.lib_path_list = { stdlib, lib-dynload, site-packages };
-//      xequation::python::PyEnvManager::SetPyEnvConfig(cfg);
-//      xequation::python::PyEnvManager::InitializePyEnv();
+//      python_manager::PyEnvManager::SetPyEnvConfig(cfg);
+//      python_manager::PyEnvManager::InitializePyEnv();
 //      ...
 //      rel::Environment::CleanupPythonState();  // drop callbacks first
-//      xequation::python::PyEnvManager::ShutdownPyEnv();
+//      python_manager::PyEnvManager::ShutdownPyEnv();
 // =============================================================================
 
 #include <string>
 #include <vector>
 
-namespace xequation {
-namespace python {
+namespace python_manager {
 
 /// Configuration of the embedded CPython environment.
 struct PyEnvConfig
@@ -100,5 +100,4 @@ private:
     static bool manage_python_context_;
 };
 
-}  // namespace python
-}  // namespace xequation
+}  // namespace python_manager

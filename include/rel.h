@@ -1,7 +1,8 @@
 #pragma once
 
-#include "function/function.h"  // FunctionParam / NativeFunction
-#include "value.h"          // rel::Value
+#include "rel_api.h"
+#include "function.h"   // FunctionParam / NativeFunction
+#include "value.h"      // rel::Value
 
 #include <sstream>
 #include <string>
@@ -16,7 +17,16 @@ class Environment;
 /// Otherwise the given Environment is used (with its variables, datasets,
 /// and built-in constants).
 /// Throws std::runtime_error on parse or evaluation failure.
-Value Eval(const std::string& source, Environment* env = nullptr);
+REL_API Value Eval(const std::string& source, Environment* env = nullptr);
+
+/// Execute a single line of REL source, which may be either a plain
+/// expression or a `name = expr` binding:
+///   - plain expression: parsed and evaluated; the result is discarded;
+///   - `name = expr`:    the expression is evaluated and bound in `env`
+///     as a variable (throws std::runtime_error when `name` is not a
+///     valid identifier).
+/// Throws std::runtime_error on parse, evaluation, or binding failure.
+REL_API void Exec(const std::string& source, Environment& env);
 
 // =========================================================================
 //  Value formatting helpers
@@ -26,7 +36,7 @@ Value Eval(const std::string& source, Environment* env = nullptr);
 //  text rendering of xdataset values.  All are inline so they are usable
 //  from any translation unit without a rel_core link.
 
-/// Render a MultiDimensionSpec as "[1, 2, [1, 2, 3]]" — regular dimensions
+/// Render a MultiDimensionSpec as "[1, 2, [1, 2, 3]]" -- regular dimensions
 /// print their size, ragged dimensions nest their sizes.
 inline std::string FormatDimensionSpec(const xdataset::MultiDimensionSpec& spec)
 {

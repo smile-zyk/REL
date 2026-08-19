@@ -32,7 +32,7 @@ rel::Value Evaluator::Evaluate(const Expr& expr)
 }
 
 // =========================================================================
-//  parse_base — convert lexeme according to radix
+//  parse_base -- convert lexeme according to radix
 // =========================================================================
 
 double Evaluator::parse_base(const std::string& lexeme, int radix)
@@ -99,7 +99,7 @@ void Evaluator::visit_string(const StringExpr& expr)
 }
 
 // =========================================================================
-//  apply_unary — delegate to rel::Value operators
+//  apply_unary -- delegate to rel::Value operators
 // =========================================================================
 
 rel::Value Evaluator::apply_unary(TokenType op, const rel::Value& operand)
@@ -115,7 +115,7 @@ rel::Value Evaluator::apply_unary(TokenType op, const rel::Value& operand)
 }
 
 // =========================================================================
-//  apply_binary — delegate to rel::Value operators
+//  apply_binary -- delegate to rel::Value operators
 // =========================================================================
 
 rel::Value Evaluator::apply_binary(TokenType op, const rel::Value& lhs, const rel::Value& rhs)
@@ -146,7 +146,7 @@ rel::Value Evaluator::apply_binary(TokenType op, const rel::Value& lhs, const re
 }
 
 // =========================================================================
-//  apply_logical — delegate to rel::Value operators
+//  apply_logical -- delegate to rel::Value operators
 // =========================================================================
 
 rel::Value Evaluator::apply_logical(TokenType op, const LogicalExpr& expr)
@@ -182,7 +182,7 @@ void Evaluator::visit_binary(const BinaryExpr& expr)
 }
 
 // =========================================================================
-//  visit_logical — short-circuit semantics
+//  visit_logical -- short-circuit semantics
 // =========================================================================
 
 void Evaluator::visit_logical(const LogicalExpr& expr)
@@ -200,7 +200,7 @@ void Evaluator::visit_grouping(const GroupingExpr& expr)
 }
 
 // =========================================================================
-//  visit_reference — resolve identifier / dotted path via Environment
+//  visit_reference -- resolve identifier / dotted path via Environment
 // =========================================================================
 
 void Evaluator::visit_reference(const ReferenceExpr& expr)
@@ -218,7 +218,7 @@ void Evaluator::visit_reference(const ReferenceExpr& expr)
 }
 
 // =========================================================================
-//  ResolveReference — AST-aware reference resolution (formerly in Environment)
+//  ResolveReference -- AST-aware reference resolution (formerly in Environment)
 // =========================================================================
 
 rel::Value Evaluator::ResolveReference(
@@ -242,7 +242,7 @@ rel::Value Evaluator::ResolveReference(
     };
 
     // =================================================================
-    //  Case 1 — single identifier: user var, constant, or unique DataArray
+    //  Case 1 -- single identifier: user var, constant, or unique DataArray
     // =================================================================
     if (segments.size() == 1)
     {
@@ -259,7 +259,7 @@ rel::Value Evaluator::ResolveReference(
     }
 
     // =================================================================
-    //  Case 2 — dataset..variable (DDot; var name may contain dots)
+    //  Case 2 -- dataset..variable (DDot; var name may contain dots)
     // =================================================================
     if (segments[1].sep == RefSeparator::DDot)
     {
@@ -271,7 +271,7 @@ rel::Value Evaluator::ResolveReference(
     }
 
     // =================================================================
-    //  Case 3 — block-path navigation (Dot)
+    //  Case 3 -- block-path navigation (Dot)
     // =================================================================
 
     // Determine the target Dataset and starting segment index.
@@ -299,9 +299,9 @@ rel::Value Evaluator::ResolveReference(
             "reference needs at least block.variable after path");
     }
 
-    // ---- strategy A: split at k → block=segs[start..k-1], var=segs[k..] ---
-    // k = n-1: single-segment var (SP.Vout)        — original behaviour
-    // k = n-2: two-segment  var (SP.SRC1.i)        — fallback for dotted dependents
+    // ---- strategy A: split at k -> block=segs[start..k-1], var=segs[k..] ---
+    // k = n-1: single-segment var (SP.Vout)        -- original behaviour
+    // k = n-2: two-segment  var (SP.SRC1.i)        -- fallback for dotted dependents
     for (std::size_t k = n - 1; k >= n - 2 && k >= start + 1; --k)
     {
         std::string block_path = join(segments, start, k, "/");
@@ -316,7 +316,7 @@ rel::Value Evaluator::ResolveReference(
         catch (const std::invalid_argument&) { /* try next split */ }
     }
 
-    // ---- strategy B: bare "Name.var" → unique DataArray lookup ----
+    // ---- strategy B: bare "Name.var" -> unique DataArray lookup ----
     // e.g. "Id.i" where "Id" isn't a Block but "Id.i" is a unique DataArray
     if (n == start + 2)
     {
@@ -330,7 +330,7 @@ rel::Value Evaluator::ResolveReference(
 }
 
 // =========================================================================
-//  visit_conditional — ternary ?:
+//  visit_conditional -- ternary ?:
 // =========================================================================
 
 void Evaluator::visit_conditional(const ConditionalExpr& expr)
@@ -342,7 +342,7 @@ void Evaluator::visit_conditional(const ConditionalExpr& expr)
 }
 
 // =========================================================================
-//  visit_if — if(…)then…elseif(…)then…else…
+//  visit_if -- if(...)then...elseif(...)then...else...
 // =========================================================================
 
 void Evaluator::visit_if(const IfExpr& expr)
@@ -364,10 +364,10 @@ void Evaluator::visit_if(const IfExpr& expr)
 //  Sequence helpers
 // =========================================================================
 //  RangeExpr / NullRangeExpr only appear inside:
-//    a(i, j)  — matrix index (via visit_call)
-//    a[i, j]  — sweep index (via visit_index)
-//    [items]  — sweep generator
-//    {items}  — matrix generator
+//    a(i, j)  -- matrix index (via visit_call)
+//    a[i, j]  -- sweep index (via visit_index)
+//    [items]  -- sweep generator
+//    {items}  -- matrix generator
 //  They are never top-level expressions; visit_range / visit_null_range
 //  remain dead code (parser guarantees this).
 
@@ -386,8 +386,8 @@ static double eval_scalar_num(rel::Evaluator& eval, const rel::Expr& arg)
     throw std::runtime_error("range/index operand must be numeric");
 }
 
-// ---- index selectors: AST → MultiIndexSelector (used by visit_call / visit_index) ----
-//    matrix index a(i, j): 1-based → 0-based
+// ---- index selectors: AST -> MultiIndexSelector (used by visit_call / visit_index) ----
+//    matrix index a(i, j): 1-based -> 0-based
 //    sweep  index a[i, j]: 0-based (no conversion)
 
 static xdataset::MultiIndexSelector
@@ -431,7 +431,7 @@ make_selector(rel::Evaluator& eval, const rel::ExprPtr& arg, bool one_based)
         static_cast<xdataset::Index>(idx));
 }
 
-// ---- sequence expansion: RangeExpr → Value items (used by visit_sweep / visit_matrix) ----
+// ---- sequence expansion: RangeExpr -> Value items (used by visit_sweep / visit_matrix) ----
 //    start/step/stop can be Integer or Real; output preserves the type.
 
 static void expand_range(rel::Evaluator& eval,
@@ -471,7 +471,7 @@ static void expand_range(rel::Evaluator& eval,
             out.push_back(make_val(v));
 }
 
-/// Expand one item: RangeExpr → multiple Values; everything else → single Value.
+/// Expand one item: RangeExpr -> multiple Values; everything else -> single Value.
 static void expand_item(rel::Evaluator& eval,
                         const rel::ExprPtr& item,
                         std::vector<rel::Value>& out)
@@ -489,7 +489,7 @@ static void expand_item(rel::Evaluator& eval,
 }
 
 // =========================================================================
-//  visit_sweep — [expr_list], expands RangeExpr items, uses OperationSweep
+//  visit_sweep -- [expr_list], expands RangeExpr items, uses OperationSweep
 // =========================================================================
 
 void Evaluator::visit_sweep(const SweepExpr& expr)
@@ -509,7 +509,7 @@ void Evaluator::visit_sweep(const SweepExpr& expr)
 }
 
 // =========================================================================
-//  visit_matrix — {expr_list}, expands RangeExpr items, uses OperationMatrix
+//  visit_matrix -- {expr_list}, expands RangeExpr items, uses OperationMatrix
 // =========================================================================
 
 void Evaluator::visit_matrix(const MatrixExpr& expr)
@@ -533,7 +533,7 @@ void Evaluator::visit_matrix(const MatrixExpr& expr)
     }
 
     // Only unwrap a single-element brace at the outermost level.
-    // {1} → 1, but inside {{1},{2}} each inner {1} stays as a 1-vector.
+    // {1} -> 1, but inside {{1},{2}} each inner {1} stays as a 1-vector.
     if (items.size() == 1 && !was_inside)
     {
         result_ = items[0];
@@ -544,7 +544,7 @@ void Evaluator::visit_matrix(const MatrixExpr& expr)
 }
 
 // =========================================================================
-//  visit_call — function call or matrix index a(i, j, ...)
+//  visit_call -- function call or matrix index a(i, j, ...)
 // =========================================================================
 
 namespace
@@ -579,7 +579,7 @@ void Evaluator::visit_call(const CallExpr& expr)
 }
 
 // =========================================================================
-//  try_function_call — dispatch to a registered custom function
+//  try_function_call -- dispatch to a registered custom function
 // =========================================================================
 //
 //  A call is a function call when the callee is a single-segment identifier
@@ -604,7 +604,7 @@ bool Evaluator::try_function_call(const CallExpr& expr)
 }
 
 // =========================================================================
-//  eval_matrix_index — matrix / DataArray indexing a(i, j)
+//  eval_matrix_index -- matrix / DataArray indexing a(i, j)
 // =========================================================================
 
 rel::Value Evaluator::eval_matrix_index(const CallExpr& expr)
@@ -634,7 +634,7 @@ rel::Value Evaluator::eval_matrix_index(const CallExpr& expr)
 }
 
 // =========================================================================
-//  invoke_function — resolve call-site slots, then call the implementation
+//  invoke_function -- resolve call-site slots, then call the implementation
 // =========================================================================
 //
 //  Slot resolution lives here (not in Function): explicit arguments
@@ -665,7 +665,7 @@ rel::Value Evaluator::invoke_function(const Function& fn,
 }
 
 // =========================================================================
-//  visit_index — sweep index a[i, j, ...] via DataArray::select()
+//  visit_index -- sweep index a[i, j, ...] via DataArray::select()
 // =========================================================================
 
 void Evaluator::visit_index(const IndexExpr& expr)
@@ -682,7 +682,7 @@ void Evaluator::visit_index(const IndexExpr& expr)
 
     xdataset::DataArray da = obj.as_data_array().select(selectors);
 
-    // Unwrap single-row, single-cell Independent DataArray → Measurement.
+    // Unwrap single-row, single-cell Independent DataArray -> Measurement.
     if (da.data_kind() == xdataset::DataArrayKind::kIndependent &&
         da.datas().size() == 1 &&
         da.data().size() == 1)
@@ -696,7 +696,7 @@ void Evaluator::visit_index(const IndexExpr& expr)
 }
 
 // =========================================================================
-//  visit_range / visit_null_range — dead code; these nodes are consumed
+//  visit_range / visit_null_range -- dead code; these nodes are consumed
 //  inside make_selector / expand_item above, never reached as top-level.
 // =========================================================================
 

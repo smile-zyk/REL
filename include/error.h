@@ -1,11 +1,13 @@
 #pragma once
 
+#include "rel_api.h"
+
 #include <string>
 
 namespace rel {
 
 // =========================================================================
-//  ErrorKind — categorises where the error originates
+//  ErrorKind -- categorises where the error originates
 // =========================================================================
 
 enum class ErrorKind
@@ -17,10 +19,10 @@ enum class ErrorKind
 
 // =========================================================================
 // =========================================================================
-//  Error — unified error with source location
+//  Error -- unified error with source location
 // =========================================================================
 
-struct Error
+struct REL_API Error
 {
     ErrorKind  kind;
     int        line;
