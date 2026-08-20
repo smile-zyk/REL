@@ -212,6 +212,14 @@ public:
 
     // ---- formatting ----------------------------------------------------
 
+    /// Compact human-readable string (no table frame).
+    ///   - Measurement: inline text via Measurement::to_string(), e.g.
+    ///     "3.14 GHz", "1.5 V", "[1, 2, 3]".  Units are auto-scaled to the
+    ///     best display prefix (k / M / G / ...).
+    ///   - DataArray: rendered as a DataFrame table (the natural compact
+    ///     representation of multi-row tabular data).
+    std::string to_string() const;
+
     /// Human-readable string.
     /// When `name` is empty: Measurement renders inline (e.g. "3.14 GHz"),
     /// DataArray renders as DataFrame with a default header.

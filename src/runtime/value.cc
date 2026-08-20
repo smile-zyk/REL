@@ -298,8 +298,25 @@ bool Value::is_canonicalized() const
 
 // ---- formatting ------------------------------------------------------------
 
+std::string Value::to_string() const
+{
+    if (is_measurement())
+    {
+        // Inline compact form: reuses Measurement::to_string() with
+        // auto-scaled units (e.g. "3.14 GHz", "[1, 2, 3]").
+        return as_measurement().to_string();
+    }
+
+    // DataArray: tabular render is the natural compact representation.
+    // (DataFrame::to_string leads with a newline, so the table never
+    // glues onto preceding output.)
+    return as_data_array().GetOrCreateDataFrame("data").to_string();
+}
+
 std::string Value::Format(const std::string& name, int max_rows) const
 {
+    // Both branches render a DataFrame table; DataFrame::to_string leads
+    // with a newline so the table never glues onto preceding output.
     if (is_measurement())
     {
         const xdataset::Measurement& m = as_measurement();
