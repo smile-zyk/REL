@@ -206,6 +206,9 @@ void register_rel_bindings(pybind11::module_& m)
         .def("clone", &rel::Value::clone)
         .def("format", &rel::Value::Format, pybind11::arg("name") = "data", pybind11::arg("max_rows") = 32)
         .def("to_string", &rel::Value::to_string)
+        .def("data_frame", [](const rel::Value& v, const std::string& name) {
+            return v.data_frame(name);
+        }, pybind11::arg("name") = "data")
         .def("__str__", [](const rel::Value& v) { return v.to_string(); })
         .def("__repr__", [](const rel::Value& v) { return v.to_string(); })
         // ---- operators (delegate to rel::operation kernels) ------------

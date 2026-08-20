@@ -4,6 +4,7 @@
 
 #include "value.h"
 
+#include "data_frame.h"  // DataFrame::FromDataArray
 #include "data_series.h"
 
 #include <stdexcept>
@@ -297,6 +298,20 @@ bool Value::is_canonicalized() const
 }
 
 // ---- formatting ------------------------------------------------------------
+
+std::unique_ptr<xdataset::DataFrame> Value::data_frame(
+    const std::string& name) const
+{
+    if (is_measurement())
+    {
+        return as_measurement().to_dataframe(name);
+    }
+
+    // DataArray: render with custom or default variable name.
+    const xdataset::DataArray& da = as_data_array();
+    const std::string& header = name.empty() ? "data" : name;
+    return xdataset::DataFrame::FromDataArray(da, header);
+}
 
 std::string Value::to_string() const
 {

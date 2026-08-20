@@ -212,6 +212,15 @@ public:
 
     // ---- formatting ----------------------------------------------------
 
+    /// Build a DataFrame tabular view of this Value.
+    ///   - Measurement: a single-row frame via
+    ///     Measurement::to_dataframe(name) (name = column header).
+    ///   - DataArray: a frame via DataArray::GetOrCreateDataFrame(name)
+    ///     (name = dependent-variable header).
+    /// The returned frame is owned by the caller (DataFrame is move-only).
+    std::unique_ptr<xdataset::DataFrame> data_frame(
+        const std::string& name = "data") const;
+
     /// Compact human-readable string (no table frame).
     ///   - Measurement: inline text via Measurement::to_string(), e.g.
     ///     "3.14 GHz", "1.5 V", "[1, 2, 3]".  Units are auto-scaled to the
