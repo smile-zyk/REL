@@ -189,7 +189,9 @@ void register_rel_bindings(pybind11::module_& m)
         .def("as_measurement", [](const rel::Value& v) { return v.as_measurement(); })
         .def("as_data_array", [](const rel::Value& v) { return v.as_data_array(); })
         // data access
-        .def("data", [](const rel::Value& v) { return v.data(); })
+        .def("data", [](const rel::Value& v) -> const DataSeries& {
+            return v.data();
+        }, pybind11::return_value_policy::reference_internal)
         .def("indep_data", [](const rel::Value& v, const std::string& name) { return v.indep_data(name); })
         .def("indep_data", [](const rel::Value& v, Index i) { return v.indep_data(i); })
         // in-place mutation
@@ -206,9 +208,9 @@ void register_rel_bindings(pybind11::module_& m)
         .def("clone", &rel::Value::clone)
         .def("format", &rel::Value::Format, pybind11::arg("name") = "data", pybind11::arg("max_rows") = 32)
         .def("to_string", &rel::Value::to_string)
-        .def("data_frame", [](const rel::Value& v, const std::string& name) {
+        .def("data_frame", [](const rel::Value& v, const std::string& name) -> const DataFrame& {
             return v.data_frame(name);
-        }, pybind11::arg("name") = "data")
+        }, pybind11::return_value_policy::reference_internal, pybind11::arg("name") = "data")
         .def("__str__", [](const rel::Value& v) { return v.to_string(); })
         .def("__repr__", [](const rel::Value& v) { return v.to_string(); })
         // ---- operators (delegate to rel::operation kernels) ------------

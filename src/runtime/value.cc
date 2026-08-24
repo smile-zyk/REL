@@ -4,8 +4,8 @@
 
 #include "value.h"
 
-#include "data_frame.h"  // DataFrame::FromDataArray
-#include "data_series.h"
+#include "data_frame.h"   // DataFrame (frame view via GetOrCreateDataFrame)
+#include "data_series.h"  // DataSeries promotion
 
 #include <stdexcept>
 
@@ -54,6 +54,22 @@ const DataArray& Value::as_data_array() const {
     return *boost::get<std::shared_ptr<DataArray>>(storage_);
 }
 
+const DataArray& Value::as_data_array_view() const {
+    if (is_data_array())
+        return *boost::get<std::shared_ptr<DataArray>>(storage_);
+
+    // Measurement -> lazily promote to a 1-row Independent DataArray.
+    if (!promoted_) {
+        const Measurement& m = boost::get<Measurement>(storage_);
+        DataSeries ds(m.data_type(), m.shape());
+        ds.set_unit(m.unit());
+        ds.append(m);
+        promoted_ = std::make_shared<DataArray>(
+            DataArray::CreateIndependent(std::move(ds)));
+    }
+    return *promoted_;
+}
+
 // ---- unified metadata ------------------------------------------------------
 
 DataKind Value::data_kind() const {
@@ -77,8 +93,11 @@ const Unit& Value::unit() const {
 }
 
 Index Value::rows() const {
-    if (is_measurement()) return 1;
-    return static_cast<Index>(as_data_array().data().size());
+    // Both branches yield rows == 1 for Measurement-backed Values, but
+    // going through the promoted array keeps a single implementation and
+    // gives the Measurement the same array semantics as any other 1-row
+    // array (e.g. dimension_spec, indep, data_frame).
+    return static_cast<Index>(as_data_array_view().data().size());
 }
 
 Index Value::element_count() const {
@@ -89,62 +108,37 @@ Index Value::element_count() const {
 // ---- unified inspection ----------------------------------------------------
 
 std::vector<std::string> Value::indep_names() const {
-    if (is_measurement()) return {};
-    return as_data_array().indep_names();
+    return as_data_array_view().indep_names();
 }
 
 bool Value::is_dependent() const {
-    if (is_measurement()) return false;
-    return as_data_array().data_kind() == DataArrayKind::kDependent;
+    return as_data_array_view().data_kind() == DataArrayKind::kDependent;
 }
 
-MultiDimensionSpec Value::dimension_spec() const {
-    if (is_measurement()) {
-        MultiDimensionSpec spec;
-        spec.add_regular(1);
-        return spec;
-    }
-    return as_data_array().multi_dimension_spec();
+const MultiDimensionSpec& Value::dimension_spec() const {
+    return as_data_array_view().multi_dimension_spec();
 }
 
 // ---- data / indep_data access ----------------------------------------------
 
-DataSeries Value::data() const {
-    if (is_measurement()) {
-        const Measurement& m = as_measurement();
-        DataSeries ds(m.data_type(), m.shape());
-        ds.set_unit(m.unit());
-        ds.append(m);
-        return ds;
-    }
-    return as_data_array().data();
+const DataSeries& Value::data() const {
+    return as_data_array_view().data();
 }
 
 DataSeries Value::indep_data(Index index) const {
-    if (is_measurement()) {
-        if (index == 1)
-            return DataSeries::CreateScalar<int>(1, Unit(), 0);
-        throw std::out_of_range("Measurement only has indep index 1");
-    }
-    return as_data_array().indep_data(index);
+    return as_data_array_view().indep_data(index);
 }
 
 DataSeries Value::indep_data(const std::string& name) const {
-    if (is_measurement())
-        throw std::runtime_error("Measurement cannot call indep_data");
-    return as_data_array().indep_data(name);
+    return as_data_array_view().indep_data(name);
 }
 
 Value Value::indep(Index index) const {
-    if (is_measurement())
-        throw std::runtime_error("Measurement cannot call indep");
-    return Value(as_data_array().indep(index));
+    return Value(as_data_array_view().indep(index));
 }
 
 Value Value::indep(const std::string& name) const {
-    if (is_measurement())
-        throw std::runtime_error("Measurement cannot call indep");
-    return Value(as_data_array().indep(name));
+    return Value(as_data_array_view().indep(name));
 }
 
 // ---- leaf / group iteration --------------------------------------------------
@@ -153,49 +147,20 @@ void Value::for_each_indep_group(
     Index indep_index,
     const MultiDimensionSpec::DimGroupVisitor& visitor) const
 {
-    if (is_measurement()) {
-        if (indep_index == 1) {
-            MultiDimensionSpec::DimGroup g;
-            g.flat_start = 0;
-            g.flat_end   = 1;
-            g.multi_index = {0};
-            visitor(g);
-            return;
-        }
-        throw std::out_of_range("Measurement only has indep index 1");
-    }
-    as_data_array().for_each_indep_group(indep_index, visitor);
+    as_data_array_view().for_each_indep_group(indep_index, visitor);
 }
 
 void Value::for_each_leaf_row(
     const MultiDimensionSpec::LeafRowVisitor& visitor) const
 {
-    if (is_measurement()) {
-        MultiDimensionSpec::LeafRow leaf;
-        leaf.row_flat = 0;
-        leaf.multi_index = {0};
-        leaf.dimension_row_indices = {0};
-        visitor(leaf);
-        return;
-    }
-    as_data_array().for_each_leaf_row(visitor);
+    as_data_array_view().for_each_leaf_row(visitor);
 }
 
 void Value::for_each_leaf_row(
     const MultiDimensionSpec::LeafRowVisitor& visitor,
     Index start_flat_row, Index end_flat_row) const
 {
-    if (is_measurement()) {
-        if (start_flat_row <= 0 && end_flat_row > 0) {
-            MultiDimensionSpec::LeafRow leaf;
-            leaf.row_flat = 0;
-            leaf.multi_index = {0};
-            leaf.dimension_row_indices = {0};
-            visitor(leaf);
-        }
-        return;
-    }
-    as_data_array().for_each_leaf_row(visitor, start_flat_row, end_flat_row);
+    as_data_array_view().for_each_leaf_row(visitor, start_flat_row, end_flat_row);
 }
 
 // ---- setters ----------------------------------------------------------------
@@ -203,6 +168,7 @@ void Value::for_each_leaf_row(
 void Value::set_data(Measurement value) {
     if (is_measurement()) {
         storage_ = std::move(value);
+        promoted_.reset();
         return;
     }
     DataSeries ds(value.data_type(), value.shape());
@@ -214,6 +180,7 @@ void Value::set_data(DataSeries new_self) {
     if (is_measurement()) {
         if (new_self.size() == 0) return;
         storage_ = new_self.measurement_at(0);
+        promoted_.reset();
         return;
     }
     as_data_array().set_data(std::move(new_self));
@@ -224,6 +191,7 @@ void Value::set_data(Index row, Measurement value) {
         if (row != 0)
             throw std::out_of_range("Measurement only has row 0");
         storage_ = std::move(value);
+        promoted_.reset();
         return;
     }
     as_data_array().set_data(row, std::move(value));
@@ -299,18 +267,14 @@ bool Value::is_canonicalized() const
 
 // ---- formatting ------------------------------------------------------------
 
-std::unique_ptr<xdataset::DataFrame> Value::data_frame(
+const xdataset::DataFrame& Value::data_frame(
     const std::string& name) const
 {
-    if (is_measurement())
-    {
-        return as_measurement().to_dataframe(name);
-    }
-
-    // DataArray: render with custom or default variable name.
-    const xdataset::DataArray& da = as_data_array();
+    // Unify on the array view: Measurement-backed Values are lazily promoted
+    // to a 1-row DataArray whose cached frame becomes the stable owner.
+    // Frames are cached per distinct header name.
     const std::string& header = name.empty() ? "data" : name;
-    return xdataset::DataFrame::FromDataArray(da, header);
+    return as_data_array_view().GetOrCreateDataFrame(header);
 }
 
 std::string Value::to_string() const
@@ -330,18 +294,12 @@ std::string Value::to_string() const
 
 std::string Value::Format(const std::string& name, int max_rows) const
 {
-    // Both branches render a DataFrame table; DataFrame::to_string leads
-    // with a newline so the table never glues onto preceding output.
-    if (is_measurement())
-    {
-        const xdataset::Measurement& m = as_measurement();
-        return m.to_dataframe(name)->to_string(max_rows);
-    }
-
-    // DataArray: render with custom or default variable name
-    const xdataset::DataArray& da = as_data_array();
+    // Unify on the array view: Measurement-backed Values are lazily promoted
+    // to a 1-row DataArray, so this renders identically for both kinds.
+    // (DataFrame::to_string leads with a newline so the table never glues
+    // onto preceding output.)
     const std::string& header = name.empty() ? "data" : name;
-    return da.GetOrCreateDataFrame(header).to_string(max_rows);
+    return data_frame(header).to_string(max_rows);
 }
 
 // ---- convenience factories -------------------------------------------------

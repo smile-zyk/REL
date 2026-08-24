@@ -153,7 +153,7 @@ namespace math
     /// Innermost-dimension minimum.
     Value Min(const Value& v)
     {
-        DataSeries src = v.data();
+        const DataSeries& src = v.data();
 
         auto result = ReduceInnermost(v, src, src.data_type(), src.unit(),
             [&](Index start, Index end, const DataSeries& src_data) -> Measurement
@@ -177,7 +177,7 @@ namespace math
     /// Innermost-dimension maximum.
     Value Max(const Value& v)
     {
-        DataSeries src = v.data();
+        const DataSeries& src = v.data();
 
         auto result = ReduceInnermost(v, src, src.data_type(), src.unit(),
             [&](Index start, Index end, const DataSeries& src_data) -> Measurement
@@ -201,7 +201,7 @@ namespace math
     /// Innermost-dimension sum.
     Value Sum(const Value& v)
     {
-        DataSeries src = v.data();
+        const DataSeries& src = v.data();
         DataType dt = src.data_type();
 
         switch (dt)
@@ -250,7 +250,7 @@ namespace math
     /// Innermost-dimension mean.
     Value Mean(const Value& v)
     {
-        DataSeries src = v.data();
+        const DataSeries& src = v.data();
         DataType dt = src.data_type();
 
         switch (dt)

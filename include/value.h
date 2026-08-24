@@ -25,8 +25,11 @@ namespace rel {
 //  stored via shared_ptr to avoid deep copies when the same array is
 //  returned through multiple evaluation paths.
 //
-//  Calling data() on a Measurement-backed Value auto-converts it to an
-//  Independent DataArray so that the unified mutation API works seamlessly.
+//  When an array (tabular) view of a Measurement-backed Value is requested
+//  (data_frame, rows, indep, ...), the single measurement is lazily promoted
+//  to a 1-row Independent DataArray that is cached in promoted_ and serves
+//  as the address-stable owner of any cached DataFrame.  The Measurement hot
+//  path (as_measurement, operators) never triggers promotion.
 
 class REL_API Value
 {
@@ -103,9 +106,11 @@ public:
     /// Always false for Measurement.
     bool is_dependent() const;
 
-    /// Multi-dimension spec.  Measurement returns a single regular dim of
-    /// size 1; DataArray delegates to multi_dimension_spec().
-    xdataset::MultiDimensionSpec dimension_spec() const;
+    /// Multi-dimension spec.  Measurement returns the spec of the lazily
+    /// promoted 1-row array (a single regular dim of size 1); DataArray
+    /// delegates to multi_dimension_spec().  The reference is valid as long
+    /// as this Value lives.
+    const xdataset::MultiDimensionSpec& dimension_spec() const;
 
     // ---- convenience queries -------------------------------------------
 
@@ -134,9 +139,14 @@ public:
 
     // ---- data / indep_data access --------------------------------------
 
-    /// Return a copy of self data.  Measurement: creates a 1-row DataSeries
-    /// from the Measurement.  DataArray: returns a copy of the underlying series.
-    xdataset::DataSeries data() const;
+    /// Return the self data series.
+    ///   - Measurement: lazily promoted to a 1-row DataSeries (owned by the
+    ///     promoted array in @ref promoted_).
+    ///   - DataArray: returns the underlying series.
+    /// The returned reference is valid as long as this Value lives and is
+    /// not replaced via set_data.  Callers that need to keep the data
+    /// beyond the Value's lifetime must copy it.
+    const xdataset::DataSeries& data() const;
 
     /// Independent variable data by 1-based index (innermost-first).
     /// Measurement-backed: returns a single-row DataSeries with int 0
@@ -213,13 +223,27 @@ public:
     // ---- formatting ----------------------------------------------------
 
     /// Build a DataFrame tabular view of this Value.
-    ///   - Measurement: a single-row frame via
-    ///     Measurement::to_dataframe(name) (name = column header).
-    ///   - DataArray: a frame via DataArray::GetOrCreateDataFrame(name)
-    ///     (name = dependent-variable header).
-    /// The returned frame is owned by the caller (DataFrame is move-only).
-    std::unique_ptr<xdataset::DataFrame> data_frame(
+    ///   - Measurement: lazily promoted to a 1-row DataArray (see
+    ///     as_data_array_view()), then a frame is created / cached via
+    ///     DataArray::GetOrCreateDataFrame(name).
+    ///   - DataArray: frame created / cached via
+    ///     DataArray::GetOrCreateDataFrame(name).
+    /// The returned frame is owned by the underlying (possibly promoted)
+    /// DataArray and is addressed by a stable reference.  The caller must
+    /// keep this Value alive while using the frame.  Frames are cached per
+    /// distinct @p name (no in-place header rename).
+    const xdataset::DataFrame& data_frame(
         const std::string& name = "data") const;
+
+    /// Return the array view of this Value.
+    ///   - DataArray: the stored array itself.
+    ///   - Measurement: lazily promotes the single measurement to a 1-row
+    ///     Independent DataArray (cached in @ref promoted_).  The promoted
+    ///     array lives as long as this Value and is the stable owner of any
+    ///     DataFrame returned by @ref data_frame.
+    /// The result is an address-stable owner for arrays and frames; the
+    /// Measurement hot path (as_measurement) never triggers promotion.
+    const xdataset::DataArray& as_data_array_view() const;
 
     /// Compact human-readable string (no table frame).
     ///   - Measurement: inline text via Measurement::to_string(), e.g.
@@ -337,6 +361,14 @@ private:
         std::shared_ptr<xdataset::DataArray>
     > Storage;
     Storage storage_;
+
+    /// Lazy 1-row DataArray promotion of a Measurement-backed Value.
+    /// Null until as_data_array_view() is first called on a Measurement
+    /// Value.  Reset whenever storage_ is replaced with a new Measurement.
+    /// Shared (not copied) by default-copied Values: a copied Value shares
+    /// the same promoted array as the original, which is fine because both
+    /// wrap the same Measurement value.
+    mutable std::shared_ptr<xdataset::DataArray> promoted_;
 };
 
 }  // namespace rel
