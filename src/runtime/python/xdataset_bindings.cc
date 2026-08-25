@@ -17,7 +17,6 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -664,9 +663,18 @@ void register_xdataset_bindings(pybind11::module_& m)
             return d.data_kind() == DataArrayKind::kDependent ? "dependent" : "independent";
         }) 
         .def_property_readonly("indep_names", &DataArray::indep_names)
-        .def_property_readonly("data", [](const DataArray& d) { return d.data(); })
-        .def("indep_data", static_cast<DataSeries (DataArray::*)(Index) const>(&DataArray::indep_data))
-        .def("indep_data", static_cast<DataSeries (DataArray::*)(const std::string&) const>(&DataArray::indep_data))
+        .def_property_readonly("data", [](const DataArray& d) -> const DataSeries& {
+            return d.data();
+        }, pybind11::return_value_policy::reference_internal)
+        .def("indep_data", [](const DataArray& d, Index i) -> const DataSeries& {
+            return d.indep_data(i);
+        }, pybind11::return_value_policy::reference_internal)
+        .def("indep_data", [](const DataArray& d, const std::string& name) -> const DataSeries& {
+            return d.indep_data(name);
+        }, pybind11::return_value_policy::reference_internal)
+        .def("self_index_series", [](const DataArray& d) {
+            return d.self_index_series();
+        })
         .def("set_data", static_cast<void (DataArray::*)(DataSeries)>(&DataArray::set_data))
         .def("set_data", static_cast<void (DataArray::*)(Index, Measurement)>(&DataArray::set_data))
         .def("set_indep_data", static_cast<void (DataArray::*)(DataSeries)>(&DataArray::set_indep_data))

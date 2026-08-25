@@ -59,15 +59,15 @@ const DataArray& Value::as_data_array_view() const {
         return *boost::get<std::shared_ptr<DataArray>>(storage_);
 
     // Measurement -> lazily promote to a 1-row Independent DataArray.
-    if (!promoted_) {
+    if (!array_view_) {
         const Measurement& m = boost::get<Measurement>(storage_);
         DataSeries ds(m.data_type(), m.shape());
         ds.set_unit(m.unit());
         ds.append(m);
-        promoted_ = std::make_shared<DataArray>(
+        array_view_ = std::make_shared<DataArray>(
             DataArray::CreateIndependent(std::move(ds)));
     }
-    return *promoted_;
+    return *array_view_;
 }
 
 // ---- unified metadata ------------------------------------------------------
@@ -125,12 +125,16 @@ const DataSeries& Value::data() const {
     return as_data_array_view().data();
 }
 
-DataSeries Value::indep_data(Index index) const {
+const DataSeries& Value::indep_data(Index index) const {
     return as_data_array_view().indep_data(index);
 }
 
-DataSeries Value::indep_data(const std::string& name) const {
+const DataSeries& Value::indep_data(const std::string& name) const {
     return as_data_array_view().indep_data(name);
+}
+
+DataSeries Value::self_index_series() const {
+    return as_data_array_view().self_index_series();
 }
 
 Value Value::indep(Index index) const {
@@ -168,7 +172,7 @@ void Value::for_each_leaf_row(
 void Value::set_data(Measurement value) {
     if (is_measurement()) {
         storage_ = std::move(value);
-        promoted_.reset();
+        array_view_.reset();
         return;
     }
     DataSeries ds(value.data_type(), value.shape());
@@ -180,7 +184,7 @@ void Value::set_data(DataSeries new_self) {
     if (is_measurement()) {
         if (new_self.size() == 0) return;
         storage_ = new_self.measurement_at(0);
-        promoted_.reset();
+        array_view_.reset();
         return;
     }
     as_data_array().set_data(std::move(new_self));
@@ -191,7 +195,7 @@ void Value::set_data(Index row, Measurement value) {
         if (row != 0)
             throw std::out_of_range("Measurement only has row 0");
         storage_ = std::move(value);
-        promoted_.reset();
+        array_view_.reset();
         return;
     }
     as_data_array().set_data(row, std::move(value));

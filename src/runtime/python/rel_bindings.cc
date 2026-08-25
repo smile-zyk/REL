@@ -192,8 +192,15 @@ void register_rel_bindings(pybind11::module_& m)
         .def("data", [](const rel::Value& v) -> const DataSeries& {
             return v.data();
         }, pybind11::return_value_policy::reference_internal)
-        .def("indep_data", [](const rel::Value& v, const std::string& name) { return v.indep_data(name); })
-        .def("indep_data", [](const rel::Value& v, Index i) { return v.indep_data(i); })
+        .def("indep_data", [](const rel::Value& v, const std::string& name) -> const DataSeries& {
+            return v.indep_data(name);
+        }, pybind11::return_value_policy::reference_internal)
+        .def("indep_data", [](const rel::Value& v, Index i) -> const DataSeries& {
+            return v.indep_data(i);
+        }, pybind11::return_value_policy::reference_internal)
+        .def("self_index_series", [](const rel::Value& v) {
+            return v.self_index_series();
+        })
         // in-place mutation
         .def("set_data", [](rel::Value& v, const Measurement& m) { v.set_data(m); })
         .def("set_data", [](rel::Value& v, const DataSeries& ds) { v.set_data(ds); })

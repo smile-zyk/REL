@@ -27,7 +27,7 @@ namespace rel {
 //
 //  When an array (tabular) view of a Measurement-backed Value is requested
 //  (data_frame, rows, indep, ...), the single measurement is lazily promoted
-//  to a 1-row Independent DataArray that is cached in promoted_ and serves
+//  to a 1-row Independent DataArray that is cached in array_view_ and serves
 //  as the address-stable owner of any cached DataFrame.  The Measurement hot
 //  path (as_measurement, operators) never triggers promotion.
 
@@ -141,7 +141,7 @@ public:
 
     /// Return the self data series.
     ///   - Measurement: lazily promoted to a 1-row DataSeries (owned by the
-    ///     promoted array in @ref promoted_).
+    ///     array view in @ref array_view_).
     ///   - DataArray: returns the underlying series.
     /// The returned reference is valid as long as this Value lives and is
     /// not replaced via set_data.  Callers that need to keep the data
@@ -149,15 +149,27 @@ public:
     const xdataset::DataSeries& data() const;
 
     /// Independent variable data by 1-based index (innermost-first).
-    /// Measurement-backed: returns a single-row DataSeries with int 0
-    /// (the index of the single value).
-    /// DataArray-backed: delegates to DataArray::indep_data().
-    xdataset::DataSeries indep_data(xdataset::Index index) const;
+    /// Delegates to DataArray::indep_data() on the array view:
+    ///   - Measurement-backed: the lazily promoted 1-row array's
+    ///     independent data (index 1).
+    ///   - DataArray-backed: the stored independent series.
+    /// The returned reference is valid as long as this Value lives (the
+    /// data is owned by the array view) and is not replaced via set_data /
+    /// set_indep_data.
+    const xdataset::DataSeries& indep_data(xdataset::Index index) const;
 
     /// Independent variable data by name.
-    /// Measurement-backed: throws runtime_error.
-    /// DataArray-backed: delegates to DataArray::indep_data().
-    xdataset::DataSeries indep_data(const std::string& name) const;
+    /// Delegates to DataArray::indep_data() on the array view.  A
+    /// Measurement-backed Value (no named independents) throws.
+    const xdataset::DataSeries& indep_data(const std::string& name) const;
+
+    /// Leaf-position index series of the innermost (kSelf) dimension --
+    /// one entry per raw element.  Regular: 0..N-1; Ragged: within-parent
+    /// offsets concatenated (e.g. sizes {3,2} -> 0,1,2,0,1).
+    /// Measurement-backed: the lazily promoted 1-row array's index series
+    /// (a single element 0).  This is a derived (computed) series, hence
+    /// returned by value.
+    xdataset::DataSeries self_index_series() const;
 
     /// Extract an independent variable as a Value (Independent DataArray).
     /// Indep index is 1-based, innermost-first (1 = innermost).
@@ -238,7 +250,7 @@ public:
     /// Return the array view of this Value.
     ///   - DataArray: the stored array itself.
     ///   - Measurement: lazily promotes the single measurement to a 1-row
-    ///     Independent DataArray (cached in @ref promoted_).  The promoted
+    ///     Independent DataArray (cached in @ref array_view_).  The promoted
     ///     array lives as long as this Value and is the stable owner of any
     ///     DataFrame returned by @ref data_frame.
     /// The result is an address-stable owner for arrays and frames; the
@@ -362,13 +374,13 @@ private:
     > Storage;
     Storage storage_;
 
-    /// Lazy 1-row DataArray promotion of a Measurement-backed Value.
+    /// Lazy 1-row DataArray view of a Measurement-backed Value.
     /// Null until as_data_array_view() is first called on a Measurement
     /// Value.  Reset whenever storage_ is replaced with a new Measurement.
     /// Shared (not copied) by default-copied Values: a copied Value shares
-    /// the same promoted array as the original, which is fine because both
+    /// the same array view as the original, which is fine because both
     /// wrap the same Measurement value.
-    mutable std::shared_ptr<xdataset::DataArray> promoted_;
+    mutable std::shared_ptr<xdataset::DataArray> array_view_;
 };
 
 }  // namespace rel
@@ -384,27 +396,11 @@ namespace rel {
 
 template <typename T>
 Value::FlatData<T> Value::flat_data() const {
-    if (is_measurement()) {
-        FlatData<T> fd;
-        const xdataset::Measurement& m = as_measurement();
-
-        fd.owner = std::unique_ptr<xdataset::DataSeries>(
-            new xdataset::DataSeries(m.data_type(), m.shape()));
-        fd.owner->append(m);
-
-        xdataset::DataType target = xdataset::DataTypeOf<T>::tag;
-        if (fd.owner->data_type() != target) {
-            fd.owner = std::unique_ptr<xdataset::DataSeries>(
-                new xdataset::DataSeries(fd.owner->promoted_data_type(target)));
-        }
-        fd.ptr    = fd.owner->template contiguous_data<T>();
-        fd.stride = static_cast<xdataset::Index>(fd.owner->element_count());
-        return fd;
-    }
-
-    // DataArray path
+    // Unify both branches on the array view: a Measurement-backed Value is
+    // lazily promoted to a 1-row DataArray whose DataSeries is contiguous,
+    // so the borrowed pointer below is stable for the Value's lifetime.
     FlatData<T> fd;
-    const xdataset::DataSeries& src = as_data_array().data();
+    const xdataset::DataSeries& src = as_data_array_view().data();
     if (src.data_type() == xdataset::DataTypeOf<T>::tag) {
         // borrow directly -- no copy
         fd.ptr    = src.contiguous_data<T>();
