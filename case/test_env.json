@@ -11,7 +11,7 @@
                          "path":  "LQ.s2p"
                      }
                  ],
-    "default_dataset":  "LQ",
+    "default_dataset":  "LNA",
     "python_plugins":  [
                            "plugins/snr.py",
                            "plugins/rf.py"
