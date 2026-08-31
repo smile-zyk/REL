@@ -31,6 +31,10 @@ void Environment::Define(const std::string& name, rel::Value value)
     if (builtin_constants_.find(name) != builtin_constants_.end())
         throw std::runtime_error(
             "cannot redefine builtin constant '" + name + "'");
+    if (HasFunction(name))
+        throw std::runtime_error(
+            "cannot define variable '" + name +
+            "': a function with that name is already registered");
     variables_[name] = std::move(value);
 }
 
@@ -112,6 +116,10 @@ void Environment::InitBuiltinFunctions()
 
 void Environment::RegisterFunction(Function fn)
 {
+    if (FindConstant(fn.name()) != nullptr)
+        throw std::runtime_error(
+            "cannot register function '" + fn.name() +
+            "': a builtin constant with that name already exists");
     std::lock_guard<std::mutex> lock(functions_mutex_);
     functions_[fn.name()] = std::move(fn);
 }
@@ -262,6 +270,30 @@ xdataset::Dataset* Environment::FindDataset(const std::string& name)
     return nullptr;
 }
 
+xdataset::Block* Environment::FindBlock(const std::string& source_path)
+{
+    // source_path = "<datasetName>/<block path>"
+    const std::size_t slash = source_path.find('/');
+    if (slash == std::string::npos)
+        return nullptr;
+
+    xdataset::Dataset* ds = FindDataset(source_path.substr(0, slash));
+    if (!ds)
+        return nullptr;
+
+    const std::string block_path = source_path.substr(slash + 1);
+    if (!ds->Exists(block_path))
+        return nullptr;
+    return &ds->GetBlock(block_path);
+}
+
+xdataset::Block* Environment::FindSourceBlock(const rel::Value& v)
+{
+    if (!v.has_source())
+        return nullptr;
+    return FindBlock(v.source_block_path());
+}
+
 // =========================================================================
 //  Persistent context: load datasets + plugins from config
 // =========================================================================
@@ -286,23 +318,24 @@ void Environment::LoadFromConfig(const std::string& config_path)
         if (!full_path.empty() && full_path[0] != '/' && !base_dir.empty())
             full_path = base_dir + ds.path;
 
-        xdataset::Dataset loaded(ds.name);
-
+        xdataset::Dataset loaded;
         if (ds.format == "hdf5")
         {
             loaded = xdataset::DatasetIO::Load(ds.format, full_path);
-            loaded.set_name(ds.name);
         }
         else if (ds.format == "touchstone")
         {
             loaded = xdataset::DatasetIO::Load("touchstone", full_path);
-            loaded.set_name(ds.name);
         }
         else
         {
             throw std::runtime_error(
                 "unsupported dataset format '" + ds.format + "'");
         }
+        // Load() reconstructs the stored name; the config-declared name is
+        // authoritative for this session.  Dataset name is immutable, so
+        // re-wrap the loaded tree under the fixed config name.
+        loaded = xdataset::Dataset(ds.name, std::move(loaded));
 
         datasets_[ds.name] = std::unique_ptr<xdataset::Dataset>(
             new xdataset::Dataset(std::move(loaded)));

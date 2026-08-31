@@ -65,6 +65,22 @@ TEST(EnvironmentTest, RedefineOverwrites)
     EXPECT_EQ(env.Get("x").as_measurement().as_scalar<int>(), 2);
 }
 
+TEST(EnvironmentTest, DefineRejectsFunctionName)
+{
+    // A variable must not share a name with a registered function:
+    // `f(...)` would be ambiguous between a function call and an index.
+    rel::Environment::RegisterFunction(rel::Function(
+        "env_test_fn", std::vector<rel::FunctionParam>{},
+        [](const rel::Function::ArgMap&) { return rel::Value::Integer(0); }));
+
+    rel::Environment env;
+    EXPECT_THROW(env.Define("env_test_fn", rel::Value::Integer(1)),
+                 std::runtime_error);
+    EXPECT_TRUE(env.VariableNames().empty());  // nothing was stored
+
+    rel::Environment::UnregisterFunction("env_test_fn");
+}
+
 // =========================================================================
 //  Built-in constants
 // =========================================================================
@@ -109,6 +125,20 @@ TEST(EnvironmentTest, BuiltinTinyReal)
     const rel::Value* v = rel::Environment::FindConstant("tinyReal");
     ASSERT_NE(v, nullptr);
     EXPECT_DOUBLE_EQ(v->as_measurement().as_scalar<double>(), 2.2e-308);
+}
+
+TEST(EnvironmentTest, RegisterFunctionRejectsConstantName)
+{
+    // A function must not shadow a builtin constant: `PI` would read the
+    // constant while `PI(...)` would call the function.
+    rel::Environment::InitBuiltinConstants();
+    EXPECT_THROW(rel::Environment::RegisterFunction(rel::Function(
+                     "PI", std::vector<rel::FunctionParam>{},
+                     [](const rel::Function::ArgMap&) {
+                         return rel::Value::Integer(0);
+                     })),
+                 std::runtime_error);
+    EXPECT_FALSE(rel::Environment::HasFunction("PI"));
 }
 
 // =========================================================================

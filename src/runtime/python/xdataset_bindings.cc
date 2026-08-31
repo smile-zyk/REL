@@ -663,6 +663,9 @@ void register_xdataset_bindings(pybind11::module_& m)
             return d.data_kind() == DataArrayKind::kDependent ? "dependent" : "independent";
         }) 
         .def_property_readonly("indep_names", &DataArray::indep_names)
+        .def_property_readonly("source_block_path", &DataArray::source_block_path)
+        .def_property_readonly("source_name", &DataArray::source_name)
+        .def_property_readonly("has_source", &DataArray::has_source)
         .def_property_readonly("data", [](const DataArray& d) -> const DataSeries& {
             return d.data();
         }, pybind11::return_value_policy::reference_internal)
@@ -797,9 +800,8 @@ void register_xdataset_bindings(pybind11::module_& m)
         }), pybind11::arg("independents"), pybind11::arg("dependents"));
 
     pybind11::class_<Block>(m, "Block")
-        .def_property("name",
-            [](const Block& b) { return b.name(); },
-            [](Block& b, std::string n) { b.set_name(std::move(n)); })
+        .def_property_readonly("name",
+            [](const Block& b) { return b.name(); })
         .def("dependents", &Block::dependents)
         .def("independents", &Block::independents)
         .def("independent_spec", [](const Block& b, const std::string& n) { return b.independent_spec(n); })
@@ -822,9 +824,8 @@ void register_xdataset_bindings(pybind11::module_& m)
     pybind11::class_<Dataset>(m, "Dataset")
         .def(pybind11::init<>())
         .def(pybind11::init<std::string>())
-        .def_property("name",
-            [](const Dataset& d) { return d.name(); },
-            [](Dataset& d, std::string n) { d.set_name(std::move(n)); })
+        .def_property_readonly("name",
+            [](const Dataset& d) { return d.name(); })
         .def_property_readonly("block_count", &Dataset::block_count)
         .def("IsLeaf", &Dataset::IsLeaf)
         .def("Exists", &Dataset::Exists)

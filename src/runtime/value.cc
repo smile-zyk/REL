@@ -24,6 +24,9 @@ Value::Value(Measurement m) : storage_(std::move(m)) {}
 Value::Value(const DataArray& da)
     : storage_(std::make_shared<DataArray>(da)) {}
 
+Value::Value(DataArray&& da)
+    : storage_(std::make_shared<DataArray>(std::move(da))) {}
+
 Value::Value(std::shared_ptr<DataArray> da) : storage_(std::move(da)) {}
 
 // ---- type queries ----------------------------------------------------------
@@ -117,6 +120,22 @@ bool Value::is_dependent() const {
 
 const MultiDimensionSpec& Value::dimension_spec() const {
     return as_data_array_view().multi_dimension_spec();
+}
+
+const DataSeriesMap& Value::datas() const {
+    return as_data_array_view().datas();
+}
+
+bool Value::has_source() const {
+    return as_data_array_view().has_source();
+}
+
+const std::string& Value::source_name() const {
+    return as_data_array_view().source_name();
+}
+
+const std::string& Value::source_block_path() const {
+    return as_data_array_view().source_block_path();
 }
 
 // ---- data / indep_data access ----------------------------------------------

@@ -63,7 +63,9 @@ private:
 //  registries shared across all Environment instances.  This means:
 //    - InitBuiltinConstants() / InitBuiltinFunctions() are called once.
 //    - LoadFromConfig() loads datasets/plugins globally, not per-env.
-//    - Define() rejects names that collide with builtin constants.
+//    - Define() rejects names that collide with builtin constants or
+//      registered functions; RegisterFunction() rejects names that collide
+//      with builtin constants (a name occupies only ONE namespace).
 //
 
 class REL_API Environment
@@ -74,7 +76,8 @@ public:
     // ---- variables (instance -- user-defined only) ----
 
     /// Bind or rebind a name.  Overwrites existing bindings silently.
-    /// Throws std::runtime_error when `name` collides with a builtin constant.
+    /// Throws std::runtime_error when `name` collides with a builtin constant
+    /// or a registered function.
     void Define(const std::string& name, rel::Value value);
 
     /// Look up a user-defined variable in the flat table.
@@ -112,6 +115,8 @@ public:
 
     /// Register a function in the global registry.
     /// Overwrites an existing registration with the same name silently.
+    /// Throws std::runtime_error when the name collides with a builtin
+    /// constant.
     static void RegisterFunction(Function fn);
 
     /// Register every function in a library.
@@ -201,6 +206,16 @@ public:
 
     /// Find a registered Dataset by name, or nullptr if not found.
     static xdataset::Dataset* FindDataset(const std::string& name);
+
+    /// Resolve a global source path ("<datasetName>/<block path>", '/'
+    /// separated, as stored in DataArray::source_block_path) to its Block.
+    /// Returns nullptr when the dataset or block does not exist.
+    static xdataset::Block* FindBlock(const std::string& source_path);
+
+    /// Resolve the source provenance of a Value (its source_block_path) to
+    /// the originating Block.  Returns nullptr when the Value carries no
+    /// source or the dataset/block does not exist.
+    static xdataset::Block* FindSourceBlock(const rel::Value& v);
 
     // ---- Python plugin (BUILD_PYTHON=ON) ----------------------------------
 

@@ -62,6 +62,9 @@ public:
     /// Implicit from DataArray (wraps in shared_ptr).
     Value(const xdataset::DataArray& da);  // NOLINT(runtime/explicit)
 
+    /// Implicit from DataArray rvalue (moves into shared_ptr, no copy).
+    Value(xdataset::DataArray&& da);  // NOLINT(runtime/explicit)
+
     /// Implicit from DataArray shared_ptr.
     Value(std::shared_ptr<xdataset::DataArray> da);  // NOLINT(runtime/explicit)
 
@@ -111,6 +114,25 @@ public:
     /// delegates to multi_dimension_spec().  The reference is valid as long
     /// as this Value lives.
     const xdataset::MultiDimensionSpec& dimension_spec() const;
+
+    /// Unified data map (see DataArray::datas()).  The last entry is always
+    /// kSelf.  Measurement returns the map of the lazily promoted 1-row
+    /// array.  The reference is valid as long as this Value lives.
+    const xdataset::DataSeriesMap& datas() const;
+
+    /// True when this Value's array carries canonical source provenance
+    /// (i.e. it was obtained by direct reference such as `block.xxx`).
+    /// Measurement (promoted) never carries source.
+    bool has_source() const;
+
+    /// Source variable name within the source Block, or empty (see
+    /// DataArray::source_name()).  Measurement returns empty.
+    const std::string& source_name() const;
+
+    /// Full path of the source Block ("<datasetName>/<block path>", '/'
+    /// separated), or empty (see DataArray::source_block_path()).
+    /// Measurement returns empty.
+    const std::string& source_block_path() const;
 
     // ---- convenience queries -------------------------------------------
 
