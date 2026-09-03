@@ -148,7 +148,7 @@ TEST(EnvironmentTest, RegisterFunctionRejectsConstantName)
 TEST(EnvironmentTest, AddDatasetAndSetDefault)
 {
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
-    ds->AddBlock("SP1/SP", make_block_info());
+    ds->AddBlock("SP1.SP", make_block_info());
 
     rel::Environment::AddDataset(std::move(ds));
     rel::Environment::SetDefaultDataset("noise");
@@ -199,7 +199,7 @@ TEST(EnvironmentTest, LookupVariableOrConstantNotFound)
 TEST(EnvironmentTest, FindDatasetFound)
 {
     auto ds = std::make_unique<xdataset::Dataset>("noise");
-    ds->AddBlock("SP1/SP", make_block_info());
+    ds->AddBlock("SP1.SP", make_block_info());
     rel::Environment::AddDataset(std::move(ds));
 
     xdataset::Dataset* found = rel::Environment::FindDataset("noise");

@@ -129,7 +129,7 @@ public:
     /// DataArray::source_name()).  Measurement returns empty.
     const std::string& source_name() const;
 
-    /// Full path of the source Block ("<datasetName>/<block path>", '/'
+    /// Full path of the source Block ("<datasetName>.<block path>", '.'
     /// separated), or empty (see DataArray::source_block_path()).
     /// Measurement returns empty.
     const std::string& source_block_path() const;

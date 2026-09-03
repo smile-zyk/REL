@@ -96,7 +96,7 @@ TEST(BuiltinFunctionTest, DatasetsWithEntries)
     rel::Environment::InitBuiltinFunctions();
 
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
-    ds->AddBlock("SP1/SP", make_block_info());
+    ds->AddBlock("SP1.SP", make_block_info());
     rel::Environment::AddDataset(std::move(ds));
 
     std::vector<std::string> rows = payload(rel::Eval("datasets()", &env));
@@ -124,7 +124,7 @@ TEST(BuiltinFunctionTest, DefaultDatasetDefault)
     rel::Environment::InitBuiltinFunctions();
 
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
-    ds->AddBlock("SP1/SP", make_block_info());
+    ds->AddBlock("SP1.SP", make_block_info());
     rel::Environment::AddDataset(std::move(ds));
     rel::Environment::SetDefaultDataset("noise");
 
@@ -241,7 +241,7 @@ TEST(BuiltinFunctionTest, WhatDatasetVariable)
     rel::Environment::InitBuiltinFunctions();
 
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
-    ds->AddBlock("SP1/SP", make_block_info());  // freq(2) indep, Vout dep
+    ds->AddBlock("SP1.SP", make_block_info());  // freq(2) indep, Vout dep
     rel::Environment::AddDataset(std::move(ds));
     rel::Environment::SetDefaultDataset("noise");
 
@@ -265,7 +265,7 @@ TEST(BuiltinFunctionTest, IndepByIndex)
     rel::Environment::InitBuiltinFunctions();
 
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
-    ds->AddBlock("SP1/SP", make_block_info());  // freq indep (2), Vout dep
+    ds->AddBlock("SP1.SP", make_block_info());  // freq indep (2), Vout dep
     rel::Environment::AddDataset(std::move(ds));
     rel::Environment::SetDefaultDataset("noise");
 
@@ -284,7 +284,7 @@ TEST(BuiltinFunctionTest, IndepByName)
     rel::Environment::InitBuiltinFunctions();
 
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
-    ds->AddBlock("SP1/SP", make_block_info());
+    ds->AddBlock("SP1.SP", make_block_info());
     rel::Environment::AddDataset(std::move(ds));
     rel::Environment::SetDefaultDataset("noise");
 
@@ -301,7 +301,7 @@ TEST(BuiltinFunctionTest, IndepDefaultSelector)
     rel::Environment::InitBuiltinFunctions();
 
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
-    ds->AddBlock("SP1/SP", make_block_info());
+    ds->AddBlock("SP1.SP", make_block_info());
     rel::Environment::AddDataset(std::move(ds));
     rel::Environment::SetDefaultDataset("noise");
 
@@ -327,7 +327,7 @@ TEST(BuiltinFunctionTest, IndepRequiresIntOrString)
     rel::Environment::InitBuiltinFunctions();
 
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
-    ds->AddBlock("SP1/SP", make_block_info());
+    ds->AddBlock("SP1.SP", make_block_info());
     rel::Environment::AddDataset(std::move(ds));
     rel::Environment::SetDefaultDataset("noise");
 
@@ -404,7 +404,7 @@ TEST(BuiltinFunctionTest, MinMaxOfDatasetVariable)
     rel::Environment::InitBuiltinFunctions();
 
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
-    ds->AddBlock("SP1/SP", make_block_info());
+    ds->AddBlock("SP1.SP", make_block_info());
     rel::Environment::AddDataset(std::move(ds));
     rel::Environment::SetDefaultDataset("noise");
 
@@ -478,7 +478,7 @@ TEST(BuiltinFunctionTest, OutputDatasetVariable)
     rel::Environment::InitBuiltinFunctions();
 
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
-    ds->AddBlock("SP1/SP", make_block_info());
+    ds->AddBlock("SP1.SP", make_block_info());
     rel::Environment::AddDataset(std::move(ds));
     rel::Environment::SetDefaultDataset("noise");
 
@@ -713,7 +713,7 @@ TEST(BuiltinFunctionTest, MathOnDatasetVariable)
     rel::Environment::InitBuiltinFunctions();
 
     std::unique_ptr<xdataset::Dataset> ds(new xdataset::Dataset("noise"));
-    ds->AddBlock("SP1/SP", make_block_info());  // Vout: 2 rows of Real
+    ds->AddBlock("SP1.SP", make_block_info());  // Vout: 2 rows of Real
     rel::Environment::AddDataset(std::move(ds));
     rel::Environment::SetDefaultDataset("noise");
 

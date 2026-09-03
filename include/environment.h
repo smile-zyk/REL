@@ -207,7 +207,7 @@ public:
     /// Find a registered Dataset by name, or nullptr if not found.
     static xdataset::Dataset* FindDataset(const std::string& name);
 
-    /// Resolve a global source path ("<datasetName>/<block path>", '/'
+    /// Resolve a global source path ("<datasetName>.<block path>", '.'
     /// separated, as stored in DataArray::source_block_path) to its Block.
     /// Returns nullptr when the dataset or block does not exist.
     static xdataset::Block* FindBlock(const std::string& source_path);

@@ -272,16 +272,16 @@ xdataset::Dataset* Environment::FindDataset(const std::string& name)
 
 xdataset::Block* Environment::FindBlock(const std::string& source_path)
 {
-    // source_path = "<datasetName>/<block path>"
-    const std::size_t slash = source_path.find('/');
-    if (slash == std::string::npos)
+    // source_path = "<datasetName>.<block path>"
+    const std::size_t dot = source_path.find('.');
+    if (dot == std::string::npos)
         return nullptr;
 
-    xdataset::Dataset* ds = FindDataset(source_path.substr(0, slash));
+    xdataset::Dataset* ds = FindDataset(source_path.substr(0, dot));
     if (!ds)
         return nullptr;
 
-    const std::string block_path = source_path.substr(slash + 1);
+    const std::string block_path = source_path.substr(dot + 1);
     if (!ds->Exists(block_path))
         return nullptr;
     return &ds->GetBlock(block_path);

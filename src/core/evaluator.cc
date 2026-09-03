@@ -304,7 +304,7 @@ rel::Value Evaluator::ResolveReference(
     // k = n-2: two-segment  var (SP.SRC1.i)        -- fallback for dotted dependents
     for (std::size_t k = n - 1; k >= n - 2 && k >= start + 1; --k)
     {
-        std::string block_path = join(segments, start, k, "/");
+        std::string block_path = join(segments, start, k, ".");
         if (!ds->IsLeaf(block_path))
             continue;
 

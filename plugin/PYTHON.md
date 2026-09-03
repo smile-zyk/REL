@@ -378,7 +378,7 @@ info = rel.BlockCreateInfo(
 )
 
 ds = rel.Dataset("my_data")
-ds.AddBlock("simulation/SP1", info)
+ds.AddBlock("simulation.SP1", info)
 
 da = ds.GetDataArray("simulation/SP1", "Vout")
 print(da.rank, da.flat_size)   # 2 500
