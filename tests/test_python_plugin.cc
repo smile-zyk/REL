@@ -241,6 +241,64 @@ TEST_F(PythonPluginTest, DataArraySelectAndIndepData)
 }
 
 // ---------------------------------------------------------------------------
+// DataArray hint metadata (read/write from Python)
+// ---------------------------------------------------------------------------
+
+TEST_F(PythonPluginTest, DataArrayHint)
+{
+    if (!g_numpy_available)
+        GTEST_SKIP() << "numpy not installed";
+
+    RUN_PY(
+        "import numpy as np\n"
+        "import rel\n"
+        "data = rel.DataSeries.from_array(np.arange(4.0))\n"
+        "info = rel.BlockCreateInfo(\n"
+        "    independents=[('freq', data, rel.RegularDim(4))],\n"
+        "    dependents=[('Vout', data)])\n"
+        "ds = rel.Dataset('d')\n"
+        "ds.AddBlock('sim.SP', info)\n"
+        "da = ds.GetDataArray('sim.SP', 'Vout')\n"
+        "# Default hint is empty; set and read it back.\n"
+        "assert da.hint == ''\n"
+        "da.set_hint('plot: vout vs freq')\n"
+        "assert da.hint == 'plot: vout vs freq'\n"
+        "# set_hint is metadata only and must survive a clone.\n"
+        "c = da.clone()\n"
+        "assert c.hint == 'plot: vout vs freq'\n"
+        "da.set_hint('updated')\n"
+        "assert da.hint == 'updated'\n"
+        "assert c.hint == 'plot: vout vs freq'\n");
+}
+
+// ---------------------------------------------------------------------------
+// Block dataset_name / source_path and Dataset source_path (file provenance)
+// ---------------------------------------------------------------------------
+
+TEST_F(PythonPluginTest, BlockDatasetName)
+{
+    if (!g_numpy_available)
+        GTEST_SKIP() << "numpy not installed";
+
+    RUN_PY(
+        "import numpy as np\n"
+        "import rel\n"
+        "data = rel.DataSeries.from_array(np.arange(4.0))\n"
+        "info = rel.BlockCreateInfo(\n"
+        "    independents=[('freq', data, rel.RegularDim(4))],\n"
+        "    dependents=[('Vout', data)])\n"
+        "ds = rel.Dataset('noise')\n"
+        "b = ds.AddBlock('sim.SP', info)\n"
+        "# Block exposes its owning Dataset name and full source path.\n"
+        "assert b.name == 'sim.SP'\n"
+        "assert b.dataset_name == 'noise'\n"
+        "assert b.source_path == 'noise.sim.SP'\n"
+        "assert ds.name == 'noise'\n"
+        "# In-memory Dataset has no source_path (set only when loaded from a file).\n"
+        "assert ds.source_path == ''\n");
+}
+
+// ---------------------------------------------------------------------------
 // LoadPython from a file
 // ---------------------------------------------------------------------------
 
