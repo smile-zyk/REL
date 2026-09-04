@@ -11,7 +11,7 @@
 #include "dataset.h"
 #include "function.h"
 
-#include <rapidjson/document.h>
+#include <boost/json.hpp>
 
 namespace rel {
 
@@ -48,9 +48,13 @@ struct REL_API EnvironmentConfig {
     /// Load from a JSON file.
     static EnvironmentConfig Load(const std::string& config_path);
 
+    /// Parse from an in-memory JSON object (already-parsed).  Used by hosts
+    /// that embed the dataset section inside their own project file rather
+    /// than a standalone env config.
+    static EnvironmentConfig Parse(const boost::json::object& root);
+
 private:
-    static DatasetConfig     ParseDataset(const rapidjson::Value& v);
-    static EnvironmentConfig Parse(const rapidjson::Document& doc);
+    static DatasetConfig ParseDataset(const boost::json::object& v);
 };
 
 // =========================================================================
@@ -188,6 +192,19 @@ public:
     /// Names of all registered datasets (unordered).
     static std::vector<std::string> DatasetNames();
 
+    /// Dataset references (name / format / path) most recently loaded via
+    /// LoadFromConfig.  Used by hosts to persist the project's dataset
+    /// section.  Empty when nothing has been loaded through config.
+    static std::vector<DatasetConfig> DatasetConfigs();
+
+    /// Python plugin paths most recently loaded via LoadFromConfig.  Empty
+    /// when nothing has been loaded through config (or no plugins were
+    /// declared).
+    static std::vector<std::string> PythonPlugins();
+
+    /// Name of the current default dataset, or empty when none is set.
+    static std::string DefaultDatasetName();
+
     // ---- static: persistent context ---------------------------------------
 
     /// Load datasets and plugins from a JSON config file.
@@ -197,6 +214,14 @@ public:
     /// Existing global registries (datasets, functions) are preserved.
     /// Call once during process startup.
     static void LoadFromConfig(const std::string& config_path);
+
+    /// Load datasets and plugins from an in-memory EnvironmentConfig, with
+    /// relative dataset / plugin paths resolved against `base_dir` (may be
+    /// empty).  This is the file-free entry point used by hosts that embed
+    /// the dataset section inside their own project file.  Existing global
+    /// registries are preserved (same semantics as the file form).
+    static void LoadFromConfig(const EnvironmentConfig& cfg,
+                               const std::string& base_dir);
 
     // ---- direct lookups (AST-free) ----------------------------------------
 
@@ -253,6 +278,7 @@ private:
     static std::unordered_map<std::string, std::unique_ptr<xdataset::Dataset>>
         datasets_;
     static std::string default_dataset_name_;
+    static EnvironmentConfig loaded_config_;
 };
 
 } // namespace rel

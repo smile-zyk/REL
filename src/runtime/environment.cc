@@ -5,6 +5,8 @@
 #include "builtin_library/builtin_library.h"
 #include "builtin_library/math_library.h"
 
+#include <boost/filesystem.hpp>
+
 #include <stdexcept>
 
 namespace rel {
@@ -21,6 +23,7 @@ std::mutex Environment::functions_mutex_;
 std::unordered_map<std::string, std::unique_ptr<xdataset::Dataset>>
     Environment::datasets_;
 std::string Environment::default_dataset_name_;
+EnvironmentConfig Environment::loaded_config_;
 
 // =========================================================================
 //  Variables (instance)
@@ -248,6 +251,21 @@ std::vector<std::string> Environment::DatasetNames()
     return names;
 }
 
+std::vector<DatasetConfig> Environment::DatasetConfigs()
+{
+    return loaded_config_.datasets;
+}
+
+std::vector<std::string> Environment::PythonPlugins()
+{
+    return loaded_config_.python_plugins;
+}
+
+std::string Environment::DefaultDatasetName()
+{
+    return default_dataset_name_;
+}
+
 // =========================================================================
 //  Direct lookups (AST-free)
 // =========================================================================
@@ -284,6 +302,8 @@ xdataset::Block* Environment::FindBlock(const std::string& source_path)
     const std::string block_path = source_path.substr(dot + 1);
     if (!ds->Exists(block_path))
         return nullptr;
+    if (ds->IsDataArraySet(block_path))
+        return nullptr;  // leaf is a DataArraySet, not a Block
     return &ds->GetBlock(block_path);
 }
 
@@ -302,21 +322,27 @@ void Environment::LoadFromConfig(const std::string& config_path)
 {
     EnvironmentConfig cfg = EnvironmentConfig::Load(config_path);
 
-    // Resolve relative dataset paths against the config file's directory.
-    std::string base_dir;
-    {
-        std::size_t slash = config_path.find_last_of("/\\");
-        if (slash != std::string::npos)
-            base_dir = config_path.substr(0, slash + 1);
-    }
+    // Relative dataset / plugin paths resolve against the config file's
+    // directory; boost::filesystem's operator/ keeps absolute paths as-is.
+    const std::string base_dir =
+        boost::filesystem::path(config_path).parent_path().string();
+
+    LoadFromConfig(cfg, base_dir);
+}
+
+void Environment::LoadFromConfig(const EnvironmentConfig& cfg,
+                                 const std::string& base_dir)
+{
+    // Record the full config (datasets + default + plugins) for persistence.
+    loaded_config_ = cfg;
 
     // ---- load datasets ----
-    for (auto& ds : cfg.datasets)
+    for (const auto& ds : cfg.datasets)
     {
-        // Resolve relative paths
-        std::string full_path = ds.path;
-        if (!full_path.empty() && full_path[0] != '/' && !base_dir.empty())
-            full_path = base_dir + ds.path;
+        // Relative paths resolve against base_dir; absolute paths (Unix /
+        // Windows drive-letter / UNC) are kept unchanged by operator/.
+        const std::string full_path =
+            (boost::filesystem::path(base_dir) / ds.path).string();
 
         xdataset::Dataset loaded;
         if (ds.format == "hdf5")
@@ -356,9 +382,8 @@ void Environment::LoadFromConfig(const std::string& config_path)
     //  support (BUILD_PYTHON=OFF) or on a Python error in the plugin.
     for (const auto& plugin : cfg.python_plugins)
     {
-        std::string full_path = plugin;
-        if (!full_path.empty() && full_path[0] != '/' && !base_dir.empty())
-            full_path = base_dir + plugin;
+        const std::string full_path =
+            (boost::filesystem::path(base_dir) / plugin).string();
         LoadPython(full_path);
     }
 }
