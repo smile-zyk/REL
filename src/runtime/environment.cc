@@ -321,21 +321,19 @@ void Environment::LoadFromConfig(const std::string& config_path)
         xdataset::Dataset loaded;
         if (ds.format == "hdf5")
         {
-            loaded = xdataset::DatasetIO::Load(ds.format, full_path);
+            loaded = xdataset::DatasetIO::Load(ds.format, full_path, ds.name);
         }
         else if (ds.format == "touchstone")
         {
-            loaded = xdataset::DatasetIO::Load("touchstone", full_path);
+            loaded = xdataset::DatasetIO::Load("touchstone", full_path, ds.name);
         }
         else
         {
             throw std::runtime_error(
                 "unsupported dataset format '" + ds.format + "'");
         }
-        // Load() reconstructs the stored name; the config-declared name is
-        // authoritative for this session.  Dataset name is immutable, so
-        // re-wrap the loaded tree under the fixed config name.
-        loaded = xdataset::Dataset(ds.name, std::move(loaded));
+        // DatasetIO::Load with `name` returns a Dataset already renamed to
+        // the config-declared name (source_path kept).  Store it directly.
 
         datasets_[ds.name] = std::unique_ptr<xdataset::Dataset>(
             new xdataset::Dataset(std::move(loaded)));
