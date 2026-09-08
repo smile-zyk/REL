@@ -14,7 +14,7 @@ import rel
 def snr(args):
     signal = np.asarray(args["signal"])
     noise = np.asarray(args["noise"])
-    return 20.0 * np.log10(np.abs(signal) / np.abs(noise))
+    return 20.0 * np.log10(np.abs(signal) / np.abs(noise)) + 2
 
 
 rel.register_function("snr", [
