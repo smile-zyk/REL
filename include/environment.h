@@ -7,6 +7,8 @@
 #include <utility>
 #include <vector>
 
+#include <tsl/ordered_map.h>
+
 #include "value.h"  // rel::Value
 #include "dataset.h"
 #include "function.h"
@@ -189,7 +191,9 @@ public:
     /// The current default Dataset, or nullptr.
     static xdataset::Dataset* DefaultDataset();
 
-    /// Names of all registered datasets (unordered).
+    /// Names of all registered datasets, in registration order (the order
+    /// they were AddDataset()'ed / declared in the loaded config).  A dataset
+    /// re-registered under an existing name keeps its original position.
     static std::vector<std::string> DatasetNames();
 
     /// Dataset references (name / format / path) most recently loaded via
@@ -275,7 +279,9 @@ private:
     static std::unordered_map<std::string, Function>
         functions_;
     static std::mutex functions_mutex_;  // guards functions_
-    static std::unordered_map<std::string, std::unique_ptr<xdataset::Dataset>>
+    // Insertion-ordered: DatasetNames() reports registration order so hosts
+    // can show "newest last" instead of an arbitrary hash order.
+    static tsl::ordered_map<std::string, std::unique_ptr<xdataset::Dataset>>
         datasets_;
     static std::string default_dataset_name_;
     static EnvironmentConfig loaded_config_;

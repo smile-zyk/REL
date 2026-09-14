@@ -20,7 +20,7 @@ std::unordered_map<std::string, rel::Value>
 std::unordered_map<std::string, Function>
     Environment::functions_;
 std::mutex Environment::functions_mutex_;
-std::unordered_map<std::string, std::unique_ptr<xdataset::Dataset>>
+tsl::ordered_map<std::string, std::unique_ptr<xdataset::Dataset>>
     Environment::datasets_;
 std::string Environment::default_dataset_name_;
 EnvironmentConfig Environment::loaded_config_;
@@ -222,7 +222,10 @@ std::unique_ptr<xdataset::Dataset> Environment::RemoveDataset(const std::string&
     if (default_dataset_name_ == name)
         default_dataset_name_.clear();
 
-    auto ds = std::move(it->second);
+    // tsl::ordered_map exposes its (key, value) pair as const through the
+    // iterator (the key must never change), so the Dataset is moved out via
+    // the non-const at() accessor rather than it->second.
+    std::unique_ptr<xdataset::Dataset> ds = std::move(datasets_.at(name));
     datasets_.erase(it);
     return ds;
 }
