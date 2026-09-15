@@ -9,7 +9,10 @@
 #include "environment.h"
 #include "value.h"
 
+#include <cmath>
+#include <complex>
 #include <cstdlib>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -380,6 +383,408 @@ Value PlotVs(const Value& dep_val, const Value& indep_val)
     return Vs(dep_val, indep_val, Value::String(""));
 }
 
+// =========================================================================
+//  Marker functions: mark / x_mark / y_mark
+// =========================================================================
+//
+//  A "marker" is a highlighted (x, y) point on a plot of da's data against
+//  the innermost independent axis.  All three functions return a 2-column
+//  Dependent DataArray:
+//      column 1: the x coordinate (innermost independent; for an Independent
+//                DataArray the leaf-position index series),
+//      column 2: the y coordinate (da's data value at that point).
+//
+//  Closeness semantics:
+//    - mark(da, x, y): 2-D Euclidean distance, each axis normalized by its
+//      own min-max span (mixed units stay comparable).
+//    - x_mark(da, x) / y_mark(da, y): 1-D distance along x / data, evaluated
+//      within EACH innermost slice -> one row per slice (multi-dim data
+//      yields multiple rows).
+//
+//  Complex data: y distances compare by magnitude | |y_i| - |y| |.
+
+namespace
+{
+
+    /// Measurement -> double (scalar Real/Integer; Complex uses .real()).
+    const auto measurement_to_double = [](const xdataset::Measurement& m,
+                                          const char* what) -> double
+    {
+        if (m.data_kind() != xdataset::DataKind::kScalar)
+        {
+            throw std::runtime_error(std::string(what) +
+                " must be a scalar Measurement");
+        }
+        switch (m.data_type())
+        {
+            case xdataset::DataType::kReal:   return m.as_scalar<double>();
+            case xdataset::DataType::kInteger: return m.as_scalar<int>();
+            case xdataset::DataType::kComplex:
+                return m.as_scalar<std::complex<double>>().real();
+            default:
+                throw std::runtime_error(std::string(what) +
+                    " must be Real or Integer");
+        }
+    };
+
+    /// True when the series holds scalar Real or Integer data.
+    const auto is_real_scalar_series = [](const xdataset::DataSeries& s) -> bool
+    {
+        return s.data_kind() == xdataset::DataKind::kScalar &&
+               (s.data_type() == xdataset::DataType::kReal ||
+                s.data_type() == xdataset::DataType::kInteger);
+    };
+
+    /// Scalar Real/Integer row as double (no unit conversion; callers
+    /// canonicalize first if units are involved).
+    const auto scalar_series_at = [](const xdataset::DataSeries& s,
+                                     xdataset::Index i) -> double
+    {
+        if (s.data_type() == xdataset::DataType::kReal)
+            return s.scalar_at<double>(i);
+        return static_cast<double>(s.scalar_at<int>(i));
+    };
+
+    /// |value| of a data row (Complex -> magnitude); only used for real/comp.
+    const auto data_magnitude = [](const xdataset::DataSeries& s,
+                                   xdataset::Index i) -> double
+    {
+        switch (s.data_type())
+        {
+            case xdataset::DataType::kReal:
+                return std::abs(s.scalar_at<double>(i));
+            case xdataset::DataType::kInteger:
+                return std::abs(static_cast<double>(s.scalar_at<int>(i)));
+            default:
+                return std::abs(s.scalar_at<std::complex<double>>(i));
+        }
+    };
+
+    /// Distance of data row `i` to target `y`: |value - y|, Complex uses
+    /// magnitude | |y_i| - |y| |.
+    const auto data_value_distance = [](const xdataset::DataSeries& s,
+                                        xdataset::Index i, double y) -> double
+    {
+        switch (s.data_type())
+        {
+            case xdataset::DataType::kReal:
+                return std::abs(s.scalar_at<double>(i) - y);
+            case xdataset::DataType::kInteger:
+                return std::abs(static_cast<double>(s.scalar_at<int>(i)) - y);
+            default:
+                return std::abs(data_magnitude(s, i) - std::abs(y));
+        }
+    };
+
+    /// The x coordinate series used for marker x-selection:
+    /// innermost independent (Dependent) or leaf index series (Independent).
+    const auto marker_x_series = [](const xdataset::DataArray& da)
+        -> xdataset::DataSeries
+    {
+        if (da.multi_dimension_spec().rank() == 0)
+            throw std::runtime_error("mark: DataArray has no dimensions");
+        if (da.data_kind() == xdataset::DataArrayKind::kDependent)
+            return da.indep_data(1);   // 1 = innermost
+        return da.self_index_series();
+    };
+
+    /// Marker row selection result.
+    struct MarkRow
+    {
+        xdataset::Index flat_row;  // row of the selected leaf in the source
+        xdataset::Index x_index;   // innermost-dimension index of the leaf
+
+        MarkRow() : flat_row(0), x_index(0) {}
+        MarkRow(xdataset::Index flat, xdataset::Index x)
+            : flat_row(flat), x_index(x) {}
+    };
+
+    /// Build the flat 2-column (x, y) Dependent DataArray from selected rows.
+    /// Column names follow the source variable names.
+    Value build_marker_result(const xdataset::DataArray& da,
+                              const std::vector<MarkRow>& rows)
+    {
+        const xdataset::DataSeries& data = da.data();
+        const bool is_indep =
+            (da.data_kind() == xdataset::DataArrayKind::kIndependent);
+        const std::size_t n = rows.size();
+
+        auto sample = [](xdataset::DataSeries& dst, xdataset::Index r,
+                         const xdataset::DataSeries& src, xdataset::Index i)
+        {
+            switch (src.data_type())
+            {
+                case xdataset::DataType::kReal:
+                    dst.scalar_at<double>(r) = src.scalar_at<double>(i); break;
+                case xdataset::DataType::kInteger:
+                    dst.scalar_at<int>(r) = src.scalar_at<int>(i); break;
+                case xdataset::DataType::kComplex:
+                    dst.scalar_at<std::complex<double>>(r) =
+                        src.scalar_at<std::complex<double>>(i); break;
+                default:
+                    dst.scalar_at<std::string>(r) =
+                        src.scalar_at<std::string>(i); break;
+            }
+        };
+
+        // x column (innermost index), y column (source data row).
+        xdataset::DataSeries x_src = marker_x_series(da);
+        xdataset::DataSeries x_out(x_src.data_type(), x_src.data_shape());
+        x_out.set_unit(x_src.unit());
+        x_out.resize(n);
+        xdataset::DataSeries y_out(data.data_type(), data.data_shape());
+        y_out.set_unit(data.unit());
+        y_out.resize(n);
+        for (std::size_t r = 0; r < n; ++r)
+        {
+            sample(x_out, static_cast<xdataset::Index>(r),
+                   x_src, rows[r].x_index);
+            const xdataset::Index y_idx =
+                is_indep ? rows[r].x_index : rows[r].flat_row;
+            sample(y_out, static_cast<xdataset::Index>(r), data, y_idx);
+        }
+
+        std::string x_name;
+        if (!is_indep)
+        {
+            const std::vector<std::string>& names = da.indep_names();
+            if (!names.empty())
+                x_name = names.back();   // innermost independent
+        }
+        if (x_name.empty())
+            x_name = "x";
+        std::string y_name = da.source_name();
+        if (y_name.empty())
+            y_name = "data";
+
+        xdataset::DataArrayCreateInfo info;
+        info.kind = xdataset::DataArrayKind::kDependent;
+        info.multi_dimension_spec =
+            xdataset::MultiDimensionSpec().add_regular(n);
+        info.datas.emplace(x_name, std::move(x_out));
+        info.datas[xdataset::DataArray::kSelf] = std::move(y_out);
+        return Value(std::make_shared<xdataset::DataArray>(std::move(info)));
+    }
+
+    /// Closest leaf in [flat_start, flat_end) of da to target `t`,
+    /// scored by |x - t| when by_x else |data - t|.
+    const auto closest_leaf = [](const xdataset::DataArray& da,
+                                 const xdataset::DataSeries& x_series,
+                                 const xdataset::DataSeries& data,
+                                 bool by_x, bool is_indep,
+                                 xdataset::Index rank,
+                                 xdataset::Index start, xdataset::Index end,
+                                 double t) -> MarkRow
+    {
+        MarkRow best(start, 0);
+        double best_d = std::numeric_limits<double>::infinity();
+        da.for_each_leaf_row(
+            [&](const xdataset::MultiDimensionSpec::LeafRow& leaf)
+            {
+                const xdataset::Index x_idx = leaf.dimension_row_indices[
+                    static_cast<std::size_t>(rank) - 1];
+                const double d = by_x
+                    ? std::abs(scalar_series_at(x_series, x_idx) - t)
+                    : data_value_distance(data,
+                          is_indep ? x_idx : leaf.row_flat, t);
+                if (d < best_d)
+                {
+                    best_d = d;
+                    best = MarkRow(leaf.row_flat, x_idx);
+                }
+            },
+            start, end);
+        return best;
+    };
+
+}  // namespace
+
+Value Mark(const Value& da_val, const Value& x_val, const Value& y_val)
+{
+    // A Measurement is lazily promoted to a 1-row Independent DataArray.
+    const xdataset::DataArray& da = da_val.as_data_array_view();
+    const std::size_t rank = da.multi_dimension_spec().rank();
+    if (rank == 0)
+        throw std::runtime_error("mark: DataArray has no dimensions");
+
+    const xdataset::Measurement& xm = x_val.as_measurement();
+    const xdataset::Measurement& ym = y_val.as_measurement();
+    const double target_x = measurement_to_double(xm, "mark: x");
+    const double target_y = measurement_to_double(ym, "mark: y");
+
+    // X axis: real scalar series (innermost indep, or index series for
+    // Independent).  Compare in canonical (base SI) units so a kHz-vs-GHz
+    // request still matches a Hz-stored axis.
+    xdataset::DataSeries x_series = marker_x_series(da).canonicalized();
+    if (!is_real_scalar_series(x_series))
+        throw std::runtime_error("mark: innermost independent axis must be scalar Real or Integer");
+
+    const xdataset::DataSeries& data_series = da.data();
+    if (data_series.data_kind() != xdataset::DataKind::kScalar)
+        throw std::runtime_error("mark: data must be scalar");
+    if (data_series.data_type() != xdataset::DataType::kReal &&
+        data_series.data_type() != xdataset::DataType::kInteger &&
+        data_series.data_type() != xdataset::DataType::kComplex)
+        throw std::runtime_error("mark: data must be Real, Integer, or Complex");
+
+    // Normalize each axis by its observed range for a unit-agnostic 2-D
+    // Euclidean distance.
+    double x_lo = 0.0, x_hi = 0.0;
+    if (x_series.size() > 0)
+    {
+        x_lo = x_hi = scalar_series_at(x_series, 0);
+        for (std::size_t i = 1; i < x_series.size(); ++i)
+        {
+            const double v = scalar_series_at(x_series,
+                static_cast<xdataset::Index>(i));
+            if (v < x_lo) x_lo = v;
+            if (v > x_hi) x_hi = v;
+        }
+    }
+    const double x_span = (x_hi - x_lo > 0.0) ? (x_hi - x_lo) : 1.0;
+
+    double y_lo = 0.0, y_hi = 0.0;
+    if (data_series.size() > 0)
+    {
+        y_lo = y_hi = data_magnitude(data_series, 0);
+        for (std::size_t i = 1; i < data_series.size(); ++i)
+        {
+            const double v = data_magnitude(data_series,
+                static_cast<xdataset::Index>(i));
+            if (v < y_lo) y_lo = v;
+            if (v > y_hi) y_hi = v;
+        }
+    }
+    const double y_span = (y_hi - y_lo > 0.0) ? (y_hi - y_lo) : 1.0;
+
+    // Scan every leaf: 2-D normalized distance.
+    xdataset::Index best_row = 0;
+    xdataset::Index best_x_idx = 0;
+    double best_dist = std::numeric_limits<double>::infinity();
+    bool first = true;
+    da.for_each_leaf_row(
+        [&](const xdataset::MultiDimensionSpec::LeafRow& leaf)
+        {
+            const std::vector<xdataset::Index>& dim_ri =
+                leaf.dimension_row_indices;
+            const xdataset::Index x_idx =
+                dim_ri[static_cast<std::size_t>(rank) - 1];
+            const xdataset::Index y_idx =
+                (da.data_kind() == xdataset::DataArrayKind::kIndependent)
+                ? x_idx : leaf.row_flat;
+            const double xi = scalar_series_at(x_series, x_idx);
+            const double yi = data_value_distance(data_series, y_idx, target_y);
+            const double dx = (xi - target_x) / x_span;
+            const double dy = yi / y_span;
+            const double d = std::sqrt(dx * dx + dy * dy);
+            if (first || d < best_dist)
+            {
+                first = false;
+                best_dist = d;
+                best_row = leaf.row_flat;
+                best_x_idx = x_idx;
+            }
+        });
+
+    // Single-row output: a 1-row 2-column array.
+    std::vector<MarkRow> rows;
+    rows.push_back(MarkRow{ best_row, best_x_idx });
+    return build_marker_result(da, rows);
+}
+
+Value XMark(const Value& da_val, const Value& x_val)
+{
+    // A Measurement is lazily promoted to a 1-row Independent DataArray.
+    const xdataset::DataArray& da = da_val.as_data_array_view();
+    const std::size_t rank = da.multi_dimension_spec().rank();
+    if (rank == 0)
+        throw std::runtime_error("x_mark: DataArray has no dimensions");
+
+    const xdataset::Measurement& xm = x_val.as_measurement();
+    const double target_x = measurement_to_double(xm, "x_mark: x");
+
+    xdataset::DataSeries x_series = marker_x_series(da).canonicalized();
+    if (!is_real_scalar_series(x_series))
+        throw std::runtime_error("x_mark: innermost independent axis must be scalar Real or Integer");
+
+    const xdataset::DataSeries& data_series = da.data();
+    if (data_series.data_kind() != xdataset::DataKind::kScalar)
+        throw std::runtime_error("x_mark: data must be scalar");
+
+    std::vector<MarkRow> rows;
+    if (rank >= 2)
+    {
+        // One selection per innermost slice: group at the SECOND-innermost
+        // level (each group spans one full innermost sweep).
+        da.for_each_indep_group(2,
+            [&](const xdataset::MultiDimensionSpec::DimGroup& g)
+            {
+                rows.push_back(closest_leaf(
+                    da, x_series, data_series, true, false,
+                    static_cast<xdataset::Index>(rank),
+                    g.flat_start, g.flat_end, target_x));
+            });
+    }
+    else
+    {
+        const xdataset::Index n = static_cast<xdataset::Index>(data_series.size());
+        rows.push_back(closest_leaf(
+            da, x_series, data_series, true, false,
+            static_cast<xdataset::Index>(rank), 0, n, target_x));
+    }
+
+    return build_marker_result(da, rows);
+}
+
+Value YMark(const Value& da_val, const Value& y_val)
+{
+    // A Measurement is lazily promoted to a 1-row Independent DataArray.
+    const xdataset::DataArray& da = da_val.as_data_array_view();
+    const std::size_t rank = da.multi_dimension_spec().rank();
+    if (rank == 0)
+        throw std::runtime_error("y_mark: DataArray has no dimensions");
+
+    const xdataset::Measurement& ym = y_val.as_measurement();
+    const double target_y = measurement_to_double(ym, "y_mark: y");
+
+    xdataset::DataSeries x_series = marker_x_series(da).canonicalized();
+    if (!is_real_scalar_series(x_series))
+        throw std::runtime_error("y_mark: innermost independent axis must be scalar Real or Integer");
+
+    const xdataset::DataSeries& data_series = da.data();
+    if (data_series.data_kind() != xdataset::DataKind::kScalar)
+        throw std::runtime_error("y_mark: data must be scalar");
+    if (data_series.data_type() != xdataset::DataType::kReal &&
+        data_series.data_type() != xdataset::DataType::kInteger &&
+        data_series.data_type() != xdataset::DataType::kComplex)
+        throw std::runtime_error("y_mark: data must be Real, Integer, or Complex");
+
+    const bool is_indep =
+        (da.data_kind() == xdataset::DataArrayKind::kIndependent);
+
+    std::vector<MarkRow> rows;
+    if (rank >= 2)
+    {
+        da.for_each_indep_group(2,
+            [&](const xdataset::MultiDimensionSpec::DimGroup& g)
+            {
+                rows.push_back(closest_leaf(
+                    da, x_series, data_series, false, is_indep,
+                    static_cast<xdataset::Index>(rank),
+                    g.flat_start, g.flat_end, target_y));
+            });
+    }
+    else
+    {
+        const xdataset::Index n = static_cast<xdataset::Index>(data_series.size());
+        rows.push_back(closest_leaf(
+            da, x_series, data_series, false, is_indep,
+            static_cast<xdataset::Index>(rank), 0, n, target_y));
+    }
+
+    return build_marker_result(da, rows);
+}
+
 FunctionLibrary MakeLibrary()
 {
     FunctionLibrary lib("builtin");
@@ -444,6 +849,34 @@ FunctionLibrary MakeLibrary()
         },
         [](const Function::ArgMap& args) {
             return PlotVs(args.at("dependent"), args.at("independent"));
+        }));
+
+    lib.Add(Function("mark",
+        std::vector<FunctionParam>{
+            Param("da"),
+            Param("x"),
+            Param("y"),
+        },
+        [](const Function::ArgMap& args) {
+            return Mark(args.at("da"), args.at("x"), args.at("y"));
+        }));
+
+    lib.Add(Function("x_mark",
+        std::vector<FunctionParam>{
+            Param("da"),
+            Param("x"),
+        },
+        [](const Function::ArgMap& args) {
+            return XMark(args.at("da"), args.at("x"));
+        }));
+
+    lib.Add(Function("y_mark",
+        std::vector<FunctionParam>{
+            Param("da"),
+            Param("y"),
+        },
+        [](const Function::ArgMap& args) {
+            return YMark(args.at("da"), args.at("y"));
         }));
 
     lib.Add(Function("output",

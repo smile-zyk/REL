@@ -62,6 +62,27 @@ Value Vs(const Value& dependent, const Value& independent,
 ///   - Otherwise an error is raised.
 Value PlotVs(const Value& dependent, const Value& independent);
 
+/// mark(da, x, y) -- return the marker point whose (x, y) is closest to the
+/// requested (x, y).  `x` selects along the innermost independent axis
+/// (the "x" column; for an Independent DataArray this is the leaf-position
+/// index series), `y` selects along the data values.  Closeness is measured
+/// by the 2-D Euclidean distance in units of per-axis range (each axis is
+/// normalized by its own min-max span), so different physical dimensions
+/// (e.g. GHz vs dB) stay comparable.  Complex data compares by the
+/// magnitude of the complex difference |y_i - y|.
+/// Returns a 2-column Dependent DataArray: `x` column then `y` (data) column.
+Value Mark(const Value& da, const Value& x_val, const Value& y_val);
+
+/// x_mark(da, x) -- like mark() with y omitted: find the closest point by x
+/// within EACH innermost-axis slice (for multi-dim data there are several
+/// slices, hence several results), returning one (x, y) row per slice.
+Value XMark(const Value& da, const Value& x_val);
+
+/// y_mark(da, y) -- like mark() with x omitted: find the closest point by y
+/// (data value) within EACH innermost-axis slice, returning one (x, y) row
+/// per slice.
+Value YMark(const Value& da, const Value& y_val);
+
 /// output(da, variable_name = String("data")) -- write DataFrame to "<name>.csv".
 /// Returns the absolute file path as a String Measurement.
 Value Output(const Value& da, const Value& variable_name);

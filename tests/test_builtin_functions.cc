@@ -70,6 +70,47 @@ namespace
             rows.push_back(da.data().scalar_at<std::string>(static_cast<xdataset::Index>(i)));
         return rows;
     }
+
+    /// 1-D block: freq {1, 2} (Real), Vout {100, 200} (Real).
+    xdataset::BlockCreateInfo make_marker_block_info()
+    {
+        xdataset::BlockCreateInfo info;
+        info.independent_specs.push_back(
+            xdataset::IndependentSpec{
+                "freq",
+                xdataset::DataSeries::CreateScalarFromVector<double>({1.0, 2.0}),
+                xdataset::DimensionSpec::Regular(2)});
+        info.dependent_specs.push_back(
+            xdataset::DependentSpec{
+                "Vout",
+                xdataset::DataSeries::CreateScalarFromVector<double>({100.0, 200.0})});
+        return info;
+    }
+
+    /// 2-D block: bias {1, 2} (outer) x freq {10, 20, 30} (inner);
+    /// z = 6 rows, row-major (bias-major):
+    ///   bias=1: freq 10,20,30 -> z 0,1,2
+    ///   bias=2: freq 10,20,30 -> z 3,4,5
+    xdataset::BlockCreateInfo make_marker_2d_block_info()
+    {
+        xdataset::BlockCreateInfo info;
+        info.independent_specs.push_back(
+            xdataset::IndependentSpec{
+                "bias",
+                xdataset::DataSeries::CreateScalarFromVector<double>({1.0, 2.0}),
+                xdataset::DimensionSpec::Regular(2)});
+        info.independent_specs.push_back(
+            xdataset::IndependentSpec{
+                "freq",
+                xdataset::DataSeries::CreateScalarFromVector<double>({10.0, 20.0, 30.0}),
+                xdataset::DimensionSpec::Regular(3)});
+        info.dependent_specs.push_back(
+            xdataset::DependentSpec{
+                "z",
+                xdataset::DataSeries::CreateScalarFromVector<double>(
+                    {0.0, 1.0, 2.0, 3.0, 4.0, 5.0})});
+        return info;
+    }
 } // namespace
 
 // =========================================================================
@@ -847,4 +888,256 @@ TEST(DottedDependentTest, BareDottedVariableResolvesViaUniqueLookup)
 
     rel::Value v2 = rel::Eval("SRC1.v", &env);
     EXPECT_TRUE(v2.is_data_array());
+}
+
+// =========================================================================
+//  Marker functions: mark / x_mark / y_mark
+// =========================================================================
+
+namespace
+{
+    /// Register a 1-D block (freq {1,2} -> Vout {100,200}) as default dataset.
+    void register_marker_dataset()
+    {
+        auto ds = std::unique_ptr<xdataset::Dataset>(
+            new xdataset::Dataset("mkr"));
+        ds->AddBlock("SP", make_marker_block_info());
+        rel::Environment::AddDataset(std::move(ds));
+        rel::Environment::SetDefaultDataset("mkr");
+    }
+
+    /// Register a 2-D block (bias {1,2} x freq {10,20,30} -> z 0..5).
+    void register_marker_2d_dataset()
+    {
+        auto ds = std::unique_ptr<xdataset::Dataset>(
+            new xdataset::Dataset("mkr2d"));
+        ds->AddBlock("SP", make_marker_2d_block_info());
+        rel::Environment::AddDataset(std::move(ds));
+        rel::Environment::SetDefaultDataset("mkr2d");
+    }
+
+    /// Read x (column[0]) and y (column[kSelf]) values of a 2-column marker
+    /// result as doubles (handles Real / Integer / Complex columns).
+    void read_marker(const rel::Value& v, std::vector<double>& xs,
+                     std::vector<double>& ys)
+    {
+        ASSERT_TRUE(v.is_data_array());
+        const xdataset::DataArray& da = v.as_data_array();
+        ASSERT_EQ(da.data_kind(), xdataset::DataArrayKind::kDependent);
+
+        // Two columns: one named independent + kSelf.
+        const std::vector<std::string>& names = da.indep_names();
+        ASSERT_EQ(names.size(), 1u) << "marker result must have exactly 2 columns";
+        const xdataset::DataSeries& xcol = da.indep_data(names[0]);
+        const xdataset::DataSeries& ycol = da.data();
+
+        auto to_double = [](const xdataset::DataSeries& s, xdataset::Index r)
+            -> double
+        {
+            switch (s.data_type())
+            {
+                case xdataset::DataType::kReal:
+                    return s.scalar_at<double>(r);
+                case xdataset::DataType::kInteger:
+                    return static_cast<double>(s.scalar_at<int>(r));
+                default:
+                    return std::abs(s.scalar_at<std::complex<double>>(r));
+            }
+        };
+
+        xs.clear();
+        ys.clear();
+        for (std::size_t i = 0; i < static_cast<std::size_t>(ycol.size()); ++i)
+        {
+            const xdataset::Index r = static_cast<xdataset::Index>(i);
+            xs.push_back(to_double(xcol, r));
+            ys.push_back(to_double(ycol, r));
+        }
+    }
+} // namespace
+
+TEST(BuiltinFunctionTest, MarkRegisters)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+
+    ASSERT_TRUE(rel::Environment::HasFunction("mark"));
+    ASSERT_TRUE(rel::Environment::HasFunction("x_mark"));
+    ASSERT_TRUE(rel::Environment::HasFunction("y_mark"));
+}
+
+TEST(BuiltinFunctionTest, MarkOn1DExactHit)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+    register_marker_dataset();
+
+    // Exact (x=1, y=100) -> that data point.
+    rel::Value v = rel::Eval("mark(Vout, 1, 100)", &env);
+    std::vector<double> xs, ys;
+    read_marker(v, xs, ys);
+    ASSERT_EQ(xs.size(), 1u);
+    EXPECT_DOUBLE_EQ(xs[0], 1.0);
+    EXPECT_DOUBLE_EQ(ys[0], 100.0);
+}
+
+TEST(BuiltinFunctionTest, MarkOn1DNearMiss)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+    register_marker_dataset();
+
+    // (x=1.2, y=110) -> closest point (1, 100); (2, 200) is farther in both.
+    rel::Value v = rel::Eval("mark(Vout, 1.2, 110)", &env);
+    std::vector<double> xs, ys;
+    read_marker(v, xs, ys);
+    ASSERT_EQ(xs.size(), 1u);
+    EXPECT_DOUBLE_EQ(xs[0], 1.0);
+    EXPECT_DOUBLE_EQ(ys[0], 100.0);
+}
+
+TEST(BuiltinFunctionTest, XMarkOn1D)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+    register_marker_dataset();
+
+    // x_mark(Vout, 2.0) -> the point at frequency 2.
+    rel::Value v = rel::Eval("x_mark(Vout, 2.0)", &env);
+    std::vector<double> xs, ys;
+    read_marker(v, xs, ys);
+    ASSERT_EQ(xs.size(), 1u);
+    EXPECT_DOUBLE_EQ(xs[0], 2.0);
+    EXPECT_DOUBLE_EQ(ys[0], 200.0);
+}
+
+TEST(BuiltinFunctionTest, YMarkOn1D)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+    register_marker_dataset();
+
+    // y_mark(Vout, 150) -> nearest y: 100 (at x=1) vs 200; 100 wins.
+    rel::Value v = rel::Eval("y_mark(Vout, 150)", &env);
+    std::vector<double> xs, ys;
+    read_marker(v, xs, ys);
+    ASSERT_EQ(xs.size(), 1u);
+    EXPECT_DOUBLE_EQ(xs[0], 1.0);
+    EXPECT_DOUBLE_EQ(ys[0], 100.0);
+}
+
+TEST(BuiltinFunctionTest, MarkOn2DExactHit)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+    register_marker_2d_dataset();
+
+    // marker at (freq=20, z=1): bias=1, freq=20 -> z=1.
+    rel::Value v = rel::Eval("mark(z, 20, 1)", &env);
+    std::vector<double> xs, ys;
+    read_marker(v, xs, ys);
+    ASSERT_EQ(xs.size(), 1u);
+    EXPECT_DOUBLE_EQ(xs[0], 20.0);
+    EXPECT_DOUBLE_EQ(ys[0], 1.0);
+}
+
+TEST(BuiltinFunctionTest, XMarkOn2DReturnsOneRowPerSlice)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+    register_marker_2d_dataset();
+
+    // z layout (bias outermost):
+    //   bias=1: freq 10,20,30 -> z 0,1,2
+    //   bias=2: freq 10,20,30 -> z 3,4,5
+    // x_mark(z, 25) -> per innermost slice, closest freq to 25:
+    //   bias=1: freq 20 -> z=1
+    //   bias=2: freq 20 -> z=4
+    rel::Value v = rel::Eval("x_mark(z, 25)", &env);
+    std::vector<double> xs, ys;
+    read_marker(v, xs, ys);
+    ASSERT_EQ(xs.size(), 2u);
+    EXPECT_DOUBLE_EQ(xs[0], 20.0);
+    EXPECT_DOUBLE_EQ(ys[0], 1.0);
+    EXPECT_DOUBLE_EQ(xs[1], 20.0);
+    EXPECT_DOUBLE_EQ(ys[1], 4.0);
+}
+
+TEST(BuiltinFunctionTest, YMarkOn2DReturnsOneRowPerSlice)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+    register_marker_2d_dataset();
+
+    // y_mark(z, 1.6) -> per innermost slice, closest z value to 1.6:
+    //   bias=1: z {0,1,2} -> z=2 (freq 30)
+    //   bias=2: z {3,4,5} -> z=3 (freq 10)
+    rel::Value v = rel::Eval("y_mark(z, 1.6)", &env);
+    std::vector<double> xs, ys;
+    read_marker(v, xs, ys);
+    ASSERT_EQ(xs.size(), 2u);
+    EXPECT_DOUBLE_EQ(xs[0], 30.0);
+    EXPECT_DOUBLE_EQ(ys[0], 2.0);
+    EXPECT_DOUBLE_EQ(xs[1], 10.0);
+    EXPECT_DOUBLE_EQ(ys[1], 3.0);
+}
+
+TEST(BuiltinFunctionTest, MarkOnIndependentArray)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+    register_marker_dataset();
+
+    // marker on the independent itself (freq {1,2}): x axis is the index
+    // series 0,1; y axis is the freq data.  x_mark(freq, 1) -> x=1, y=2.
+    rel::Value v = rel::Eval("x_mark(freq, 1)", &env);
+    std::vector<double> xs, ys;
+    read_marker(v, xs, ys);
+    ASSERT_EQ(xs.size(), 1u);
+    EXPECT_DOUBLE_EQ(xs[0], 1.0);
+    EXPECT_DOUBLE_EQ(ys[0], 2.0);
+}
+
+TEST(BuiltinFunctionTest, MarkOnMeasurement)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+
+    // A Measurement is promoted to a 1-row Independent DataArray:
+    //   x axis = index series {0}, y = the scalar itself {5}.
+    // mark(5, 0, 5) hits the single point exactly.
+    rel::Value v = rel::Eval("mark(5, 0, 5)", &env);
+    std::vector<double> xs, ys;
+    read_marker(v, xs, ys);
+    ASSERT_EQ(xs.size(), 1u);
+    EXPECT_DOUBLE_EQ(xs[0], 0.0);
+    EXPECT_DOUBLE_EQ(ys[0], 5.0);
+}
+
+TEST(BuiltinFunctionTest, XMarkOnMeasurement)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+
+    // Same promotion: x_mark(5, 0) -> the only point (x=0, y=5).
+    rel::Value v = rel::Eval("x_mark(5, 0)", &env);
+    std::vector<double> xs, ys;
+    read_marker(v, xs, ys);
+    ASSERT_EQ(xs.size(), 1u);
+    EXPECT_DOUBLE_EQ(xs[0], 0.0);
+    EXPECT_DOUBLE_EQ(ys[0], 5.0);
+}
+
+TEST(BuiltinFunctionTest, YMarkOnMeasurement)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+
+    // y_mark(5, 5) -> the only point.
+    rel::Value v = rel::Eval("y_mark(5, 5)", &env);
+    std::vector<double> xs, ys;
+    read_marker(v, xs, ys);
+    ASSERT_EQ(xs.size(), 1u);
+    EXPECT_DOUBLE_EQ(xs[0], 0.0);
+    EXPECT_DOUBLE_EQ(ys[0], 5.0);
 }
