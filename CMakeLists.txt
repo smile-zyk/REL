@@ -35,6 +35,10 @@ if(WIN32)
     target_compile_definitions(xdataset PRIVATE H5_BUILT_AS_DYNAMIC_LIB)
 endif()
 
+# boost::json powers EnvironmentConfig (include/environment.h exposes it in the
+# public API).  Required at configure time, like the other boost deps.
+find_package(boost_json CONFIG REQUIRED)
+
 # =========================================================================
 #  Python plugin (embedded interpreter + pybind11 bindings)
 # =========================================================================
@@ -260,7 +264,7 @@ target_include_directories(rel PUBLIC
     src/core     # internal headers (hosts / tests)
     src/runtime  # internal headers (hosts / tests)
 )
-target_link_libraries(rel PUBLIC xdataset)
+target_link_libraries(rel PUBLIC xdataset Boost::json)
 
 if(BUILD_PYTHON)
     # The whole project is C++11 (see CMAKE_CXX_STANDARD above); the Python

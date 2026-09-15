@@ -4,6 +4,7 @@
 		"eigen3",
 		"boost-variant",
 		"boost-filesystem",
+		"boost-json",
 		"tsl-ordered-map"
 	]
 }
