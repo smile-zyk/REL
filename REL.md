@@ -361,18 +361,37 @@ REL 不支持注释语法（例如 `//` 或 `/* ... */` 均不属于语言语法
 
   **矩阵索引使用 1-based 下标**（`a(1)` 取第一行/第一个元素），与 REL 面向用户的自然数下标一致；`()` 索引作用于数据的 Shape（矩阵的行/列），不改变维度结构。
 
-- `{}`：用作 **矩阵生成器**（`{expr_list}`）。将 `expr_list` 中每一项视为若干行数据，合并为一个结果。
+- `{}`：用作 **矩阵生成器**（`{expr_list}`）。语义是**统一的行块堆叠模型**，由 item 是否被内层 `{}` 包裹决定拼接方向：
 
-  **行数规则**：所有 item 的行数要么相等，要么为 1（仅一行的 item 会被广播重复以匹配最大行数）。例如 `(3行, 1行, 3行)` 允许，`(3行, 2行)` 不允许。每行的 shape（Scalar 或 Vector 或 Matrix）必须一致。
+  **水平拼接（平级裸 item）**：`{A, B, ...}` 中每个 item 视为一行数据，**从左到右拼接列**（列扩展）。所有 item 的有效行数要么相等、要么为 1（1 行的 item 广播复制以匹配最大行数）；每行的 shape（Scalar / Vector / Matrix）必须一致。
 
-  **结果类型**：纯 Measurement（每个 item 恰好一行，视为一个标量或向量或矩阵值）时，结果升阶为 Measurement：Scalar × N → Vector(N)，Vector(w) × N → Matrix(N, w)。只要任一 item 是 DataArray，结果即为 DataArray。单一元素 `{5}` 保持原值（不解包成 Vector(1)）；嵌套 `{{1},{2}}` 产生 Matrix(2,1)。
+  ```
+  {1, 2, 3}            → 3 个 Scalar → Vector(3)                    [1×3]
+  {v, v}  (v: Vector(2)) → 2 个 Vector(2) → Vector(4)               [1×4]
+  {S, S}  (S: 2×2)     → 2 个 Matrix(2,2) → Matrix(2, 4)            [2×4]
+  ```
+
+  **垂直堆叠（内层 `{}` 包裹的块 item）**：`{{A}, {B}, ...}` 中每个 item 本身就是 `{...}` 生成的"行块"，**从上到下堆叠行**（行扩展）。所有块的列数必须一致。
+
+  ```
+  {{1}, {2}}           → 2 个块(各1×1) → Matrix(2, 1)               [2×1]
+  {{1, 2}, {3, 4}}     → 2 个块(各1×2) → Matrix(2, 2)               [2×2]
+  {{S}, {S}} (S: 2×2)  → 2 个块(各2×2) → Matrix(4, 2)               [4×2]
+  ```
+
+  **结果类型**：纯 Measurement（每个 item 恰好一行，视为一个标量 / 向量 / 矩阵值）时，结果升阶为 Measurement；只要任一 item 是 DataArray，结果即为 DataArray。单一元素 `{5}` 保持原值（不解包成 Vector(1)）。
 
   ```
   {1, 2, 3}         → 3 个 Scalar → Vector(3)                       [Measurement]
   {{1, 2}, {3, 4}}  → 2 个 Vector(2) → Matrix(2, 2)                 [Measurement]
+  {{1}, {2}}        → 2 个 Vector(1) → Matrix(2, 1)                 [Measurement]
+  {S, S}            → 2 个 Matrix(2,2) → Matrix(2, 4)               [Measurement]
+  {{S}, {S}}        → 2 个 Matrix(2,2) → Matrix(4, 2)               [Measurement]
   {[1,2], [3,4]}    → 2 个 DataArray(各1行Vector(2)) → 2行 Vector(2)  [DataArray]
   {DA(3行), M}       → 含 DataArray → M 广播到 3 行 → 结果保持 DataArray [DataArray]
   ```
+
+  直观记忆：`{}` 平级 item 是**逗号=横向**（一行多列），item 内层再包一层 `{}` 是**分号=纵向**（多行堆叠）——与 MATLAB/Octave 的 `[A B]`（横拼）vs `[A; B]`（竖拼）一致，对应函数名分别为 `horzcat` / `vertcat`（底层算子 `OperationHorzcat` / `OperationVertcat`）。
 
 ### 条件表达式
 

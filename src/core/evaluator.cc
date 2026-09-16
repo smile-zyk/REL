@@ -509,7 +509,7 @@ void Evaluator::visit_sweep(const SweepExpr& expr)
 }
 
 // =========================================================================
-//  visit_matrix -- {expr_list}, expands RangeExpr items, uses OperationMatrix
+//  visit_matrix -- {expr_list}, expands RangeExpr items, uses OperationHorzcat
 // =========================================================================
 
 void Evaluator::visit_matrix(const MatrixExpr& expr)
@@ -522,6 +522,22 @@ void Evaluator::visit_matrix(const MatrixExpr& expr)
     // and collapses {{1},{2}} into {1,2}.
     bool was_inside = inside_matrix_;
     inside_matrix_ = true;
+
+    // Every item wrapped in its own `{...}` is a "row block": the same-level
+    // blocks are stacked top-to-bottom (vertical, MATLAB [A; B] / vertcat).
+    // An item that is a bare value (scalar / vector / matrix reference,
+    // expression, range) is concatenated left-to-right (horizontal, MATLAB
+    // [A B] / horzcat).  All items share one mode.
+    bool all_blocks = !expr.items.empty();
+    for (const auto& item : expr.items)
+    {
+        if (!dynamic_cast<const rel::MatrixExpr*>(item.get()))
+        {
+            all_blocks = false;
+            break;
+        }
+    }
+
     for (const auto& item : expr.items)
         expand_item(*this, item, items);
     inside_matrix_ = was_inside;
@@ -540,7 +556,9 @@ void Evaluator::visit_matrix(const MatrixExpr& expr)
         return;
     }
 
-    result_ = rel::operation::OperationMatrix(items);
+    result_ = all_blocks
+        ? rel::operation::OperationVertcat(items)
+        : rel::operation::OperationHorzcat(items);
 }
 
 // =========================================================================

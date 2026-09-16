@@ -56,7 +56,8 @@ using rel::operation::OperationShl;
 using rel::operation::OperationShr;
 using rel::operation::OperationConditional;
 using rel::operation::OperationIf;
-using rel::operation::OperationMatrix;
+using rel::operation::OperationHorzcat;
+using rel::operation::OperationVertcat;
 using rel::operation::OperationSweep;
 
 #define EXPECT_MEAS_SCALAR_DOUBLE(val, expected) do { \
@@ -823,85 +824,277 @@ TEST(OperationShrTest, MeasMeasScalar)
 }
 
 // =========================================================================
-//  OperationMatrix
+//  OperationHorzcat
 // =========================================================================
 
-TEST(OperationMatrixTest, IntAndRealPromote)
+TEST(OperationHorzcatTest, IntAndRealPromote)
 {
-    Value result = OperationMatrix({Value::Integer(1), Value::Real(2.5)});
+    Value result = OperationHorzcat({Value::Integer(1), Value::Real(2.5)});
     ASSERT_TRUE(result.is_measurement());
     auto vec = result.as_measurement().as_vector<double>();
     EXPECT_DOUBLE_EQ(vec(0), 1.0);
     EXPECT_DOUBLE_EQ(vec(1), 2.5);
 }
 
-TEST(OperationMatrixTest, StringScalarsToVector)
+TEST(OperationHorzcatTest, StringScalarsToVector)
 {
     Value v1 = Value::String("hello");
     Value v2 = Value::String("world");
-    Value result = OperationMatrix({v1, v2});
+    Value result = OperationHorzcat({v1, v2});
     ASSERT_TRUE(result.is_measurement());
     auto vec = result.as_measurement().as_vector<std::string>();
     EXPECT_EQ(vec(0), "hello");
     EXPECT_EQ(vec(1), "world");
 }
 
-TEST(OperationMatrixTest, SameUnit)
+TEST(OperationHorzcatTest, SameUnit)
 {
     Unit u = Unit::parse("V");
-    Value result = OperationMatrix({Value::Real(1.0, u), Value::Real(2.0, u)});
+    Value result = OperationHorzcat({Value::Real(1.0, u), Value::Real(2.0, u)});
     ASSERT_TRUE(result.is_measurement());
     EXPECT_TRUE(result.as_measurement().unit().same_dimension(u));
 }
 
-TEST(OperationMatrixTest, IncompatibleUnitsThrows)
+TEST(OperationHorzcatTest, IncompatibleUnitsThrows)
 {
     Unit uv = Unit::parse("V");
     Unit ua = Unit::parse("A");
-    EXPECT_THROW(OperationMatrix({Value::Real(1.0, uv), Value::Real(2.0, ua)}),
+    EXPECT_THROW(OperationHorzcat({Value::Real(1.0, uv), Value::Real(2.0, ua)}),
                  std::runtime_error);
 }
 
-TEST(OperationMatrixTest, EmptyThrows)
+TEST(OperationHorzcatTest, EmptyThrows)
 {
-    EXPECT_THROW(OperationMatrix({}), std::runtime_error);
+    EXPECT_THROW(OperationHorzcat({}), std::runtime_error);
 }
 
-TEST(OperationMatrixTest, DataArraysSameKindSameShape)
+TEST(OperationHorzcatTest, DataArraysSameKindSameShape)
 {
     auto ds1 = xdataset::DataSeries::CreateScalarFromVector<double>({1.0, 2.0});
     auto ds2 = xdataset::DataSeries::CreateScalarFromVector<double>({3.0, 4.0});
     Value v1(xdataset::DataArray::CreateIndependent(std::move(ds1)));
     Value v2(xdataset::DataArray::CreateIndependent(std::move(ds2)));
-    Value result = OperationMatrix({v1, v2});
+    Value result = OperationHorzcat({v1, v2});
     ASSERT_TRUE(result.is_data_array());
     const auto& arr = result.as_data_array().data();
     EXPECT_EQ(arr.size(), 2u);
 }
 
-TEST(OperationMatrixTest, PreservesFirstDataArrayMetadata)
+TEST(OperationHorzcatTest, PreservesFirstDataArrayMetadata)
 {
     Block block(MakeBaseCreateInfo());
     DataArray da_z = block.GetOrCreateDataArray("z");
     Value v1(std::move(da_z));
     auto ds2 = xdataset::DataSeries::CreateScalarFromVector<double>({3.0});
     Value v2(xdataset::DataArray::CreateIndependent(std::move(ds2)));
-    Value result = OperationMatrix({v1, v2});
+    Value result = OperationHorzcat({v1, v2});
     ASSERT_TRUE(result.is_data_array());
     const auto& arr = result.as_data_array();
     EXPECT_EQ(arr.multi_dimension_spec().rank(), 2u);
     EXPECT_EQ(arr.data_kind(), DataArrayKind::kDependent);
 }
 
-TEST(OperationMatrixTest, TwoScalarsStayVector)
+TEST(OperationHorzcatTest, TwoScalarsStayVector)
 {
-    Value result = OperationMatrix({Value::Integer(1), Value::Integer(2)});
+    Value result = OperationHorzcat({Value::Integer(1), Value::Integer(2)});
     ASSERT_TRUE(result.is_measurement());
     ASSERT_EQ(result.as_measurement().data_kind(), DataKind::kVector);
     auto vec = result.as_measurement().as_vector<int>();
     EXPECT_EQ(vec.size(), 2);
     EXPECT_EQ(vec(0), 1);
     EXPECT_EQ(vec(1), 2);
+}
+
+// =========================================================================
+//  OperationHorzcat horizontal concat ({} with bare items)
+// =========================================================================
+
+TEST(OperationHorzcatTest, ConcatVectorsHorizontally)
+{
+    // {v, v} with v: Vector(2) -> Vector(4)  (columns concatenated).
+    VecXi v(2);
+    v << 1, 2;
+    Value result = OperationHorzcat({Value::Vector(v), Value::Vector(v)});
+    ASSERT_TRUE(result.is_measurement());
+    EXPECT_EQ(result.as_measurement().data_kind(), DataKind::kVector);
+    auto vec = result.as_measurement().as_vector<int>();
+    ASSERT_EQ(vec.size(), 4);
+    EXPECT_EQ(vec(0), 1);
+    EXPECT_EQ(vec(1), 2);
+    EXPECT_EQ(vec(2), 1);
+    EXPECT_EQ(vec(3), 2);
+}
+
+TEST(OperationHorzcatTest, ConcatMatricesHorizontally)
+{
+    // {S, S} with S: 2x2 -> Matrix(2, 4).
+    MatXi s(2, 2);
+    s << 1, 2, 3, 4;
+    Value result = OperationHorzcat({Value::Matrix(s), Value::Matrix(s)});
+    ASSERT_TRUE(result.is_measurement());
+    EXPECT_EQ(result.as_measurement().data_kind(), DataKind::kMatrix);
+    const auto m = result.as_measurement().as_matrix<int>();
+    EXPECT_EQ(m.rows(), 2);
+    EXPECT_EQ(m.cols(), 4);
+    // Row 0: [1 2 1 2]; Row 1: [3 4 3 4].
+    EXPECT_EQ(m(0, 0), 1);
+    EXPECT_EQ(m(0, 1), 2);
+    EXPECT_EQ(m(0, 2), 1);
+    EXPECT_EQ(m(0, 3), 2);
+    EXPECT_EQ(m(1, 0), 3);
+    EXPECT_EQ(m(1, 1), 4);
+    EXPECT_EQ(m(1, 2), 3);
+    EXPECT_EQ(m(1, 3), 4);
+}
+
+TEST(OperationHorzcatTest, ConcatRowBroadcastMixedRows)
+{
+    // {a (2-row DA), scalar} -> 2 rows, a's rows broadcast against scalar.
+    auto ds = xdataset::DataSeries::CreateScalarFromVector<double>({1.0, 2.0});
+    Value da(xdataset::DataArray::CreateIndependent(std::move(ds)));
+    Value result = OperationHorzcat({da, Value::Integer(7)});
+    ASSERT_TRUE(result.is_data_array());
+    const auto& arr = result.as_data_array().data();
+    EXPECT_EQ(arr.size(), 2u);
+}
+
+// =========================================================================
+//  OperationVertcat vertical stack ({{blk}, {blk}})
+// =========================================================================
+
+TEST(OperationVertcatTest, StackScalarsToColumn)
+{
+    // {{1}, {2}} -> Matrix(2, 1).
+    Value result = OperationVertcat({Value::Integer(1), Value::Integer(2)});
+    ASSERT_TRUE(result.is_measurement());
+    EXPECT_EQ(result.as_measurement().data_kind(), DataKind::kMatrix);
+    const auto m = result.as_measurement().as_matrix<int>();
+    EXPECT_EQ(m.rows(), 2);
+    EXPECT_EQ(m.cols(), 1);
+    EXPECT_EQ(m(0, 0), 1);
+    EXPECT_EQ(m(1, 0), 2);
+}
+
+TEST(OperationVertcatTest, StackVectorsVertical)
+{
+    // {{1,2},{3,4}}: two 1x2 vectors stacked -> Matrix(2, 2).
+    VecXi v1(2); v1 << 1, 2;
+    VecXi v2(2); v2 << 3, 4;
+    Value result = OperationVertcat({Value::Vector(v1), Value::Vector(v2)});
+    ASSERT_TRUE(result.is_measurement());
+    EXPECT_EQ(result.as_measurement().data_kind(), DataKind::kMatrix);
+    const auto m = result.as_measurement().as_matrix<int>();
+    EXPECT_EQ(m.rows(), 2);
+    EXPECT_EQ(m.cols(), 2);
+    EXPECT_EQ(m(0, 0), 1);
+    EXPECT_EQ(m(0, 1), 2);
+    EXPECT_EQ(m(1, 0), 3);
+    EXPECT_EQ(m(1, 1), 4);
+}
+
+TEST(OperationVertcatTest, StackMatricesVertical)
+{
+    // {{S},{S}} with S: 2x2 -> Matrix(4, 2).
+    MatXi s(2, 2);
+    s << 1, 2, 3, 4;
+    Value result = OperationVertcat({Value::Matrix(s), Value::Matrix(s)});
+    ASSERT_TRUE(result.is_measurement());
+    EXPECT_EQ(result.as_measurement().data_kind(), DataKind::kMatrix);
+    const auto m = result.as_measurement().as_matrix<int>();
+    EXPECT_EQ(m.rows(), 4);
+    EXPECT_EQ(m.cols(), 2);
+    EXPECT_EQ(m(0, 0), 1);
+    EXPECT_EQ(m(0, 1), 2);
+    EXPECT_EQ(m(1, 0), 3);
+    EXPECT_EQ(m(1, 1), 4);
+    EXPECT_EQ(m(2, 0), 1);
+    EXPECT_EQ(m(3, 1), 4);
+}
+
+TEST(OperationVertcatTest, StackStringBlocks)
+{
+    Value a = Value::String("a");
+    Value b = Value::String("b");
+    Value result = OperationVertcat({a, b});
+    ASSERT_TRUE(result.is_measurement());
+    EXPECT_EQ(result.as_measurement().data_kind(), DataKind::kMatrix);
+    EXPECT_EQ(result.as_measurement().shape()[0], 2);   // rows
+    EXPECT_EQ(result.as_measurement().shape()[1], 1);   // cols
+    const auto m = result.as_measurement().as_matrix<std::string>();
+    EXPECT_EQ(m(0, 0), "a");
+    EXPECT_EQ(m(1, 0), "b");
+}
+
+TEST(OperationVertcatTest, StackColumnMismatchThrows)
+{
+    VecXi v1(2); v1 << 1, 2;
+    VecXi v2(3); v2 << 1, 2, 3;
+    EXPECT_THROW(OperationVertcat({Value::Vector(v1), Value::Vector(v2)}),
+                 std::runtime_error);
+}
+
+TEST(OperationVertcatTest, StackDataArrayCellsKeepsRows)
+{
+    // S: 2-row DataArray whose cells are 2x2 matrices.
+    // {{S},{S}} stacks the CELLS vertically per data row -> still 2 rows of
+    // 4x2 cells (regression: rows were previously summed to 4).
+    xdataset::DataSeries cells(xdataset::DataType::kInteger,
+                               xdataset::DataShape::Matrix(2, 2));
+    cells.resize(2);
+    {
+        xdataset::MatXi m(2, 2);
+        m << 1, 2, 3, 4;
+        cells.matrix_at<int>(0) = m;
+        m << 5, 6, 7, 8;
+        cells.matrix_at<int>(1) = m;
+    }
+    Value s(xdataset::DataArray::CreateIndependent(std::move(cells)));
+
+    Value result = OperationVertcat({s, s});
+    ASSERT_TRUE(result.is_data_array());
+    const auto& arr = result.as_data_array().data();
+    EXPECT_EQ(arr.size(), 2u);                 // data rows preserved
+    EXPECT_EQ(arr.data_shape()[0], 4);         // cell 2x2 -> 4x2
+    EXPECT_EQ(arr.data_shape()[1], 2);
+
+    const auto m0 = arr.matrix_at<int>(0);
+    EXPECT_EQ(m0(0, 0), 1);
+    EXPECT_EQ(m0(1, 1), 4);
+    EXPECT_EQ(m0(2, 0), 1);
+    EXPECT_EQ(m0(3, 1), 4);
+
+    const auto m1 = arr.matrix_at<int>(1);
+    EXPECT_EQ(m1(0, 0), 5);
+    EXPECT_EQ(m1(3, 1), 8);
+}
+
+TEST(OperationHorzcatTest, ConcatDataArrayCellsKeepsRows)
+{
+    // {S,S}: same 2-row DataArray, cells horizontally joined -> 2 rows of 2x4.
+    xdataset::DataSeries cells(xdataset::DataType::kInteger,
+                               xdataset::DataShape::Matrix(2, 2));
+    cells.resize(2);
+    {
+        xdataset::MatXi m(2, 2);
+        m << 1, 2, 3, 4;
+        cells.matrix_at<int>(0) = m;
+        m << 5, 6, 7, 8;
+        cells.matrix_at<int>(1) = m;
+    }
+    Value s(xdataset::DataArray::CreateIndependent(std::move(cells)));
+
+    Value result = OperationHorzcat({s, s});
+    ASSERT_TRUE(result.is_data_array());
+    const auto& arr = result.as_data_array().data();
+    EXPECT_EQ(arr.size(), 2u);
+    EXPECT_EQ(arr.data_shape()[0], 2);
+    EXPECT_EQ(arr.data_shape()[1], 4);
+
+    const auto m0 = arr.matrix_at<int>(0);
+    EXPECT_EQ(m0(0, 0), 1);
+    EXPECT_EQ(m0(0, 2), 1);
+    EXPECT_EQ(m0(1, 1), 4);
+    EXPECT_EQ(m0(1, 3), 4);
 }
 
 // =========================================================================

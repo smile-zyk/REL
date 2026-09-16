@@ -88,8 +88,15 @@ REL_API Value OperationIf(const std::vector<Value>& operands);
 // Variadic generators
 // =========================================================================
 
-/// Matrix {} -- stack operands with row broadcast.
-REL_API Value OperationMatrix(const std::vector<Value>& operands);
+/// Matrix {} -- horizontal concat (left-to-right, columns concatenated;
+/// 1-row items are row-broadcast).  {1,2} -> Vector(2); {S,S} (2x2) -> 2x4.
+/// Equivalent to MATLAB's horzcat / [S S].
+REL_API Value OperationHorzcat(const std::vector<Value>& operands);
+
+/// Matrix {{blk},{blk}} -- vertical stack (top-to-bottom, rows concatenated;
+/// all blocks must share the same column count).  {{1},{2}} -> Matrix(2,1);
+/// {{S},{S}} (2x2) -> 4x2.  Equivalent to MATLAB's vertcat / [S; S].
+REL_API Value OperationVertcat(const std::vector<Value>& operands);
 
 /// Sweep [] -- collect operands into a DataArray (one row per operand).
 REL_API Value OperationSweep(const std::vector<Value>& operands);

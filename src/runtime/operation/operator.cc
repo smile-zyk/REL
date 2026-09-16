@@ -175,29 +175,60 @@ namespace rel
                 return DataShape::Matrix(r, c);
             }
 
-            // -- Shape: Matrix, Mul, Div --------------------------------------------------
+            // -- Shape: Matrix (horizontal concat), MatrixStack (vertical), Mul, Div ---
 
-            static DataShape DeriveShapeMatrix(const std::vector<DataShape>& operand_shapes)
+            /// `{items}` -- same-level items are stacked LEFT-TO-RIGHT (columns
+            /// concatenated; rows broadcast when an item has 1 row).  Scalar x N
+            /// -> Vector(N); Vector(w) x N -> Vector(w*N); Matrix(r,h) x N ->
+            /// Matrix(r, h*N).  This is the "horizontal" reading: `{1,2}` is one
+            /// row of two cells.  (MATLAB horzcat / [S S].)
+            static DataShape DeriveShapeHorzcat(const std::vector<DataShape>& operand_shapes)
             {
                 if (operand_shapes.empty())
                     throw std::invalid_argument("empty input");
-                const Index N = static_cast<Index>(operand_shapes.size());
-                const DataKind k0 = operand_shapes[0].kind();
-                const DataShape& s0 = operand_shapes[0];
-                for (size_t i = 1; i < operand_shapes.size(); ++i)
+                Index R = 1, C = 0;
+                for (size_t i = 0; i < operand_shapes.size(); ++i)
                 {
-                    if (operand_shapes[i].kind() != k0)
-                        throw std::invalid_argument("kind mismatch at index " +
-                                                    std::to_string(i));
-                    if (operand_shapes[i] != s0)
-                        throw std::invalid_argument("shape mismatch at index " +
-                                                    std::to_string(i));
+                    std::pair<Index, Index> rc = EffectiveRC(operand_shapes[i]);
+                    if (rc.first == 1)
+                    { /* 1-row item broadcasts to R */ }
+                    else if (R == 1)
+                        R = rc.first;
+                    else if (rc.first != R)
+                        throw std::invalid_argument(
+                            "row dim mismatch in {} (" + std::to_string(R) +
+                            " vs " + std::to_string(rc.first) + ")");
+                    C += rc.second;
                 }
-                if (k0 == DataKind::kScalar)
-                    return DataShape::Vector(N);
-                if (k0 == DataKind::kVector)
-                    return DataShape::Matrix(N, s0[0]);
-                throw std::invalid_argument("cannot concat matrices");
+                return MakeShapeRC(R, C);
+            }
+
+            /// `{{blk}, {blk}, ...}` -- an item wrapped in its own braces is a
+            /// "row block"; same-level blocks are stacked TOP-TO-BOTTOM (rows
+            /// concatenated; all blocks must share the same column count).
+            /// Matrix(w,h) x N -> Matrix(w*N, h); {v1} x N (Vector) -> Matrix(N, w).
+            /// (MATLAB vertcat / [S; S].)
+            static DataShape DeriveShapeVertcat(const std::vector<DataShape>& operand_shapes)
+            {
+                if (operand_shapes.empty())
+                    throw std::invalid_argument("empty input");
+                Index R = 0, C = -1;
+                for (size_t i = 0; i < operand_shapes.size(); ++i)
+                {
+                    std::pair<Index, Index> rc = EffectiveRC(operand_shapes[i]);
+                    R += rc.first;
+                    if (C == -1)
+                        C = rc.second;
+                    else if (rc.second != C)
+                        throw std::invalid_argument(
+                            "col dim mismatch in {{}} (" + std::to_string(C) +
+                            " vs " + std::to_string(rc.second) + ")");
+                }
+                // Preserve a 1-wide stacked column as a Matrix(N,1), not a
+                // Vector (Vector is a single 1xw row); {{1},{2}} -> Matrix(2,1).
+                if (C == 1 && R > 1)
+                    return DataShape::Matrix(R, 1);
+                return MakeShapeRC(R, C);
             }
 
             static DataShape DeriveShapeMul(const std::vector<DataShape>& operand_shapes)
@@ -1027,14 +1058,42 @@ namespace rel
             return ExecBinaryArithT<int>(info, ops, op_shr<int>);
         }
 
+        /// Collect per-operand data-row counts for RowBroadcastPlan.
+        static std::vector<Index> collect_rows(const std::vector<Value>& ops)
+        {
+            std::vector<Index> rows;
+            rows.reserve(ops.size());
+            for (size_t i = 0; i < ops.size(); ++i)
+                rows.push_back(ops[i].rows());
+            return rows;
+        }
+
         // =========================================================================
-        //  ExecuteMatrix ({} generator) - stack operands with row broadcast
+        //  ExecuteHorzcat ({} horizontal) / ExecuteVertcat ({{}} vertical)
         // =========================================================================
+        //
+        //  Horizontal {A,B} (MATLAB [A B] / horzcat): columns concatenated
+        //  left-to-right.  Output cell is (R, sum(C)) where R is the max of
+        //  the blocks' effective rows (1-row blocks broadcast vertically).
+        //  Data layout interleaves each block's internal rows:
+        //  [Arow0 | Brow0 | Arow1 | Brow1 | ...].
+        //
+        //  Vertical {{A},{B}} (MATLAB [A; B] / vertcat): rows concatenated
+        //  top-to-bottom per data row; all blocks share the same effective
+        //  column count.  Output cell is (sum(R), C) = the blocks' cells
+        //  stacked, data rows preserved.
+        //
+        //  Shape + row count come from the pipeline's derive callbacks
+        //  (DeriveShapeHorzcat / DeriveShapeVertcat for the cell shape,
+        //  DeriveRowsBroadcast for the data rows).  All-Measurement operands
+        //  always produce ONE cell (a Measurement).
         //
         //  Output: all Measurement ->Measurement, otherwise DataArray.
 
         template <typename T>
-        static Value ExecMatrixT(const ExecContextInfo& info, const std::vector<Value>& ops)
+        static Value ExecHorzcatVertcatT(const ExecContextInfo& info,
+                                         const std::vector<Value>& ops,
+                                         bool stack_rows)
         {
             const Index N = static_cast<Index>(ops.size());
 
@@ -1055,28 +1114,102 @@ namespace rel
             for (size_t i = 0; i < ops.size(); ++i)
                 inputs.push_back(ops[i].flat_data<T>());
 
-            Index cell_elems = static_cast<Index>(inputs[0].stride);
-            Index result_rows = info.rows;
+            // Effective (rows, cols) of each operand's cell shape.
+            std::vector<std::pair<Index, Index> > rc(static_cast<std::size_t>(N));
+            for (Index k = 0; k < N; ++k)
+                rc[static_cast<std::size_t>(k)] = EffectiveRC(ops[static_cast<size_t>(k)].data_shape());
 
+            // ---- derive output shape / row count --------------------------------
+            // Both modes trust the pipeline:
+            //   - horizontal {}: DeriveShapeHorzcat (cols concat) + DeriveRowsBroadcast.
+            //   - vertical {{}}:  DeriveShapeVertcat (cell rows concat) +
+            //                     DeriveRowsBroadcast (data rows stay the same;
+            //                     a 1-row Measurement block broadcasts to the
+            //                     data-row count of the array blocks).
+            // A Measurement operand always contributes its single cell (its
+            // shape already carries the internal rows), hence rows()==1.
+            const DataShape out_shape = info.shape;
+            const Index result_rows = info.rows;
+
+            const Index out_elem = out_shape.element_count();
             auto out_ds =
-                std::unique_ptr<DataSeries>(new DataSeries(DataTypeOf<T>::tag, info.shape));
+                std::unique_ptr<DataSeries>(new DataSeries(DataTypeOf<T>::tag, out_shape));
             out_ds->set_unit(info.unit);
             out_ds->resize(static_cast<std::size_t>(result_rows));
             T* out = out_ds->mutable_contiguous_data<T>();
 
-            Index row_stride = cell_elems * N;
-            for (Index r = 0; r < result_rows; ++r)
+            if (stack_rows)
             {
-                Index out_off = r * row_stride;
-                for (Index k = 0; k < N; ++k)
+                // Vertical: output cell (sumR, C).  For each data row the
+                // blocks' cells are stacked top-to-bottom.
+                const Index R_out = out_shape.kind() == DataKind::kMatrix
+                                        ? out_shape[0]
+                                        : 1;
+                const Index C_out = out_shape.kind() == DataKind::kMatrix
+                                        ? out_shape[1]
+                                        : (out_shape.kind() == DataKind::kVector
+                                               ? out_shape[0]
+                                               : 1);
+                if (R_out * C_out != out_elem)
+                    throw std::invalid_argument(
+                        "{{ }} stack: shape/element mismatch");
+                for (Index r = 0; r < result_rows; ++r)
                 {
-                    Index op_row = (ops[static_cast<size_t>(k)].is_measurement())
-                                       ? 0
-                                       : (row_plan.broadcast[static_cast<size_t>(k)] ? 0 : r);
-                    const T* src = inputs[static_cast<size_t>(k)].ptr +
-                                   op_row * inputs[static_cast<size_t>(k)].stride;
-                    for (Index j = 0; j < cell_elems; ++j)
-                        out[out_off + k * cell_elems + j] = src[j];
+                    const Index row_base = r * out_elem;
+                    Index cum = 0;   // vertical offset within the cell
+                    for (Index k = 0; k < N; ++k)
+                    {
+                        const Index op_row = ops[static_cast<size_t>(k)].is_measurement()
+                                                 ? 0
+                                                 : (row_plan.broadcast[static_cast<size_t>(k)] ? 0 : r);
+                        const Index effR_k = rc[static_cast<size_t>(k)].first;
+                        const Index effC_k = rc[static_cast<size_t>(k)].second;
+                        if (effC_k != C_out)
+                            throw std::invalid_argument(
+                                "{{ }} stack: column mismatch at index " + std::to_string(k));
+                        const T* src = inputs[static_cast<size_t>(k)].ptr +
+                                       op_row * static_cast<Index>(inputs[static_cast<size_t>(k)].stride);
+                        for (Index i = 0; i < effR_k; ++i)
+                            for (Index j = 0; j < effC_k; ++j)
+                                out[row_base + (cum + i) * C_out + j] =
+                                    src[i * effC_k + j];
+                        cum += effR_k;
+                    }
+                }
+            }
+            else
+            {
+                // Horizontal interleave: output cell (R, sum(C)).
+                const Index R = out_shape.kind() == DataKind::kMatrix ? out_shape[0] : 1;
+                Index sumC = 0;
+                for (Index k = 0; k < N; ++k)
+                    sumC += rc[static_cast<size_t>(k)].second;
+                if (R * sumC != out_elem)
+                    throw std::invalid_argument("{} horizontal: column sum mismatch");
+
+                for (Index r = 0; r < result_rows; ++r)
+                {
+                    const Index row_base = r * out_elem;
+                    Index cum = 0;
+                    for (Index k = 0; k < N; ++k)
+                    {
+                        const Index op_row = ops[static_cast<size_t>(k)].is_measurement()
+                                                 ? 0
+                                                 : (row_plan.broadcast[static_cast<size_t>(k)] ? 0 : r);
+                        const Index effR_k = rc[static_cast<size_t>(k)].first;
+                        const Index effC_k = rc[static_cast<size_t>(k)].second;
+                        const T* src = inputs[static_cast<size_t>(k)].ptr +
+                                       op_row * static_cast<Index>(inputs[static_cast<size_t>(k)].stride);
+                        for (Index i = 0; i < R; ++i)
+                        {
+                            const Index lr = (effR_k == 1 && R > 1) ? 0 : i;
+                            T* dst = out + row_base + i * sumC + cum;
+                            const T* s = src + lr * effC_k;
+                            for (Index j = 0; j < effC_k; ++j)
+                                dst[j] = s[j];
+                        }
+                        cum += effC_k;
+                    }
                 }
             }
 
@@ -1105,7 +1238,9 @@ namespace rel
 
         // -- String path: no contiguous_data, access Measurement/DataSeries directly ---
 
-        static Value ExecMatrixString(const ExecContextInfo& info, const std::vector<Value>& ops)
+        static Value ExecHorzcatVertcatString(const ExecContextInfo& info,
+                                              const std::vector<Value>& ops,
+                                              bool stack_rows)
         {
             const Index N = static_cast<Index>(ops.size());
 
@@ -1117,76 +1252,123 @@ namespace rel
                     break;
                 }
 
-            std::vector<Index> row_counts;
-            for (size_t i = 0; i < ops.size(); ++i)
-                row_counts.push_back(ops[i].rows());
-            RowBroadcastPlan row_plan = RowBroadcastPlan::Compute(row_counts);
+            // Effective (rows, cols) of each operand's cell shape.
+            std::vector<std::pair<Index, Index> > rc(static_cast<std::size_t>(N));
+            for (Index k = 0; k < N; ++k)
+                rc[static_cast<std::size_t>(k)] =
+                    EffectiveRC(ops[static_cast<size_t>(k)].data_shape());
 
-            Index cell_elems = ops[0].data_shape().element_count();
-            Index result_rows = info.rows;
-            Index total = result_rows * cell_elems * N;
+            // ---- derive output shape / row count (mirrors ExecHorzcatVertcatT) ---
+            // Trust the pipeline: DeriveShapeVertcat for the cell shape
+            // (cell rows sum), DeriveRowsBroadcast for the data rows (a
+            // Measurement block has rows()==1 and broadcasts to the data-row
+            // count of the array blocks).
+            const DataShape out_shape = info.shape;
+            const Index result_rows = info.rows;
 
-            // Build flat string vector, then construct final Measurement/DataSeries
-            std::vector<std::string> flat(static_cast<std::size_t>(total));
+            const Index out_elem = out_shape.element_count();
+            std::vector<std::string> flat(static_cast<std::size_t>(result_rows * out_elem));
 
-            Index row_stride = cell_elems * N;
-            for (Index r = 0; r < result_rows; ++r)
+            RowBroadcastPlan row_plan = stack_rows
+                ? RowBroadcastPlan()
+                : RowBroadcastPlan::Compute(collect_rows(ops));
+
+            // Read element j of operand k's cell at source row `op_row` (a
+            // Measurement has exactly one logical cell row: 0).
+            auto read_cell = [&](Index k, Index op_row, Index j) -> std::string
             {
-                Index out_off = r * row_stride;
-                for (Index k = 0; k < N; ++k)
+                if (ops[static_cast<size_t>(k)].is_measurement())
                 {
-                    Index op_row = row_plan.broadcast[static_cast<size_t>(k)] ? 0 : r;
-                    Index base = static_cast<Index>(static_cast<std::size_t>(out_off) +
-                                                    static_cast<std::size_t>(k) *
-                                                        static_cast<std::size_t>(cell_elems));
+                    const Measurement& m = ops[static_cast<size_t>(k)].as_measurement();
+                    const DataKind dk = m.data_kind();
+                    if (dk == DataKind::kScalar)
+                        return m.as_scalar<std::string>();
+                    if (dk == DataKind::kVector)
+                        return m.as_vector<std::string>()(j);
+                    const auto mat = m.as_matrix<std::string>();
+                    const Index cols = m.shape()[1];
+                    return mat(j / cols, j % cols);
+                }
+                const DataSeries& ds = ops[static_cast<size_t>(k)].as_data_array().data();
+                const DataKind dk = ds.data_kind();
+                if (dk == DataKind::kScalar)
+                    return ds.scalar_at<std::string>(op_row);
+                if (dk == DataKind::kVector)
+                    return ds.vector_at<std::string>(op_row)(j);
+                const auto mat = ds.matrix_at<std::string>(op_row);
+                const Index cols = ds.data_shape()[1];
+                return mat(j / cols, j % cols);
+            };
 
-                    if (ops[static_cast<size_t>(k)].is_measurement())
+            if (stack_rows)
+            {
+                // Vertical: output cell (sumR, C).  For each data row the
+                // blocks' cells are stacked top-to-bottom.
+                const Index R_out = out_shape.kind() == DataKind::kMatrix
+                                        ? out_shape[0]
+                                        : 1;
+                const Index C_out = out_shape.kind() == DataKind::kMatrix
+                                        ? out_shape[1]
+                                        : (out_shape.kind() == DataKind::kVector
+                                               ? out_shape[0]
+                                               : 1);
+                if (R_out * C_out != out_elem)
+                    throw std::invalid_argument(
+                        "{{ }} stack: shape/element mismatch");
+                for (Index r = 0; r < result_rows; ++r)
+                {
+                    const Index row_base = r * out_elem;
+                    Index cum = 0;   // vertical offset within the cell
+                    for (Index k = 0; k < N; ++k)
                     {
-                        const Measurement& m = ops[static_cast<size_t>(k)].as_measurement();
-                        DataKind dk = m.data_kind();
-                        if (dk == DataKind::kScalar)
-                        {
-                            std::string s = m.as_scalar<std::string>();
-                            for (Index j = 0; j < cell_elems; ++j)
-                                flat[static_cast<std::size_t>(base + j)] = s;
-                        }
-                        else if (dk == DataKind::kVector)
-                        {
-                            auto vec = m.as_vector<std::string>();
-                            for (Index j = 0; j < cell_elems; ++j)
-                                flat[static_cast<std::size_t>(base + j)] = vec(j);
-                        }
-                        else
-                        {
-                            auto mat = m.as_matrix<std::string>();
-                            Index cols = m.shape()[1];
-                            for (Index j = 0; j < cell_elems; ++j)
-                                flat[static_cast<std::size_t>(base + j)] = mat(j / cols, j % cols);
-                        }
+                        const Index op_row = ops[static_cast<size_t>(k)].is_measurement()
+                                                 ? 0
+                                                 : (row_plan.broadcast[static_cast<size_t>(k)] ? 0 : r);
+                        const Index effR_k = rc[static_cast<size_t>(k)].first;
+                        const Index effC_k = rc[static_cast<size_t>(k)].second;
+                        if (effC_k != C_out)
+                            throw std::invalid_argument(
+                                "{{ }} stack: column mismatch at index " + std::to_string(k));
+                        for (Index i = 0; i < effR_k; ++i)
+                            for (Index j = 0; j < effC_k; ++j)
+                                flat[static_cast<std::size_t>(
+                                    row_base + (cum + i) * C_out + j)] =
+                                    read_cell(k, op_row, i * effC_k + j);
+                        cum += effR_k;
                     }
-                    else
+                }
+            }
+            else
+            {
+                // Horizontal interleave: output cell rows are
+                // [op0 part-row | op1 part-row | ...] per source cell row.
+                const Index R = out_shape.kind() == DataKind::kMatrix ? out_shape[0] : 1;
+                Index sumC = 0;
+                for (Index k = 0; k < N; ++k)
+                    sumC += rc[static_cast<size_t>(k)].second;
+                if (R * sumC != out_elem)
+                    throw std::invalid_argument("{} horizontal: column sum mismatch");
+
+                for (Index r = 0; r < result_rows; ++r)
+                {
+                    const Index row_base = r * out_elem;
+                    Index cum = 0;
+                    for (Index k = 0; k < N; ++k)
                     {
-                        const DataSeries& ds = ops[static_cast<size_t>(k)].as_data_array().data();
-                        DataKind dk = ds.data_kind();
-                        if (dk == DataKind::kScalar)
+                        const Index op_row = ops[static_cast<size_t>(k)].is_measurement()
+                                                 ? 0
+                                                 : (row_plan.broadcast[static_cast<size_t>(k)] ? 0 : r);
+                        const Index effR_k = rc[static_cast<size_t>(k)].first;
+                        const Index effC_k = rc[static_cast<size_t>(k)].second;
+                        for (Index i = 0; i < R; ++i)
                         {
-                            std::string s = ds.scalar_at<std::string>(op_row);
-                            for (Index j = 0; j < cell_elems; ++j)
-                                flat[static_cast<std::size_t>(base + j)] = s;
+                            const Index lr = (effR_k == 1 && R > 1) ? 0 : i;
+                            const Index base = row_base + i * sumC + cum;
+                            for (Index j = 0; j < effC_k; ++j)
+                                flat[static_cast<std::size_t>(base + j)] =
+                                    read_cell(k, op_row, lr * effC_k + j);
                         }
-                        else if (dk == DataKind::kVector)
-                        {
-                            auto vec = ds.vector_at<std::string>(op_row);
-                            for (Index j = 0; j < cell_elems; ++j)
-                                flat[static_cast<std::size_t>(base + j)] = vec(j);
-                        }
-                        else
-                        {
-                            auto mat = ds.matrix_at<std::string>(op_row);
-                            Index cols = ds.data_shape()[1];
-                            for (Index j = 0; j < cell_elems; ++j)
-                                flat[static_cast<std::size_t>(base + j)] = mat(j / cols, j % cols);
-                        }
+                        cum += effC_k;
                     }
                 }
             }
@@ -1213,24 +1395,24 @@ namespace rel
 
             // DataArray output
             auto out_ds =
-                std::unique_ptr<DataSeries>(new DataSeries(DataType::kString, info.shape));
+                std::unique_ptr<DataSeries>(new DataSeries(DataType::kString, out_shape));
             out_ds->set_unit(info.unit);
             out_ds->resize(static_cast<std::size_t>(result_rows));
             for (Index r = 0; r < result_rows; ++r)
             {
-                Index base = r * row_stride;
-                if (info.shape.kind() == DataKind::kScalar)
+                const Index base = r * out_elem;
+                if (out_shape.kind() == DataKind::kScalar)
                     out_ds->scalar_at<std::string>(r) =
                         std::move(flat[static_cast<std::size_t>(base)]);
-                else if (info.shape.kind() == DataKind::kVector)
-                    for (Index j = 0; j < info.shape[0]; ++j)
+                else if (out_shape.kind() == DataKind::kVector)
+                    for (Index j = 0; j < out_shape[0]; ++j)
                         out_ds->vector_at<std::string>(r)(j) =
                             std::move(flat[static_cast<std::size_t>(base + j)]);
                 else
-                    for (Index i = 0; i < info.shape[0]; ++i)
-                        for (Index j = 0; j < info.shape[1]; ++j)
+                    for (Index i = 0; i < out_shape[0]; ++i)
+                        for (Index j = 0; j < out_shape[1]; ++j)
                             out_ds->matrix_at<std::string>(r)(i, j) = std::move(
-                                flat[static_cast<std::size_t>(base + i * info.shape[1] + j)]);
+                                flat[static_cast<std::size_t>(base + i * out_shape[1] + j)]);
             }
             // DataArray output: preserve metadata from first DataArray operand
             const DataArray* tmpl = nullptr;
@@ -1249,21 +1431,38 @@ namespace rel
             return Value(DataArray::CreateIndependent(std::move(*out_ds)));
         }
 
-        Value ExecuteMatrix(const ExecContextInfo& info, const std::vector<Value>& ops)
+        /// Horzcat/Vertcat entry: dispatch to typed or string exec kernel.
+        static Value ExecHorzcatVertcatImpl(const ExecContextInfo& info,
+                                            const std::vector<Value>& ops,
+                                            bool stack_rows)
+        {
+            if (info.dtype == DataType::kString)
+                return ExecHorzcatVertcatString(info, ops, stack_rows);
+            switch (info.dtype)
+            {
+                case DataType::kComplex:
+                    return ExecHorzcatVertcatT<std::complex<double>>(info, ops, stack_rows);
+                case DataType::kReal:
+                    return ExecHorzcatVertcatT<double>(info, ops, stack_rows);
+                case DataType::kInteger:
+                    return ExecHorzcatVertcatT<int>(info, ops, stack_rows);
+                default:
+                    throw std::invalid_argument("unsupported dtype");
+            }
+        }
+
+        Value ExecuteHorzcat(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
             if (ops.empty())
                 throw std::invalid_argument("empty input");
+            return ExecHorzcatVertcatImpl(info, ops, false);
+        }
 
-            if (info.dtype == DataType::kString)
-                return ExecMatrixString(info, ops);
-
-            switch (info.dtype)
-            {
-                case DataType::kComplex: return ExecMatrixT<std::complex<double>>(info, ops);
-                case DataType::kReal: return ExecMatrixT<double>(info, ops);
-                case DataType::kInteger: return ExecMatrixT<int>(info, ops);
-                default: throw std::invalid_argument("unsupported dtype");
-            }
+        Value ExecuteVertcat(const ExecContextInfo& info, const std::vector<Value>& ops)
+        {
+            if (ops.empty())
+                throw std::invalid_argument("empty input");
+            return ExecHorzcatVertcatImpl(info, ops, true);
         }
 
         // =========================================================================
@@ -2821,13 +3020,21 @@ namespace rel
                                    DeriveUnitPromoteDimension,
                                    ExecuteSweep};
 
-        const OpTraits kOpMatrix = {-1,
-                                 "matrix",
-                                 DeriveShapeMatrix,
+        const OpTraits kOpHorzcat = {-1,
+                                 "horzcat",
+                                 DeriveShapeHorzcat,
                                     DeriveRowsBroadcast,
                                     DeriveDtypePromoteWithString,
                                     DeriveUnitPromoteDimension,
-                                    ExecuteMatrix};
+                                    ExecuteHorzcat};
+
+        const OpTraits kOpVertcat = {-1,
+                                 "vertcat",
+                                 DeriveShapeVertcat,
+                                    DeriveRowsBroadcast,
+                                    DeriveDtypePromoteWithString,
+                                    DeriveUnitPromoteDimension,
+                                    ExecuteVertcat};
 
         // =========================================================================
         //  Public API wrappers
@@ -2947,9 +3154,13 @@ namespace rel
             return Operate(ops, kOpIf);
         }
 
-        Value OperationMatrix(const std::vector<Value>& ops)
+        Value OperationHorzcat(const std::vector<Value>& ops)
         {
-            return Operate(ops, kOpMatrix);
+            return Operate(ops, kOpHorzcat);
+        }
+        Value OperationVertcat(const std::vector<Value>& ops)
+        {
+            return Operate(ops, kOpVertcat);
         }
         Value OperationSweep(const std::vector<Value>& ops)
         {
