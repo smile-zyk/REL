@@ -7,6 +7,7 @@
 
 #include "builtin_library.h"
 #include "environment.h"
+#include "operation/operator.h"
 #include "value.h"
 
 #include <cmath>
@@ -105,10 +106,10 @@ Value What(const Value& v)
 
 Value Indep(const Value& da_val, const Value& sel_val)
 {
-    if (!da_val.is_data_array())
-        throw std::runtime_error("indep: first argument must be a DataArray");
-
-    const xdataset::DataArray& da = da_val.as_data_array();
+    // Measurement inputs are accepted: as_data_array_view() lazily promotes
+    // them to a 1-row Independent DataArray, so indep(1) yields the single
+    // leaf index 0.  Only the name form can fail (no named independents).
+    const xdataset::DataArray& da = da_val.as_data_array_view();
 
     if (sel_val.is_measurement() &&
         sel_val.as_measurement().data_type() == xdataset::DataType::kInteger)
@@ -144,6 +145,23 @@ Value Output(const Value& v, const Value& var_name_val)
     da.GetOrCreateDataFrame(var_name).WriteToCsv(file_path);
 
     return Value::String(file_path);
+}
+
+Value SweepSize(const Value& da)
+{
+    // Fully expanded row count = product of every dimension's size.
+    // Measurement-backed Values are lazily promoted to a 1-row array, so a
+    // Measurement always reports 1 (the promoted single row).
+    const xdataset::MultiDimensionSpec& spec = da.dimension_spec();
+    return Value::Integer(static_cast<int>(spec.compute_cell_count()));
+}
+
+Value SweepDim(const Value& da)
+{
+    // Number of independent dimensions (the rank).  Measurement-backed
+    // Values promote to a single-dimension 1-row array, so they report 1.
+    const xdataset::MultiDimensionSpec& spec = da.dimension_spec();
+    return Value::Integer(static_cast<int>(spec.rank()));
 }
 
 Value Permute(const Value& data_val, const Value& perm_val)
@@ -886,6 +904,38 @@ FunctionLibrary MakeLibrary()
         },
         [](const Function::ArgMap& args) {
             return Output(args.at("da"), args.at("variable_name"));
+        }));
+
+    lib.Add(Function("sweep_size", std::vector<FunctionParam>{ Param("da") },
+        [](const Function::ArgMap& args) {
+            return SweepSize(args.at("da"));
+        }));
+
+    lib.Add(Function("sweep_dim", std::vector<FunctionParam>{ Param("da") },
+        [](const Function::ArgMap& args) {
+            return SweepDim(args.at("da"));
+        }));
+
+    // vertcat(a, b) / horzcat(a, b) -- the {} generator operations exposed as
+    // callable functions (MATLAB [A; B] / [A B]).  Registered here so Python
+    // plugins can call rel.vertcat / rel.horzcat directly on rel.Value without
+    // a numpy round-trip (units stay intact).
+    lib.Add(Function("vertcat",
+        std::vector<FunctionParam>{ Param("a"), Param("b") },
+        [](const Function::ArgMap& args) {
+            std::vector<Value> items;
+            items.push_back(args.at("a"));
+            items.push_back(args.at("b"));
+            return rel::operation::OperationVertcat(items);
+        }));
+
+    lib.Add(Function("horzcat",
+        std::vector<FunctionParam>{ Param("a"), Param("b") },
+        [](const Function::ArgMap& args) {
+            std::vector<Value> items;
+            items.push_back(args.at("a"));
+            items.push_back(args.at("b"));
+            return rel::operation::OperationHorzcat(items);
         }));
 
     return lib;

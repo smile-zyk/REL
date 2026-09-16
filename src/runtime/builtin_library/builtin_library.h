@@ -83,6 +83,16 @@ Value XMark(const Value& da, const Value& x_val);
 /// per slice.
 Value YMark(const Value& da, const Value& y_val);
 
+/// sweep_size(da) -- total number of rows after fully expanding all
+/// independent dimensions (the product of every dimension's size).  For a
+/// Measurement this is 1 (a single promoted row).  Delegates to
+/// MultiDimensionSpec::compute_cell_count().
+Value SweepSize(const Value& da);
+
+/// sweep_dim(da) -- number of independent dimensions (the rank).  For a
+/// Measurement this is 1 (the promoted 1-row array has one dimension).
+Value SweepDim(const Value& da);
+
 /// output(da, variable_name = String("data")) -- write DataFrame to "<name>.csv".
 /// Returns the absolute file path as a String Measurement.
 Value Output(const Value& da, const Value& variable_name);

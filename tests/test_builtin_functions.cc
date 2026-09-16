@@ -353,13 +353,17 @@ TEST(BuiltinFunctionTest, IndepDefaultSelector)
     EXPECT_EQ(v.as_data_array().data().size(), 2u);
 }
 
-TEST(BuiltinFunctionTest, IndepRequiresDataArray)
+TEST(BuiltinFunctionTest, IndepAcceptsMeasurement)
 {
     rel::Environment env;
     rel::Environment::InitBuiltinFunctions();
 
-    // First argument must be a DataArray.
-    EXPECT_THROW(rel::Eval("indep(1, 1)", &env), std::runtime_error);
+    // A Measurement is accepted: as_data_array_view() promotes it to a 1-row
+    // Independent DataArray, so indep(1) yields the single leaf index 0.
+    rel::Value v = rel::Eval("indep(1, 1)", &env);
+    ASSERT_TRUE(v.is_data_array());
+    EXPECT_EQ(v.rows(), 1);
+    EXPECT_EQ(v.data().scalar_at<int>(0), 0);
 }
 
 TEST(BuiltinFunctionTest, IndepRequiresIntOrString)
@@ -1140,4 +1144,70 @@ TEST(BuiltinFunctionTest, YMarkOnMeasurement)
     ASSERT_EQ(xs.size(), 1u);
     EXPECT_DOUBLE_EQ(xs[0], 0.0);
     EXPECT_DOUBLE_EQ(ys[0], 5.0);
+}
+
+// =========================================================================
+//  sweep_size / sweep_dim
+// =========================================================================
+
+TEST(BuiltinFunctionTest, SweepSizeAndDimOn1D)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+    register_marker_dataset();   // freq {1,2} (2 rows), Vout dependent
+
+    // Vout: 1 dimension of size 2 -> size 2, dim 1.
+    rel::Value size = rel::Eval("sweep_size(Vout)", &env);
+    ASSERT_TRUE(size.is_measurement());
+    EXPECT_EQ(size.as_measurement().as_scalar<int>(), 2);
+
+    rel::Value dim = rel::Eval("sweep_dim(Vout)", &env);
+    ASSERT_TRUE(dim.is_measurement());
+    EXPECT_EQ(dim.as_measurement().as_scalar<int>(), 1);
+}
+
+TEST(BuiltinFunctionTest, SweepSizeAndDimOn2D)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+    register_marker_2d_dataset();   // bias {1,2} x freq {10,20,30} -> z 6 rows
+
+    // z: 2 dimensions (2 x 3) -> fully expanded size 6, dim 2.
+    rel::Value size = rel::Eval("sweep_size(z)", &env);
+    ASSERT_TRUE(size.is_measurement());
+    EXPECT_EQ(size.as_measurement().as_scalar<int>(), 6);
+
+    rel::Value dim = rel::Eval("sweep_dim(z)", &env);
+    ASSERT_TRUE(dim.is_measurement());
+    EXPECT_EQ(dim.as_measurement().as_scalar<int>(), 2);
+}
+
+TEST(BuiltinFunctionTest, SweepSizeAndDimOnSweepArray)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+
+    // [1,2,3,4] is an Independent DataArray with one dimension of size 4.
+    rel::Value size = rel::Eval("sweep_size([1,2,3,4])", &env);
+    ASSERT_TRUE(size.is_measurement());
+    EXPECT_EQ(size.as_measurement().as_scalar<int>(), 4);
+
+    rel::Value dim = rel::Eval("sweep_dim([1,2,3,4])", &env);
+    ASSERT_TRUE(dim.is_measurement());
+    EXPECT_EQ(dim.as_measurement().as_scalar<int>(), 1);
+}
+
+TEST(BuiltinFunctionTest, SweepSizeAndDimOnMeasurement)
+{
+    rel::Environment env;
+    rel::Environment::InitBuiltinFunctions();
+
+    // A Measurement is promoted to a 1-row array: size 1, dim 1.
+    rel::Value size = rel::Eval("sweep_size(5)", &env);
+    ASSERT_TRUE(size.is_measurement());
+    EXPECT_EQ(size.as_measurement().as_scalar<int>(), 1);
+
+    rel::Value dim = rel::Eval("sweep_dim(5)", &env);
+    ASSERT_TRUE(dim.is_measurement());
+    EXPECT_EQ(dim.as_measurement().as_scalar<int>(), 1);
 }
