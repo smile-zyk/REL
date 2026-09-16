@@ -304,6 +304,8 @@ REL 不支持注释语法（例如 `//` 或 `/* ... */` 均不属于语言语法
 | 4 | `*` | 乘法 | `expr * expr` |
 | 4 | `/` | 除法 | `expr / expr` |
 | 4 | `%` | 整数除法取余（模） | `expr % expr` |
+| 4 | `.*` | 逐元素乘法（MATLAB `.*`，等价 `times()`） | `expr .* expr` |
+| 4 | `./` | 逐元素除法（MATLAB `./`，等价 `rdivide()`） | `expr ./ expr` |
 | 5 | `+` | 加法 | `expr + expr` |
 | 5 | `-` | 减法 | `expr - expr` |
 | 6 | `<<` | 按位左移 | `expr << expr` |
@@ -324,7 +326,7 @@ REL 不支持注释语法（例如 `//` 或 `/* ... */` 均不属于语言语法
 
 **运算语义要点**（详细的类型/形状/单位推导规则见 `third_party/xdataset/docs/Architecture.md`）：
 
-- `*` 与 `/` 对**矩阵**操作数分别解释为矩阵乘法与 `A × inv(B)`；操作数含 Scalar 时退化为逐元素广播。需要纯逐元素乘/除时使用函数 `times()` / `rdivide()`（见[内建函数参考](#内建函数参考)）。
+- `*` 与 `/` 对**矩阵**操作数分别解释为矩阵乘法与 `A × inv(B)`；操作数含 Scalar 时退化为逐元素广播。需要纯逐元素乘/除时使用运算符 `.*` / `./` 或函数 `times()` / `rdivide()`（见[内建函数参考](#内建函数参考)）。`.*` / `./` 与 `times` / `rdivide` 完全等价，对应 MATLAB 的 `.*` / `./`。
 - `+ - * / %` 按提升规则确定结果类型：`Integer → Real → Complex`；其中 `/` 的 `Integer / Integer` 强制提升为 `Real`（如 `10 / 2` 结果是 `5.0`，不是 `5`）。
 - 比较（`==`、`<` …）、逻辑（`&&`、`\|\|`、`!`）与按位运算的结果类型为 **Boolean / Integer**，无量纲；比较要求双方量纲一致。
 - 所有二元运算在 DataArray 参与时**逐行**进行，且支持行广播（1 行的一方自动复制到另一方的行数）；单个 Measurement 与 DataArray 运算时自动广播到 DataArray 的每一行。
@@ -479,7 +481,19 @@ REL 语言整体大小写敏感。
 | `variables` | `variables()` | DataArray (Independent, String) | 宿主环境绑定的用户变量名（当前实现返回空数组） |
 | `what` | `what(x)` | DataArray (Independent, String) | x 的元信息：Dependency、Kind、Dimension、Data Shape、Data Type，带量纲时含 Unit |
 | `indep` | `indep(da, selector = 1)` | DataArray (Independent) | 提取 da 的某个独立变量作为坐标轴。`selector` 为 1-based 整数（`1` = 最内层维度）或独立变量名字符串；缺省为 `1` |
+| `sweep_size` | `sweep_size(da)` | Measurement (Integer) | da 的所有独立维度**全展开后的总行数**（各维度尺寸之积，即 `compute_cell_count()`）。Measurement 提升为 1 行数组，故返回 `1` |
+| `sweep_dim` | `sweep_dim(da)` | Measurement (Integer) | da 的**独立维度数量**（即 rank）。Measurement 提升为单维 1 行数组，故返回 `1` |
+| `vertcat` | `vertcat(a, b)` | 同输入 | 纵向拼接（MATLAB `[A; B]` / `vertcat`），等价于 `{{a},{b}}`：行数相加、列数必须一致 |
+| `horzcat` | `horzcat(a, b)` | 同输入 | 横向拼接（MATLAB `[A B]` / `horzcat`），等价于 `{a,b}`：列数相加、行数按广播规则对齐 |
 | `output` | `output(da, variable_name = "data")` | Measurement (String) | 将 da 展开为 DataFrame 并写出 `<variable_name>.csv`（相对当前工作目录），返回文件路径字符串 |
+
+`vertcat` / `horzcat` 是 `{}` 生成器两个形态的函数化入口，供 Python 插件直接调用
+（避免 numpy 往返导致量纲丢失）：
+
+```
+X = [{{1,2},{3,4}}, {{5,6},{7,8}}]   # 2 行，每行一个 2x2 矩阵单元
+vertcat(X[0], X[1])                  # -> 4x2 矩阵  1 2 / 3 4 / 5 6 / 7 8
+```
 
 `what()` 输出示例：
 
@@ -547,7 +561,7 @@ Unit: V
 | 按位 | `bitand(x, y)` `bitor(x, y)` `bitxor(x, y)` `bitnot(x)` `shiftleft(x, y)` `shiftright(x, y)` |
 | 其他 | `negate(x)` `conditional(condition, true_value, false_value)` |
 
-其中 `times` / `rdivide` 是**纯逐元素**乘/除（对应 MATLAB 的 `.*` / `./`），与矩阵语义的 `*` / `/`（`multiply` / `divide`）不同，用于对矩阵做逐元素广播运算。
+其中 `times` / `rdivide` 是**纯逐元素**乘/除（对应 MATLAB 的 `.*` / `./`），与矩阵语义的 `*` / `/`（`multiply` / `divide`）不同，用于对矩阵做逐元素广播运算。二者也以运算符形式直接可用：`a .* b` ≡ `times(a, b)`，`a ./ b` ≡ `rdivide(a, b)`。
 
 ## Python 拓展
 
