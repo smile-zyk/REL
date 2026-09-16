@@ -58,6 +58,8 @@ namespace rel
         OP_MUL,   // *
         OP_DIV,   // /
         OP_MOD,   // %
+        OP_TIMES, // .*    element-wise multiply (MATLAB .*, maps to times())
+        OP_RDIV,  // ./    element-wise divide (MATLAB ./, maps to rdivide())
         OP_BXOR,  // ^
         OP_BOR,   // |
         OP_BAND,  // &

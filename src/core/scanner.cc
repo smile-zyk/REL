@@ -274,8 +274,12 @@ namespace rel
                 // --- Dot family ---------------------------------------------
                 // DDOT > DOT by maximal munch. A '.' followed by a digit starts
                 // a leading-dot real literal (Spec 1.4 REAL_NUM = \.[0-9]+...).
+                // MATLAB-style element-wise operators: '.*' (times) and './'
+                // (rdivide) take precedence over a bare DOT.
                 case '.':
                     if (match('.')) { emit(TokenType::DDOT); return; }
+                    if (match('*')) { emit(TokenType::OP_TIMES); return; }
+                    if (match('/')) { emit(TokenType::OP_RDIV);  return; }
                     if (is_digit(peek()))
                     {
                         // Rewind so the numeric scanner sees the leading dot.

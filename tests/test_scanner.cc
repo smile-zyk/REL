@@ -108,6 +108,21 @@ TEST(ScannerTest, MultiCharOperators)
     EXPECT_EQ(t[10].type, TokenType::DDOT);
 }
 
+TEST(ScannerTest, ElementWiseOperators)
+{
+    // MATLAB-style .* (times) and ./ (rdivide): DOT followed by * or /.
+    auto t = scan("a.*b a./b a .* b");
+    EXPECT_EQ(t[0].type, TokenType::IDENTIFIER);
+    EXPECT_EQ(t[1].type, TokenType::OP_TIMES);
+    EXPECT_EQ(t[2].type, TokenType::IDENTIFIER);
+    EXPECT_EQ(t[3].type, TokenType::IDENTIFIER);
+    EXPECT_EQ(t[4].type, TokenType::OP_RDIV);
+    EXPECT_EQ(t[5].type, TokenType::IDENTIFIER);
+    EXPECT_EQ(t[6].type, TokenType::IDENTIFIER);
+    EXPECT_EQ(t[7].type, TokenType::OP_TIMES);
+    EXPECT_EQ(t[8].type, TokenType::IDENTIFIER);
+}
+
 TEST(ScannerTest, SingleCharOperators)
 {
     auto t = scan("+ - * / % ^ | & ~ ! ? : < >");

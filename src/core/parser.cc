@@ -182,7 +182,8 @@ namespace rel
     {
         ExprPtr expr = unary();
         while (expr &&
-               (match(TokenType::OP_MUL) || match(TokenType::OP_DIV) || match(TokenType::OP_MOD)))
+               (match(TokenType::OP_MUL) || match(TokenType::OP_DIV) || match(TokenType::OP_MOD) ||
+                match(TokenType::OP_TIMES) || match(TokenType::OP_RDIV)))
         {
             Token op = previous();
             ExprPtr right = unary();

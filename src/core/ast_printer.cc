@@ -108,6 +108,10 @@ namespace rel
                 return "/";
             case TokenType::OP_MOD:
                 return "%";
+            case TokenType::OP_TIMES:
+                return ".*";
+            case TokenType::OP_RDIV:
+                return "./";
             case TokenType::OP_BXOR:
                 return "^";
             case TokenType::OP_BOR:

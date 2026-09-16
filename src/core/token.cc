@@ -39,6 +39,8 @@ namespace rel
             case TokenType::OP_MUL: return "OP_MUL";
             case TokenType::OP_DIV: return "OP_DIV";
             case TokenType::OP_MOD: return "OP_MOD";
+            case TokenType::OP_TIMES: return "OP_TIMES";
+            case TokenType::OP_RDIV: return "OP_RDIV";
             case TokenType::OP_BXOR: return "OP_BXOR";
             case TokenType::OP_BOR: return "OP_BOR";
             case TokenType::OP_BAND: return "OP_BAND";

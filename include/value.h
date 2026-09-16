@@ -195,7 +195,8 @@ public:
 
     /// Extract an independent variable as a Value (Independent DataArray).
     /// Indep index is 1-based, innermost-first (1 = innermost).
-    /// Measurement-backed: throws runtime_error.
+    /// Measurement-backed: promoted via as_data_array_view() to a 1-row
+    /// Independent DataArray, so index 1 yields the single leaf index 0.
     /// DataArray-backed: delegates to DataArray::indep().
     Value indep(xdataset::Index index = 1) const;
 

@@ -127,6 +127,10 @@ rel::Value Evaluator::apply_binary(TokenType op, const rel::Value& lhs, const re
         case TokenType::OP_MUL:  return lhs * rhs;
         case TokenType::OP_DIV:  return lhs / rhs;
         case TokenType::OP_MOD:  return lhs % rhs;
+        case TokenType::OP_TIMES:
+            return rel::operation::OperationTimes(lhs, rhs);   // .* element-wise
+        case TokenType::OP_RDIV:
+            return rel::operation::OperationRdivide(lhs, rhs); // ./ element-wise
         case TokenType::OP_SHL:  return lhs << rhs;
         case TokenType::OP_SHR:  return lhs >> rhs;
         case TokenType::OP_LT:   return lhs < rhs;

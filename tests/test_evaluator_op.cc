@@ -77,6 +77,55 @@ TEST(OperatorTest, RealDivision)
     EXPECT_TRUE(v.is_measurement());
 }
 
+TEST(OperatorTest, ElementWiseMultiplyScalar)
+{
+    // .* on scalars behaves like plain multiplication.
+    rel::Value v = Eval("3 .* 4");
+    EXPECT_EQ(v.as_measurement().as_scalar<int>(), 12);
+}
+
+TEST(OperatorTest, ElementWiseDivideScalar)
+{
+    rel::Value v = Eval("10 ./ 4");
+    EXPECT_DOUBLE_EQ(v.as_measurement().as_scalar<double>(), 2.5);
+}
+
+TEST(OperatorTest, ElementWiseMultiplyMatrix)
+{
+    // {{1,2},{3,4}} .* {{2,3},{4,5}} -> element-wise product.
+    rel::Value v = Eval("{{1,2},{3,4}} .* {{2,3},{4,5}}");
+    ASSERT_TRUE(v.is_measurement());
+    const auto m = v.as_measurement().as_matrix<int>();
+    EXPECT_EQ(m(0, 0), 2);
+    EXPECT_EQ(m(0, 1), 6);
+    EXPECT_EQ(m(1, 0), 12);
+    EXPECT_EQ(m(1, 1), 20);
+}
+
+TEST(OperatorTest, ElementWiseDivideMatrix)
+{
+    // {{6,8},{12,20}} ./ {{2,4},{3,5}} -> element-wise quotient.
+    rel::Value v = Eval("{{6,8},{12,20}} ./ {{2,4},{3,5}}");
+    ASSERT_TRUE(v.is_measurement());
+    const auto m = v.as_measurement().as_matrix<double>();
+    EXPECT_DOUBLE_EQ(m(0, 0), 3.0);
+    EXPECT_DOUBLE_EQ(m(0, 1), 2.0);
+    EXPECT_DOUBLE_EQ(m(1, 0), 4.0);
+    EXPECT_DOUBLE_EQ(m(1, 1), 4.0);
+}
+
+TEST(OperatorTest, ElementWiseMultiplyVector)
+{
+    // {1,2,3} .* {4,5,6} -> element-wise.
+    rel::Value v = Eval("{1,2,3} .* {4,5,6}");
+    ASSERT_TRUE(v.is_measurement());
+    const auto vec = v.as_measurement().as_vector<int>();
+    EXPECT_EQ(vec.size(), 3);
+    EXPECT_EQ(vec(0), 4);
+    EXPECT_EQ(vec(1), 10);
+    EXPECT_EQ(vec(2), 18);
+}
+
 // =========================================================================
 //  Shift
 // =========================================================================
