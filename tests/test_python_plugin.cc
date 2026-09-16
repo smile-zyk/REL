@@ -192,6 +192,32 @@ TEST_F(PythonPluginTest, MeasurementAndValueNumpy)
         "assert av.shape == (3,)    # a 3-row SCALAR series\n");
 }
 
+// data_kind (DATA shape kind) vs data_array_kind (Dependent / Independent).
+// These are two distinct notions and must not be conflated: data_kind is
+// scalar / vector / matrix, data_array_kind is dependent / independent.
+TEST_F(PythonPluginTest, DataKindVsDataArrayKind)
+{
+    RUN_PY(
+        "import rel\n"
+        // Independent DataArray: 4 rows of scalar cells.
+        "A = rel.eval('[1,2,3,4]')\n"
+        "assert A.data_kind == 'scalar', A.data_kind\n"
+        "assert A.data_array_kind == 'independent', A.data_array_kind\n"
+        // A 2x2 matrix Measurement: data_kind is matrix, array kind independent
+        // (Measurement is promoted to a 1-row Independent DataArray).
+        "M = rel.eval('{{1,2},{3,4}}')\n"
+        "assert M.data_kind == 'matrix', M.data_kind\n"
+        "assert M.data_array_kind == 'independent', M.data_array_kind\n"
+        // The same two accessors exist on the DataArray object itself.
+        "da = A.as_data_array()\n"
+        "assert da.data_kind == 'scalar', da.data_kind\n"
+        "assert da.data_array_kind == 'independent', da.data_array_kind\n"
+        // Measurement / DataSeries keep only data_kind (no array kind).
+        "m = rel.Measurement(1.0)\n"
+        "assert m.data_kind == 'scalar', m.data_kind\n"
+        "assert not hasattr(m, 'data_array_kind')\n");
+}
+
 TEST_F(PythonPluginTest, StringAndBooleanExport)
 {
     if (!g_numpy_available)

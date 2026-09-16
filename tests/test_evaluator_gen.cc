@@ -23,7 +23,7 @@ TEST(SweepExprTest, ThreeScalars)
     rel::Value v = Eval("[1.0, 2.0, 3.0]");
     EXPECT_TRUE(v.is_data_array());
     auto& da = v.as_data_array();
-    EXPECT_EQ(da.data_kind(), xdataset::DataArrayKind::kIndependent);
+    EXPECT_EQ(da.data_array_kind(), xdataset::DataArrayKind::kIndependent);
     EXPECT_EQ(da.data().size(), 3u);
     EXPECT_EQ(da.data().data_kind(), xdataset::DataKind::kScalar);
 }

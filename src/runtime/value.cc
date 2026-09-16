@@ -115,7 +115,11 @@ std::vector<std::string> Value::indep_names() const {
 }
 
 bool Value::is_dependent() const {
-    return as_data_array_view().data_kind() == DataArrayKind::kDependent;
+    return as_data_array_view().data_array_kind() == DataArrayKind::kDependent;
+}
+
+DataArrayKind Value::data_array_kind() const {
+    return as_data_array_view().data_array_kind();
 }
 
 const MultiDimensionSpec& Value::dimension_spec() const {
@@ -274,7 +278,7 @@ Value Value::canonicalized() const
         DataArrayCreateInfo info;
         info.datas                = std::move(canonical_datas);
         info.multi_dimension_spec = da.multi_dimension_spec();
-        info.kind                 = da.data_kind();
+        info.kind                 = da.data_array_kind();
 
         return Value(std::make_shared<DataArray>(std::move(info)));
     }

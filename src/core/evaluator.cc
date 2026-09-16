@@ -705,7 +705,7 @@ void Evaluator::visit_index(const IndexExpr& expr)
     xdataset::DataArray da = obj.as_data_array().select(selectors);
 
     // Unwrap single-row, single-cell Independent DataArray -> Measurement.
-    if (da.data_kind() == xdataset::DataArrayKind::kIndependent &&
+    if (da.data_array_kind() == xdataset::DataArrayKind::kIndependent &&
         da.datas().size() == 1 &&
         da.data().size() == 1)
     {

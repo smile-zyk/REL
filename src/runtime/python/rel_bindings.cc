@@ -181,6 +181,10 @@ void register_rel_bindings(pybind11::module_& m)
         .def("is_canonicalized", &rel::Value::is_canonicalized)
         // metadata
         .def_property_readonly("data_kind", [](const rel::Value& v) { return kind_str(v.data_kind()); })
+        .def_property_readonly("data_array_kind", [](const rel::Value& v) {
+            return v.data_array_kind() == xdataset::DataArrayKind::kDependent
+                       ? "dependent" : "independent";
+        })
         .def_property_readonly("data_type", [](const rel::Value& v) { return type_str(v.data_type()); })
         .def_property_readonly("unit", [](const rel::Value& v) { return v.unit(); })
         .def_property_readonly("rows", &rel::Value::rows)

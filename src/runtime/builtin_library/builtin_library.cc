@@ -170,7 +170,7 @@ Value Permute(const Value& data_val, const Value& perm_val)
         throw std::runtime_error("permute: first argument must be a DataArray");
 
     const xdataset::DataArray& da = data_val.as_data_array();
-    if (da.data_kind() != xdataset::DataArrayKind::kDependent)
+    if (da.data_array_kind() != xdataset::DataArrayKind::kDependent)
         throw std::runtime_error(
             "permute: only dependent DataArrays can be permuted");
 
@@ -501,7 +501,7 @@ namespace
     {
         if (da.multi_dimension_spec().rank() == 0)
             throw std::runtime_error("mark: DataArray has no dimensions");
-        if (da.data_kind() == xdataset::DataArrayKind::kDependent)
+        if (da.data_array_kind() == xdataset::DataArrayKind::kDependent)
             return da.indep_data(1);   // 1 = innermost
         return da.self_index_series();
     };
@@ -524,7 +524,7 @@ namespace
     {
         const xdataset::DataSeries& data = da.data();
         const bool is_indep =
-            (da.data_kind() == xdataset::DataArrayKind::kIndependent);
+            (da.data_array_kind() == xdataset::DataArrayKind::kIndependent);
         const std::size_t n = rows.size();
 
         auto sample = [](xdataset::DataSeries& dst, xdataset::Index r,
@@ -688,7 +688,7 @@ Value Mark(const Value& da_val, const Value& x_val, const Value& y_val)
             const xdataset::Index x_idx =
                 dim_ri[static_cast<std::size_t>(rank) - 1];
             const xdataset::Index y_idx =
-                (da.data_kind() == xdataset::DataArrayKind::kIndependent)
+                (da.data_array_kind() == xdataset::DataArrayKind::kIndependent)
                 ? x_idx : leaf.row_flat;
             const double xi = scalar_series_at(x_series, x_idx);
             const double yi = data_value_distance(data_series, y_idx, target_y);
@@ -778,7 +778,7 @@ Value YMark(const Value& da_val, const Value& y_val)
         throw std::runtime_error("y_mark: data must be Real, Integer, or Complex");
 
     const bool is_indep =
-        (da.data_kind() == xdataset::DataArrayKind::kIndependent);
+        (da.data_array_kind() == xdataset::DataArrayKind::kIndependent);
 
     std::vector<MarkRow> rows;
     if (rank >= 2)

@@ -1,4 +1,4 @@
-// Builtin function tests: runtime introspection (datasets, default_dataset,
+﻿// Builtin function tests: runtime introspection (datasets, default_dataset,
 // variables) and the math library (sin, cos, tan, log, ln, log10).
 
 #include "rel.h"
@@ -61,7 +61,7 @@ namespace
     {
         EXPECT_TRUE(v.is_data_array());
         const xdataset::DataArray& da = v.as_data_array();
-        EXPECT_EQ(da.data_kind(), xdataset::DataArrayKind::kIndependent);
+        EXPECT_EQ(da.data_array_kind(), xdataset::DataArrayKind::kIndependent);
         EXPECT_EQ(da.data().data_type(), xdataset::DataType::kString);
 
         std::vector<std::string> rows;
@@ -124,7 +124,7 @@ TEST(BuiltinFunctionTest, DatasetsEmpty)
 
     rel::Value v = rel::Eval("datasets()", &env);
     EXPECT_TRUE(v.is_data_array());
-    EXPECT_EQ(v.as_data_array().data_kind(), xdataset::DataArrayKind::kIndependent);
+    EXPECT_EQ(v.as_data_array().data_array_kind(), xdataset::DataArrayKind::kIndependent);
     EXPECT_EQ(v.as_data_array().data().data_type(), xdataset::DataType::kString);
 
     std::vector<std::string> rows = payload(v);
@@ -314,7 +314,7 @@ TEST(BuiltinFunctionTest, IndepByIndex)
     rel::Value v = rel::Eval("indep(Vout, 1)", &env);
     ASSERT_TRUE(v.is_data_array());
     const xdataset::DataArray& da = v.as_data_array();
-    EXPECT_EQ(da.data_kind(), xdataset::DataArrayKind::kIndependent);
+    EXPECT_EQ(da.data_array_kind(), xdataset::DataArrayKind::kIndependent);
     EXPECT_EQ(da.data().size(), 2u);
     EXPECT_EQ(da.data().data_type(), xdataset::DataType::kReal);
 }
@@ -332,7 +332,7 @@ TEST(BuiltinFunctionTest, IndepByName)
     // indep(Vout, "freq") — extract by independent variable name.
     rel::Value v = rel::Eval("indep(Vout, \"freq\")", &env);
     ASSERT_TRUE(v.is_data_array());
-    EXPECT_EQ(v.as_data_array().data_kind(), xdataset::DataArrayKind::kIndependent);
+    EXPECT_EQ(v.as_data_array().data_array_kind(), xdataset::DataArrayKind::kIndependent);
     EXPECT_EQ(v.as_data_array().data().size(), 2u);
 }
 
@@ -349,7 +349,7 @@ TEST(BuiltinFunctionTest, IndepDefaultSelector)
     // indep(Vout) — selector defaults to 1 (first independent variable).
     rel::Value v = rel::Eval("indep(Vout)", &env);
     ASSERT_TRUE(v.is_data_array());
-    EXPECT_EQ(v.as_data_array().data_kind(), xdataset::DataArrayKind::kIndependent);
+    EXPECT_EQ(v.as_data_array().data_array_kind(), xdataset::DataArrayKind::kIndependent);
     EXPECT_EQ(v.as_data_array().data().size(), 2u);
 }
 
@@ -766,7 +766,7 @@ TEST(BuiltinFunctionTest, MathOnDatasetVariable)
     rel::Value v = rel::Eval("sin(Vout)", &env);
     ASSERT_TRUE(v.is_data_array());
     const xdataset::DataArray& da = v.as_data_array();
-    EXPECT_EQ(da.data_kind(), xdataset::DataArrayKind::kDependent);
+    EXPECT_EQ(da.data_array_kind(), xdataset::DataArrayKind::kDependent);
     EXPECT_EQ(da.data().data_type(), xdataset::DataType::kReal);
     EXPECT_EQ(da.data().size(), 2u);
     EXPECT_EQ(da.indep_names().size(), 1u);
@@ -927,7 +927,7 @@ namespace
     {
         ASSERT_TRUE(v.is_data_array());
         const xdataset::DataArray& da = v.as_data_array();
-        ASSERT_EQ(da.data_kind(), xdataset::DataArrayKind::kDependent);
+        ASSERT_EQ(da.data_array_kind(), xdataset::DataArrayKind::kDependent);
 
         // Two columns: one named independent + kSelf.
         const std::vector<std::string>& names = da.indep_names();

@@ -93,7 +93,16 @@ public:
 
     // ---- unified metadata ----------------------------------------------
 
+    /// Shape kind of the data (Scalar / Vector / Matrix).  For a DataArray
+    /// this is the kind of its self data series, NOT the Dependent /
+    /// Independent distinction -- see data_array_kind().
     xdataset::DataKind  data_kind() const;
+
+    /// Dependent (self is a value column) vs Independent (self is the
+    /// innermost coordinate column).  Measurement is always promoted to an
+    /// Independent 1-row array, so this returns kIndependent for it.
+    xdataset::DataArrayKind data_array_kind() const;
+
     xdataset::DataType  data_type() const;
     xdataset::DataShape data_shape() const;
     const xdataset::Unit& unit() const;

@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 //  xdataset -- operation_test.cc
 // =============================================================================
 //
@@ -891,7 +891,7 @@ TEST(OperationHorzcatTest, PreservesFirstDataArrayMetadata)
     ASSERT_TRUE(result.is_data_array());
     const auto& arr = result.as_data_array();
     EXPECT_EQ(arr.multi_dimension_spec().rank(), 2u);
-    EXPECT_EQ(arr.data_kind(), DataArrayKind::kDependent);
+    EXPECT_EQ(arr.data_array_kind(), DataArrayKind::kDependent);
 }
 
 TEST(OperationHorzcatTest, TwoScalarsStayVector)

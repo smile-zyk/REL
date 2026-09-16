@@ -659,9 +659,13 @@ void register_xdataset_bindings(pybind11::module_& m)
 
     // ---- DataArray ----------------------------------------------------
     pybind11::class_<DataArray>(m, "DataArray", pybind11::buffer_protocol())
-        .def_property_readonly("data_kind", [](const DataArray& d) {
-            return d.data_kind() == DataArrayKind::kDependent ? "dependent" : "independent";
-        }) 
+        // data_kind() is the DATA shape kind (scalar / vector / matrix), the
+        // same notion as DataSeries::data_kind() and Measurement::data_kind().
+        .def_property_readonly("data_kind", [](const DataArray& d) { return kind_str(d.data_kind()); })
+        // data_array_kind() is the ARRAY kind: Dependent vs Independent.
+        .def_property_readonly("data_array_kind", [](const DataArray& d) {
+            return d.data_array_kind() == DataArrayKind::kDependent ? "dependent" : "independent";
+        })
         .def_property_readonly("indep_names", &DataArray::indep_names)
         .def_property_readonly("source_block_path", &DataArray::source_block_path)
         .def_property_readonly("source_name", &DataArray::source_name)
